@@ -1,0 +1,286 @@
+#!/usr/bin/env python3
+"""
+GoldGen Service - Generate educational content about gold prospecting
+"""
+
+from google import genai
+import os
+import json
+from pathlib import Path
+from datetime import datetime
+
+class GoldGenService:
+    def __init__(self, api_key):
+        self.client = genai.Client(api_key=api_key)
+        self.model = 'gemini-3-flash-preview'
+        
+        # Topic rotation state
+        self.state_file = Path(__file__).parent / "data" / "topic_state.json"
+        self.topics = [
+            {
+                "id": 1,
+                "headline": "READING THE RIVER",
+                "subtitle": "Gold drops where water slows down.",
+                "list_header": "KEY DEPOSIT ZONES",
+                "list_points": [
+                    "Inside bends (Low Pressure Zone)",
+                    "Behind large boulders (Eddies)",
+                    "Bedrock cracks (Natural Riffles)",
+                    "Moss roots (Fine Gold Traps)"
+                ],
+                "visual_style": "National Geographic Cross-Section",
+                "layout": "CROSS-SECTION CUTAWAY",
+                "composition": "A realistic National Geographic style cross-section of a river bend. Show the water velocity slowing down on the inside curve, depositing gold flakes in the gravel layers. Bright daylight lighting, educational labels."
+            },
+            {
+                "id": 2,
+                "headline": "BEDROCK TRAPS",
+                "subtitle": "Nature's own sluice box.",
+                "list_header": "TRAP TYPES",
+                "list_points": [
+                    "Vertical crevices (Deep catchers)",
+                    "Boiler holes (Swirling traps)",
+                    "Rough slate edges (Natural Riffles)",
+                    "Limestone pockets (Chemical traps)"
+                ],
+                "visual_style": "Survivor Manual",
+                "layout": "VISUAL CHECKLIST",
+                "composition": "Survivor Manual aesthetic. Rough wood or dirt background. A rugged illustration of a dry riverbed showing exposed bedrock crevices filled with packed gravel and gold. Tools like pickaxes and pans arranged as borders."
+            },
+            {
+                "id": 3,
+                "headline": "QUARTZ INDICATORS",
+                "subtitle": "Rusty and rotten holds the fortune.",
+                "list_header": "WHAT TO LOOK FOR",
+                "list_points": [
+                    "Iron staining (Red/Orange Oxide)",
+                    "Boxwork texture (Honeycombed)",
+                    "Sulfide presence (Pyrite/Arsenopyrite)",
+                    "Fractured structure (Not solid white)"
+                ],
+                "visual_style": "Vintage Field Guide",
+                "layout": "FIELD SIGNS GRID",
+                "composition": "Vintage Field Guide aesthetic. Aged parchment paper texture background. Hand-drawn scientific illustration of a 'rotten' quartz vein with iron oxide stains versus a sterile white quartz chunk. Typography looks like an old manual."
+            },
+            {
+                "id": 4,
+                "headline": "IRON STAINING",
+                "subtitle": "Rust is the color of money.",
+                "list_header": "OXIDATION SIGNS",
+                "list_points": [
+                    "Red Hematite stains",
+                    "Orange Limonite crusts",
+                    "Black Manganese coatings",
+                    "Gossan caps on veins"
+                ],
+                "visual_style": "Dark Rock Macro",
+                "layout": "THE GOLDEN PATH",
+                "composition": "Dark Rock Macro style. Extreme close-up of a rusty, oxidized rock surface. The red and orange iron stains contrast with the dark rock matrix. A small vein of gold is visible within the rust. High contrast lighting."
+            },
+            {
+                "id": 5,
+                "headline": "BLACK SAND SECRETS",
+                "subtitle": "Heavy minerals lead the way.",
+                "list_header": "COMPOSITION",
+                "list_points": [
+                    "Magnetite (Magnetic)",
+                    "Hematite (Non-magnetic red)",
+                    "Ilmenite (Titanium iron)",
+                    "Gold (Heaviest of all)"
+                ],
+                "visual_style": "Detailed Diagrammatic",
+                "layout": "STEP-BY-STEP PROCESS",
+                "composition": "Detailed Diagrammatic style. A split screen showing a gold pan. Top half: The raw gravel mix. Bottom half: The concentrated black sand with gold flakes at the edge. Arrows indicate the panning motion to separate the layers."
+            },
+            {
+                "id": 6,
+                "headline": "GOLD VS PYRITE",
+                "subtitle": "The hammer never lies.",
+                "list_header": "FIELD TEST",
+                "list_points": [
+                    "Gold: Dents / Malleable",
+                    "Pyrite: Shatters / Brittle",
+                    "Gold: Yellow in shade",
+                    "Pyrite: Greenish-grey in shade"
+                ],
+                "visual_style": "Vintage Field Guide",
+                "layout": "VISUAL CHECKLIST",
+                "composition": "Vintage Field Guide aesthetic. Two illustrations side-by-side. Left: A hammer striking a gold nugget which flattens. Right: A hammer striking a pyrite cube which explodes into dust. Old-school scientific drawing style."
+            },
+            {
+                "id": 7,
+                "headline": "ANCIENT CHANNELS",
+                "subtitle": "High benches hold forgotten wealth.",
+                "list_header": "LOCATING BENCHES",
+                "list_points": [
+                    "Rounded river rocks on hillsides",
+                    "Flat distinct terraces above river",
+                    "Color change in soil layers",
+                    "Old vegetation lines"
+                ],
+                "visual_style": "National Geographic Cross-Section",
+                "layout": "CROSS-SECTION CUTAWAY",
+                "composition": "National Geographic Cross-Section. A cutaway of a valley side. The modern river is at the bottom, but an 'ancient' blue channel is shown high up on the cliffside with gold deposits. Clean, highly realistic 3D cutaway."
+            },
+            {
+                "id": 8,
+                "headline": "PLACER VS LODE",
+                "subtitle": "Tracking the source upstream.",
+                "list_header": "DEPOSIT TYPES",
+                "list_points": [
+                    "Placer: Rounded & Smooth (Water worn)",
+                    "Lode: Jagged & Rough (Near source)",
+                    "Placer: Riverbeds & Benches",
+                    "Lode: Veins & Hard Rock"
+                ],
+                "visual_style": "Detailed Diagrammatic",
+                "layout": "THE GOLDEN PATH",
+                "composition": "Detailed Diagrammatic style. An illustration of a mountain landscape. Arrows show gold eroding from a quartz vein (Lode) at the peak, tumbling down the slope, and becoming rounded nuggets in the river (Placer) below."
+            },
+            {
+                "id": 9,
+                "headline": "RUBY COMPANIONS",
+                "subtitle": "Garnets signal heavy ground.",
+                "list_header": "IDENTIFICATION",
+                "list_points": [
+                    "Deep red color",
+                    "Glassy luster",
+                    "Often dodecahedral shape",
+                    "Found with black sand"
+                ],
+                "visual_style": "Dark Rock Macro",
+                "layout": "FIELD SIGNS GRID",
+                "composition": "Dark Rock Macro style. A close-up of a pan bottom. Bright red garnets are mixed with black sand and a few gold flakes. The red gems pop against the dark background. High contrast, gritty texture."
+            },
+            {
+                "id": 10,
+                "headline": "FALSE BEDROCK",
+                "subtitle": "Clay layers trap gold too.",
+                "list_header": "CLAY SIGNS",
+                "list_points": [
+                    "Impermeable sticky layer",
+                    "Blue or grey color often",
+                    "Gold sits ON TOP of it",
+                    "Don't dig through it!"
+                ],
+                "visual_style": "Survivor Manual",
+                "layout": "CROSS-SECTION CUTAWAY",
+                "composition": "Survivor Manual aesthetic. A cross-section of a river bank. Showing a layer of dense blue clay sandwiched between gravel layers. Gold nuggets are shown resting directly on top of the clay layer, unable to sink further."
+            }
+        ]
+    
+    def get_next_topic(self):
+        """Get next topic in rotation"""
+        if self.state_file.exists():
+            with open(self.state_file, 'r') as f:
+                state = json.load(f)
+                current_index = state.get('current_topic_index', 0)
+        else:
+            current_index = 0
+        
+        topic = self.topics[current_index]
+        
+        # Update state for next run
+        next_index = (current_index + 1) % len(self.topics)
+        self.state_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(self.state_file, 'w') as f:
+            json.dump({'current_topic_index': next_index, 'last_updated': datetime.now().isoformat()}, f)
+        
+        return topic
+    
+    def generate_caption(self, topic):
+        """Generate educational caption for gold prospecting topic"""
+        
+        list_text = "\n".join([f"• {point}" for point in topic['list_points']])
+        
+        prompt = f"""Create an EDUCATIONAL CAPTION for a gold prospecting infographic post.
+
+TOPIC: {topic['headline']}
+SUBTITLE: {topic['subtitle']}
+
+KEY POINTS:
+{list_text}
+
+Requirements:
+1. Language: ENGLISH
+2. Max Length: 600 characters
+3. Structure:
+   (a) Hook with the headline concept
+   (b) Brief explanation of the technique
+   (c) Key takeaway or field tip
+   (d) Hashtags (4-6 relevant to gold prospecting)
+
+Style: Educational, practical, field-tested knowledge.
+Tone: Experienced prospector sharing wisdom.
+Format: Clean text without markdown symbols (no **, ##, etc)
+
+Example structure:
+"READING THE RIVER
+
+Gold doesn't travel far. It drops where the current slows - inside bends, behind boulders, in bedrock cracks. Learn to read the water's path and you'll find where nature's sluice box has been working for centuries.
+
+Field Tip: Look for moss-covered roots along the bank - they trap fine gold like natural riffles.
+
+#GoldProspecting #PlacerGold #RiverGold #GoldPanning #ProspectingTips"
+
+Generate similar caption for the current topic. Use plain text only, no markdown formatting.
+"""
+        
+        try:
+            response = self.client.models.generate_content(
+                model=self.model,
+                contents=prompt
+            )
+            return response.text
+        except Exception as e:
+            # Fallback caption
+            return f"""🪨 {topic['headline']}
+
+{topic['subtitle']}
+
+{topic['list_header']}:
+{list_text}
+
+Learn the signs. Find the gold.
+
+#GoldProspecting #PlacerGold #ProspectingTips #GoldPanning"""
+    
+    def generate_image_prompt(self, topic):
+        """Generate image prompt for gold prospecting infographic"""
+        
+        list_text = "\n".join([f"- {point}" for point in topic['list_points']])
+        
+        prompt = f"""Create a VERTICAL EDUCATIONAL INFOGRAPHIC POSTER about GOLD PROSPECTING.
+
+TEXT CONTENT TO INCLUDE (Must be legible):
+HEADLINE: "{topic['headline']}"
+SUBTITLE: "{topic['subtitle']}"
+LIST HEADER: "{topic['list_header']}"
+LIST POINTS:
+{list_text}
+
+VISUAL STYLE & COMPOSITION:
+{topic['composition']}
+
+MANDATORY ART DIRECTION:
+- STYLE: Realistic Illustration / Field Guide / National Geographic Diagram.
+- HEADER BANNER: Add a weathered, off-white/beige ribbon banner at the top with "fishtail" ends containing the headline. Classic field-guide or vintage explorer aesthetic. Add a secondary thinner banner below it in darker tan.
+- FRAME/BORDER: Use full-bleed composition with subtle vignetting (darkened edges/corners) to draw focus to center. No hard outer border.
+- TEXTURE: Detailed Rock textures, flowing water, dirt, rust, metallic gold.
+- ATMOSPHERE: Educational, scientific, rugged, outdoors. Modern high-end educational infographic combining adventurous treasure-hunting feel with technical precision.
+- LAYOUT: {topic['layout']} - Use distinct sections, arrows, or split screens to organize information. Left-aligned text boxes with pointer arrows linking to visual elements.
+- COLOR SCHEME: 
+  * Dominant: Earthy grays, browns, ochres (rock, soil, bedrock)
+  * Accent: Vibrant metallic gold yellows/oranges for gold particles
+  * Contrast: Deep burnt oranges for rust/iron, cool blues for water/highlights
+  * Earth tones, Slate Grey, River Blue, Rusty Orange, Bright Gold
+- TYPOGRAPHY: 
+  * Main title: Heavy condensed sans-serif all-caps, white with dark-gray drop shadow
+  * Body text: Clean modern sans-serif in tan text boxes
+  * Bold key terms for quick scanning
+- VISUAL ELEMENTS: Digital painting style balancing realistic textures with stylized educational elements. Use minimalist line icons in circles next to text boxes.
+- NO ABSTRACT ART. NO CARTOONS. It must look like a professional reference guide with modern high-tech feel.
+- Ensure all text is CLEARLY READABLE and properly integrated into the design.
+"""
+        
+        return prompt

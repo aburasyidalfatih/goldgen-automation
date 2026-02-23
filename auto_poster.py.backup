@@ -1,0 +1,453 @@
+#!/usr/bin/env python3
+"""
+GoldGen Auto Poster - Automated Facebook Posting
+Generates gold price posters and posts to Facebook every 3 hours
+"""
+
+import os
+import json
+import sqlite3
+import requests
+from datetime import datetime
+from pathlib import Path
+import google.generativeai as genai
+from PIL import Image, ImageDraw, ImageFont
+import io
+import base64
+
+# Configuration
+BASE_DIR = Path(__file__).parent
+DATA_DIR = BASE_DIR / "data"
+LOGS_DIR = BASE_DIR / "logs"
+IMAGES_DIR = BASE_DIR / "generated_images"
+DB_PATH = DATA_DIR / "posts.db"
+CONFIG_PATH = DATA_DIR / "config.json"
+
+# Ensure directories exist
+DATA_DIR.mkdir(exist_ok=True)
+LOGS_DIR.mkdir(exist_ok=True)
+IMAGES_DIR.mkdir(exist_ok=True)
+
+class GoldGenAutoPoster:
+    def __init__(self):
+        self.load_config()
+        self.init_database()
+        self.setup_gemini()
+        
+    def load_config(self):
+        """Load configuration from file"""
+        if CONFIG_PATH.exists():
+            with open(CONFIG_PATH, 'r') as f:
+                config = json.load(f)
+                self.gemini_api_key = config.get('gemini_api_key')
+                self.fanspages = config.get('fanspages', [])
+                
+                # Backward compatibility
+                if not self.fanspages and config.get('fb_page_id'):
+                    self.fanspages = [{
+                        'name': 'Default Page',
+                        'page_id': config.get('fb_page_id'),
+                        'access_token': config.get('fb_access_token'),
+                        'interval_hours': 3,
+                        'enabled': True
+                    }]
+        else:
+            raise Exception("Config file not found. Please run setup first.")
+    
+    def init_database(self):
+        """Initialize SQLite database for tracking posts"""
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS posts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TEXT NOT NULL,
+                page_id TEXT NOT NULL,
+                page_name TEXT,
+                content TEXT NOT NULL,
+                image_path TEXT,
+                fb_post_id TEXT,
+                status TEXT DEFAULT 'success',
+                error_message TEXT
+            )
+        ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS last_post_time (
+                page_id TEXT PRIMARY KEY,
+                last_posted TEXT NOT NULL
+            )
+        ''')
+        conn.commit()
+        conn.close()
+    
+    def setup_gemini(self):
+        """Setup Gemini AI with GoldGen style"""
+        from goldgen_service import GoldGenService
+        self.goldgen = GoldGenService(self.gemini_api_key)
+    
+    def get_gold_price(self):
+        """Fetch current gold price"""
+        try:
+            from gold_price_api import GoldPriceAPI
+            api = GoldPriceAPI()
+            return api.get_price('mock')  # Change to 'logammulia' or 'antam' when available
+        except Exception as e:
+            # Fallback to mock data
+            return {
+                'price': 1050000,
+                'change': '+2.5%',
+                'date': datetime.now().strftime('%d %B %Y')
+            }
+    
+    def generate_content(self):
+        """Generate post content using GoldGen style"""
+        gold_data = self.get_gold_price()
+        
+        try:
+            caption = self.goldgen.generate_caption(
+                gold_data['price'],
+                gold_data['change'],
+                gold_data['date']
+            )
+            return caption
+        except Exception as e:
+            print(f"   ⚠️  GoldGen caption error: {e}, using fallback...")
+            return self._generate_fallback_caption(gold_data)
+    
+    def _generate_fallback_caption(self, gold_data):
+        """Fallback caption if GoldGen fails"""
+        return f"""💰 UPDATE HARGA EMAS HARI INI
+
+Harga emas per gram: Rp {gold_data['price']:,}
+Perubahan: {gold_data['change']}
+Tanggal: {gold_data['date']}
+
+Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
+
+#HargaEmas #InvestasiEmas #EmasHariIni #GoldPrice"""
+    
+    def generate_poster_image(self, gold_data):
+        """Generate poster image using GoldGen style with Gemini Image Generation"""
+        try:
+            # Generate image prompt using GoldGen style
+            image_prompt = self.goldgen.generate_image_prompt(
+                gold_data['price'],
+                gold_data['change'],
+                gold_data['date']
+            )
+            
+            print(f"   Generating image with Gemini...")
+            
+            # Use Gemini to generate image
+            import google.generativeai as genai
+            genai.configure(api_key=self.gemini_api_key)
+            
+            response = genai.models.generateContent({
+                'model': 'gemini-3-pro-image-preview',
+                'contents': {
+                    'parts': [{'text': image_prompt}]
+                },
+                'config': {
+                    'imageConfig': {
+                        'aspectRatio': '9:16',
+                        'imageSize': '1K'
+                    }
+                }
+            })
+            
+            # Extract image data
+            parts = response.candidates[0].content.parts if response.candidates else []
+            for part in parts:
+                if hasattr(part, 'inlineData') and part.inlineData and part.inlineData.data:
+                    # Save image
+                    import base64
+                    image_data = part.inlineData.data
+                    image_bytes = base64.b64decode(image_data)
+                    
+                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                    image_path = IMAGES_DIR / f"gold_poster_{timestamp}.png"
+                    
+                    with open(image_path, 'wb') as f:
+                        f.write(image_bytes)
+                    
+                    return image_path
+            
+            # If no image generated, use fallback
+            print(f"   ⚠️  No image from Gemini, using fallback...")
+            return self._generate_fallback_image(gold_data)
+            
+        except Exception as e:
+            print(f"   ⚠️  Gemini image error: {e}, using fallback...")
+            return self._generate_fallback_image(gold_data)
+    
+    def _generate_fallback_image(self, gold_data):
+        """Fallback: Generate poster image locally if web app unavailable"""
+        # Create image 1080x1080 (Instagram/Facebook square format)
+        width, height = 1080, 1080
+        
+        # Gold gradient background
+        img = Image.new('RGB', (width, height), color='#0a0a0a')
+        draw = ImageDraw.Draw(img)
+        
+        # Draw gradient effect
+        for i in range(height):
+            shade = int(10 + (i / height) * 30)
+            draw.rectangle([(0, i), (width, i+1)], fill=f'#{shade:02x}{shade:02x}{shade:02x}')
+        
+        # Add gold accent border
+        border_width = 20
+        draw.rectangle([(border_width, border_width), 
+                       (width-border_width, height-border_width)], 
+                      outline='#D4A523', width=border_width)
+        
+        # Text content
+        try:
+            # Try to use custom font (if available)
+            title_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 80)
+            price_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 120)
+            info_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 50)
+        except:
+            # Fallback to default
+            title_font = ImageFont.load_default()
+            price_font = ImageFont.load_default()
+            info_font = ImageFont.load_default()
+        
+        # Draw text
+        title_text = "HARGA EMAS HARI INI"
+        price_text = f"Rp {gold_data['price']:,}"
+        change_text = gold_data['change']
+        date_text = gold_data['date']
+        
+        # Center text
+        title_bbox = draw.textbbox((0, 0), title_text, font=title_font)
+        title_width = title_bbox[2] - title_bbox[0]
+        draw.text(((width - title_width) / 2, 200), title_text, 
+                 fill='#D4A523', font=title_font)
+        
+        price_bbox = draw.textbbox((0, 0), price_text, font=price_font)
+        price_width = price_bbox[2] - price_bbox[0]
+        draw.text(((width - price_width) / 2, 450), price_text, 
+                 fill='#FFFFFF', font=price_font)
+        
+        change_color = '#00FF00' if '+' in change_text else '#FF0000'
+        change_bbox = draw.textbbox((0, 0), change_text, font=info_font)
+        change_width = change_bbox[2] - change_bbox[0]
+        draw.text(((width - change_width) / 2, 620), change_text, 
+                 fill=change_color, font=info_font)
+        
+        date_bbox = draw.textbbox((0, 0), date_text, font=info_font)
+        date_width = date_bbox[2] - date_bbox[0]
+        draw.text(((width - date_width) / 2, 800), date_text, 
+                 fill='#CCCCCC', font=info_font)
+        
+        # Save image
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        image_path = IMAGES_DIR / f"gold_poster_{timestamp}.png"
+        img.save(image_path, 'PNG')
+        
+        return image_path
+    
+    def post_to_facebook(self, fanspage, content, image_path):
+        """Post content and image to Facebook page"""
+        url = f"https://graph.facebook.com/v18.0/{fanspage['page_id']}/photos"
+        
+        with open(image_path, 'rb') as image_file:
+            files = {'source': image_file}
+            data = {
+                'message': content,
+                'access_token': fanspage['access_token']
+            }
+            
+            response = requests.post(url, data=data, files=files)
+            
+        if response.status_code == 200:
+            result = response.json()
+            return result.get('id'), None
+        else:
+            return None, response.text
+    
+    def log_post(self, fanspage, content, image_path, fb_post_id, status, error_message=None):
+        """Log post to database"""
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO posts (timestamp, page_id, page_name, content, image_path, fb_post_id, status, error_message)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            datetime.now().isoformat(),
+            fanspage['page_id'],
+            fanspage['name'],
+            content,
+            str(image_path),
+            fb_post_id,
+            status,
+            error_message
+        ))
+        conn.commit()
+        conn.close()
+    
+    def should_post(self, fanspage):
+        """Check if enough time has passed since last post for this page"""
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute('SELECT last_posted FROM last_post_time WHERE page_id = ?', (fanspage['page_id'],))
+        result = cursor.fetchone()
+        conn.close()
+        
+        if not result:
+            return True
+        
+        from datetime import timedelta
+        last_posted = datetime.fromisoformat(result[0])
+        interval = timedelta(hours=fanspage['interval_hours'])
+        return datetime.now() >= last_posted + interval
+    
+    def update_last_post_time(self, page_id):
+        """Update last post time for a page"""
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT OR REPLACE INTO last_post_time (page_id, last_posted)
+            VALUES (?, ?)
+        ''', (page_id, datetime.now().isoformat()))
+        conn.commit()
+        conn.close()
+    
+    def run(self):
+        """Main execution flow"""
+        print(f"[{datetime.now()}] Starting auto-post process...")
+        
+        # First, process queued posts from web app
+        self.process_queue()
+        
+        # Then, do regular auto-posting
+        print(f"Found {len(self.fanspages)} fanspage(s) configured\n")
+        
+        for fanspage in self.fanspages:
+            if not fanspage.get('enabled', True):
+                print(f"⏭️  Skipping {fanspage['name']} (disabled)")
+                continue
+            
+            if not self.should_post(fanspage):
+                print(f"⏰ Skipping {fanspage['name']} (interval not reached)")
+                continue
+            
+            try:
+                print(f"📄 Processing: {fanspage['name']}")
+                print(f"   Page ID: {fanspage['page_id']}")
+                print(f"   Interval: {fanspage['interval_hours']} hours")
+                
+                # Get gold price
+                gold_data = self.get_gold_price()
+                print(f"   Gold price: Rp {gold_data['price']:,}")
+                
+                # Generate content
+                print("   Generating content...")
+                content = self.generate_content()
+                
+                # Generate poster image
+                print("   Generating poster...")
+                image_path = self.generate_poster_image(gold_data)
+                
+                # Post to Facebook
+                print("   Posting to Facebook...")
+                fb_post_id, error = self.post_to_facebook(fanspage, content, image_path)
+                
+                if fb_post_id:
+                    print(f"   ✅ Success! Post ID: {fb_post_id}")
+                    self.log_post(fanspage, content, image_path, fb_post_id, 'success')
+                    self.update_last_post_time(fanspage['page_id'])
+                else:
+                    print(f"   ❌ Failed: {error}")
+                    self.log_post(fanspage, content, image_path, None, 'failed', error)
+                
+                print()
+                
+            except Exception as e:
+                error_msg = str(e)
+                print(f"   ❌ Error: {error_msg}\n")
+                self.log_post(fanspage, "", "", None, 'error', error_msg)
+        
+        print(f"[{datetime.now()}] Process completed.\n")
+    
+    def process_queue(self):
+        """Process queued posts from web app"""
+        print("\n🔄 Checking post queue from web app...")
+        
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            cursor = conn.cursor()
+            
+            # Get pending posts
+            cursor.execute('''
+                SELECT id, page_id, caption, image_path
+                FROM post_queue
+                WHERE status = 'pending'
+                ORDER BY created_at ASC
+                LIMIT 10
+            ''')
+            
+            queued_posts = cursor.fetchall()
+            
+            if not queued_posts:
+                print("   No queued posts found.\n")
+                conn.close()
+                return
+            
+            print(f"   Found {len(queued_posts)} queued post(s)\n")
+            
+            for post_id, page_id, caption, image_path in queued_posts:
+                # Find fanspage config
+                fanspage = None
+                for page in self.fanspages:
+                    if page['page_id'] == page_id:
+                        fanspage = page
+                        break
+                
+                if not fanspage:
+                    print(f"   ⚠️  Page ID {page_id} not found in config, skipping...")
+                    cursor.execute('UPDATE post_queue SET status = ? WHERE id = ?', ('error', post_id))
+                    continue
+                
+                if not fanspage.get('enabled', True):
+                    print(f"   ⏭️  {fanspage['name']} disabled, skipping...")
+                    continue
+                
+                print(f"   📤 Posting queued content to {fanspage['name']}...")
+                
+                try:
+                    # Post to Facebook
+                    fb_post_id, error = self.post_to_facebook(fanspage, caption, image_path)
+                    
+                    if fb_post_id:
+                        print(f"      ✅ Success! Post ID: {fb_post_id}")
+                        
+                        # Update queue status
+                        cursor.execute('''
+                            UPDATE post_queue 
+                            SET status = ?, posted_at = ?
+                            WHERE id = ?
+                        ''', ('posted', datetime.now().isoformat(), post_id))
+                        
+                        # Log to posts table
+                        self.log_post(fanspage, caption, image_path, fb_post_id, 'success')
+                        self.update_last_post_time(fanspage['page_id'])
+                    else:
+                        print(f"      ❌ Failed: {error}")
+                        cursor.execute('UPDATE post_queue SET status = ? WHERE id = ?', ('failed', post_id))
+                        self.log_post(fanspage, caption, image_path, None, 'failed', error)
+                
+                except Exception as e:
+                    print(f"      ❌ Error: {str(e)}")
+                    cursor.execute('UPDATE post_queue SET status = ? WHERE id = ?', ('error', post_id))
+            
+            conn.commit()
+            conn.close()
+            print()
+            
+        except Exception as e:
+            print(f"   ❌ Queue processing error: {str(e)}\n")
+
+if __name__ == "__main__":
+    poster = GoldGenAutoPoster()
+    poster.run()

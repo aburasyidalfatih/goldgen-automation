@@ -1,0 +1,13 @@
+{
+  "gemini_api_key": "YOUR_GEMINI_API_KEY_HERE",
+  "fanspage_delay_minutes": 60,
+  "fanspages": [
+    {
+      "name": "Your Fanspage Name",
+      "page_id": "YOUR_PAGE_ID",
+      "interval_hours": 6,
+      "enabled": true,
+      "access_token": "YOUR_PAGE_ACCESS_TOKEN"
+    }
+  ]
+}

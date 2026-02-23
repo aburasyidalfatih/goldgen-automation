@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+
+# Sensitive data
+data/config.json
+*.log
+
+# Generated content
+generated_images/*.png
+!generated_images/.gitkeep
+
+# Database
+data/posts.db
+data/posts_backup_*.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
