@@ -743,8 +743,6 @@ Generate a similar COMPREHENSIVE caption for the current topic. Make it INFORMAT
                 contents=prompt
             )
             caption = response.text
-            # Add AI disclosure
-            caption += "\n\n🤖 Content created with AI assistance"
             return caption
         except Exception as e:
             # Fallback caption
@@ -758,8 +756,6 @@ Generate a similar COMPREHENSIVE caption for the current topic. Make it INFORMAT
 Learn the signs. Find the gold.
 
 What's your experience with this? Share your findings.
-
-🤖 Content created with AI assistance
 
 #GoldProspecting #PlacerGold #ProspectingTips #GoldPanning"""
     
