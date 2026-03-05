@@ -689,7 +689,15 @@ Requirements:
        - Add real-world examples or scenarios
    (d) Practical field tips - Actionable advice prospectors can use
    (e) Closing statement - Motivational or thought-provoking
-   (f) Hashtags (6-8 relevant to gold prospecting)
+   (f) CALL-TO-ACTION - Encourage engagement WITHOUT directly asking for comments
+       Examples:
+       - "What's your experience with [topic]?"
+       - "Have you encountered [situation] in the field?"
+       - "Share your [discovery/finding/technique]"
+       - "Tag a fellow prospector who needs to see this"
+       - "What would you add to this list?"
+       - "Your [rock/sample/location] might be the next big find"
+   (g) Hashtags (6-8 relevant to gold prospecting)
 
 HEADLINE FORMULAS (choose one that fits):
 - "The [Number] Secret(s) [Expert] Don't Tell You About..."
@@ -722,9 +730,11 @@ Field Tip: If the rock looks "too clean" and pure white, it's probably barren. S
 
 Remember: Ugly rocks make beautiful gold. Don't judge a vein by its surface appearance.
 
+What's been your experience with iron-stained rocks? That rusty specimen you almost tossed might be worth a second look.
+
 #GoldProspecting #IronStaining #Gossan #PlacerGold #ProspectingTips #GoldPanning #FindGold #MiningLife"
 
-Generate a similar COMPREHENSIVE caption for the current topic. Make it INFORMATIVE and COMPLETE so readers fully understand the infographic. Use plain text only, no markdown formatting.
+Generate a similar COMPREHENSIVE caption for the current topic. Make it INFORMATIVE and COMPLETE so readers fully understand the infographic. ALWAYS include a natural call-to-action that encourages sharing experiences or tagging others. Use plain text only, no markdown formatting.
 """
         
         try:
@@ -746,6 +756,8 @@ Generate a similar COMPREHENSIVE caption for the current topic. Make it INFORMAT
 {list_text}
 
 Learn the signs. Find the gold.
+
+What's your experience with this? Share your findings.
 
 🤖 Content created with AI assistance
 
