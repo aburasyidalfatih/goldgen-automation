@@ -140,23 +140,88 @@ def get_posts():
 
 @app.route('/api/next-run')
 def get_next_run():
-    """Get next scheduled run time (cron runs every hour at :00)"""
+    """Get next scheduled run time and which fanspages will post"""
     now = datetime.now()
     
-    # Next hour at :00
-    if now.minute == 0 and now.second < 5:
-        # If we're at the start of the hour, next run is this hour
-        next_run = now.replace(minute=0, second=0, microsecond=0)
+    # Cron runs every 3 hours at :00
+    current_hour = now.hour
+    next_cron_hours = [0, 3, 6, 9, 12, 15, 18, 21]
+    
+    # Find next cron run
+    next_hour = None
+    for h in next_cron_hours:
+        if h > current_hour or (h == current_hour and now.minute == 0 and now.second < 5):
+            next_hour = h
+            break
+    
+    if next_hour is None:
+        # Next run is tomorrow at 00:00
+        next_run = now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
     else:
-        # Otherwise, next run is next hour
-        if now.hour == 23:
-            next_run = now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
-        else:
-            next_run = now.replace(hour=now.hour + 1, minute=0, second=0, microsecond=0)
+        next_run = now.replace(hour=next_hour, minute=0, second=0, microsecond=0)
+    
+    # Get fanspages that will post next
+    next_posts = []
+    try:
+        config_file = DATA_DIR / "config.json"
+        if config_file.exists():
+            with open(config_file, 'r') as f:
+                config = json.load(f)
+                fanspages = config.get('fanspages', [])
+            
+            conn = get_db()
+            cursor = conn.cursor()
+            
+            for fp in fanspages:
+                if not fp.get('enabled', True):
+                    continue
+                
+                # Get last post time
+                cursor.execute('''
+                    SELECT MAX(timestamp) as last_post 
+                    FROM posts 
+                    WHERE page_id = ?
+                ''', (fp['page_id'],))
+                
+                result = cursor.fetchone()
+                last_post = result['last_post'] if result['last_post'] else None
+                
+                if last_post:
+                    last_post_time = datetime.fromisoformat(last_post)
+                    interval_hours = fp.get('interval_hours', 6)
+                    next_post_time = last_post_time + timedelta(hours=interval_hours)
+                    
+                    # Check if this fanspage will post in next run
+                    if next_post_time <= next_run:
+                        time_until = next_run - now
+                        hours = int(time_until.total_seconds() // 3600)
+                        minutes = int((time_until.total_seconds() % 3600) // 60)
+                        
+                        next_posts.append({
+                            'page_name': fp['name'],
+                            'next_post_time': next_run.strftime('%H:%M WIB'),
+                            'time_until': f'in {hours}h {minutes}m' if hours > 0 else f'in {minutes}m'
+                        })
+                else:
+                    # Never posted, will post in next run
+                    time_until = next_run - now
+                    hours = int(time_until.total_seconds() // 3600)
+                    minutes = int((time_until.total_seconds() % 3600) // 60)
+                    
+                    next_posts.append({
+                        'page_name': fp['name'],
+                        'next_post_time': next_run.strftime('%H:%M WIB'),
+                        'time_until': f'in {hours}h {minutes}m' if hours > 0 else f'in {minutes}m'
+                    })
+            
+            conn.close()
+    except Exception as e:
+        print(f"Error getting next posts: {e}")
     
     return jsonify({
         'next_run': next_run.isoformat(),
-        'next_run_formatted': next_run.strftime('%Y-%m-%d %H:%M:%S') + ' WIB'
+        'next_run_formatted': next_run.strftime('%Y-%m-%d %H:%M:%S') + ' WIB',
+        'next_posts': next_posts
     })
 
 @app.route('/api/topic-info')
