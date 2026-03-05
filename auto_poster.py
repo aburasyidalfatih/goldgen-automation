@@ -160,15 +160,49 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
 #HargaEmas #InvestasiEmas #EmasHariIni #GoldPrice"""
     
     def generate_poster_image(self, topic):
-        """Generate educational infographic using local PIL (more reliable for text)"""
+        """Generate educational infographic using Gemini 3.1 Pro"""
         try:
-            print(f"   Generating infographic with PIL...")
+            from google.genai import types
+            
+            print(f"   Generating image with Gemini 3.1 Pro...")
+            
+            # Generate image prompt
+            image_prompt = self.goldgen.generate_image_prompt(topic)
+            
+            # Use Gemini 3.1 Pro for image generation
+            client = genai.Client(api_key=self.gemini_api_key)
+            
+            response = client.models.generate_content(
+                model='gemini-3-pro-image-preview',
+                contents=image_prompt,
+                config=types.GenerateContentConfig(
+                    image_config=types.ImageConfig(
+                        aspect_ratio="9:16",  # Vertical story format
+                        image_size="2K"
+                    )
+                )
+            )
+            
+            # Extract image from response
+            for part in response.parts:
+                if hasattr(part, 'inline_data') and part.inline_data:
+                    image_data = part.inline_data.data
+                    
+                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                    image_path = IMAGES_DIR / f"gold_prospecting_{timestamp}.png"
+                    
+                    with open(image_path, 'wb') as f:
+                        f.write(image_data)
+                    
+                    print(f"   ✅ Image generated with Gemini 3.1 Pro")
+                    return image_path
+            
+            print(f"   ⚠️  No image in response, using PIL fallback...")
             return self._generate_fallback_image(topic)
             
         except Exception as e:
-            print(f"   ⚠️  Error generating image: {e}")
-            # Return a basic fallback
-            return self._generate_basic_fallback(topic)
+            print(f"   ⚠️  Gemini error: {e}, using PIL fallback...")
+            return self._generate_fallback_image(topic)
     
     def _generate_fallback_image(self, topic):
         """Generate professional infographic locally with PIL"""
