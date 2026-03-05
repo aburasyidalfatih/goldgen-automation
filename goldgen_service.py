@@ -756,37 +756,80 @@ Learn the signs. Find the gold.
         
         list_text = "\n".join([f"- {point}" for point in topic['list_points']])
         
-        prompt = f"""Create a VERTICAL EDUCATIONAL INFOGRAPHIC POSTER about GOLD PROSPECTING.
+        # Get layout-specific visual instructions
+        layout_name = topic.get('layout', 'CROSS-SECTION CUTAWAY')
+        
+        # Base prompt with topic content
+        base_prompt = f"""Create a VERTICAL EDUCATIONAL INFOGRAPHIC about GOLD PROSPECTING.
 
-TEXT CONTENT TO INCLUDE (Must be legible):
-HEADLINE: "{topic['headline']}"
-SUBTITLE: "{topic['subtitle']}"
-LIST HEADER: "{topic['list_header']}"
-LIST POINTS:
+TOPIC: {topic['headline']}
+SUBTITLE: {topic['subtitle']}
+
+KEY INFORMATION TO VISUALIZE:
 {list_text}
 
-VISUAL STYLE & COMPOSITION:
-{topic['composition']}
+LAYOUT STYLE: {layout_name}
+COMPOSITION GUIDE: {topic['composition']}
 
-MANDATORY ART DIRECTION:
-- STYLE: Realistic Illustration / Field Guide / National Geographic Diagram.
-- HEADER BANNER: Add a weathered, off-white/beige ribbon banner at the top with "fishtail" ends containing the headline. Classic field-guide or vintage explorer aesthetic. Add a secondary thinner banner below it in darker tan.
-- FRAME/BORDER: Use full-bleed composition with subtle vignetting (darkened edges/corners) to draw focus to center. No hard outer border.
-- TEXTURE: Detailed Rock textures, flowing water, dirt, rust, metallic gold.
-- ATMOSPHERE: Educational, scientific, rugged, outdoors. Modern high-end educational infographic combining adventurous treasure-hunting feel with technical precision.
-- LAYOUT: {topic['layout']} - Use distinct sections, arrows, or split screens to organize information. Left-aligned text boxes with pointer arrows linking to visual elements.
-- COLOR SCHEME: 
-  * Dominant: Earthy grays, browns, ochres (rock, soil, bedrock)
-  * Accent: Vibrant metallic gold yellows/oranges for gold particles
-  * Contrast: Deep burnt oranges for rust/iron, cool blues for water/highlights
-  * Earth tones, Slate Grey, River Blue, Rusty Orange, Bright Gold
-- TYPOGRAPHY: 
-  * Main title: Heavy condensed sans-serif all-caps, white with dark-gray drop shadow
-  * Body text: Clean modern sans-serif in tan text boxes
-  * Bold key terms for quick scanning
-- VISUAL ELEMENTS: Digital painting style balancing realistic textures with stylized educational elements. Use minimalist line icons in circles next to text boxes.
-- NO ABSTRACT ART. NO CARTOONS. It must look like a professional reference guide with modern high-tech feel.
-- Ensure all text is CLEARLY READABLE and properly integrated into the design.
 """
         
-        return prompt
+        # Add specific visual instructions based on layout
+        if "CROSS-SECTION" in layout_name:
+            visual_instruction = """VISUAL EXECUTION:
+Create a realistic cross-section illustration showing underground layers. Display the surface at top, then soil/gravel layers, and bedrock at bottom. Show gold deposits trapped in crevices or layers. Use natural earth tones with clear labeling lines pointing to key features. Style: Educational textbook diagram with scientific accuracy."""
+
+        elif "CHECKLIST" in layout_name or "SPLIT" in layout_name:
+            visual_instruction = """VISUAL EXECUTION:
+Create a split-screen comparison image with a clear vertical divider. Left side shows one condition/type, right side shows the contrasting condition/type. Each side should be clearly labeled. Use realistic, detailed photography style suitable for a field guide. Make the differences obvious and educational."""
+
+        elif "STEP-BY-STEP" in layout_name or "PROCESS" in layout_name:
+            visual_instruction = """VISUAL EXECUTION:
+Create a vertical flow diagram showing sequential steps from top to bottom. Use numbered steps (1, 2, 3, 4) with arrows indicating progression and movement. Each step should show a clear stage of the process. Style: Illustrative and easy to follow with a rugged outdoor aesthetic. Use directional arrows to show flow."""
+
+        elif "GRID" in layout_name:
+            visual_instruction = """VISUAL EXECUTION:
+Create a 2x2 or 3x2 grid layout showing distinct close-up images of different indicators or examples. Each grid cell should be clearly separated with borders. Images should be macro-style, highly detailed, and realistic. Each section can have a small label. Focus on texture and detail."""
+
+        elif "GOLDEN PATH" in layout_name or "PATH" in layout_name:
+            visual_instruction = """VISUAL EXECUTION:
+Create a top-down aerial view or map-style illustration. Use arrows to mark flow direction or movement patterns. Highlight specific zones or areas with golden glow, markers, or circles to indicate important locations. Style: Strategic diagram or treasure map with realistic terrain features."""
+
+        elif "MAGNIFYING GLASS" in layout_name:
+            visual_instruction = """VISUAL EXECUTION:
+Create an image showing a surface with a magnifying glass overlay. Inside the lens, show a highly magnified, detailed view revealing features invisible to the naked eye. The focus should be sharp inside the lens and slightly blurred outside. Style: Scientific discovery with emphasis on detail revelation."""
+
+        elif "BEFORE" in layout_name and "AFTER" in layout_name:
+            visual_instruction = """VISUAL EXECUTION:
+Create a split landscape view showing the same location in two different states. Top half labeled 'BEFORE', bottom half labeled 'AFTER'. Show clear changes between the two states. Highlight new features or changes that are significant. Style: Realistic comparative photography."""
+
+        elif "NOTEBOOK" in layout_name or "GEOLOGIST" in layout_name:
+            visual_instruction = """VISUAL EXECUTION:
+Create an image that looks like a page from a field notebook. Feature hand-sketched but detailed drawings with handwritten-style annotations, arrows pointing to key features, and labels. Add authentic touches like coffee stains, dirt smudges, or pencil marks. Background: Aged paper texture."""
+
+        elif "3D" in layout_name or "BLOCK" in layout_name:
+            visual_instruction = """VISUAL EXECUTION:
+Create a 3D isometric block diagram showing a cutaway section of earth. Display surface features on top and underground layers in cross-section. Show how geological features connect from deep underground to the surface. Style: Clean, educational, three-dimensional technical illustration."""
+
+        elif "MAP" in layout_name or "PROSPECTOR" in layout_name:
+            visual_instruction = """VISUAL EXECUTION:
+Create a vintage-style topographic map with contour lines showing elevation. Mark key features like rivers in blue, and add hand-drawn markers (X marks, circles) in red ink at important locations. Style: Aged paper, rugged, adventurous with a treasure map aesthetic."""
+
+        else:
+            # Default fallback
+            visual_instruction = """VISUAL EXECUTION:
+Create a realistic educational illustration combining the topic's key visual elements. Use clear composition with labeled features. Style: National Geographic field guide with scientific accuracy and visual appeal."""
+
+        # Combine all parts
+        full_prompt = base_prompt + visual_instruction + f"""
+
+MANDATORY REQUIREMENTS:
+- Format: Vertical 9:16 aspect ratio (story/poster format)
+- Color Scheme: Earth tones (browns, grays, ochres) with metallic gold accents and rust oranges
+- Texture: Realistic rock, soil, water, and mineral textures
+- Atmosphere: Educational, scientific, professional
+- Quality: High detail, sharp focus on key elements
+- NO ABSTRACT ART. NO CARTOONS. Must look like a professional reference guide.
+- Text elements should be minimal and integrated naturally into the design (if any)
+"""
+        
+        return full_prompt
