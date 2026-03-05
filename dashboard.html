@@ -90,9 +90,15 @@
                 <p class="text-gray-400 text-lg">Auto Poster Dashboard - Educational Content Generator</p>
                 <p class="text-gray-500 text-sm mt-1">Rotating 50 topics about gold prospecting techniques</p>
             </div>
-            <button onclick="openSettings()" class="bg-yellow-500 hover:bg-yellow-600 text-black font-bold py-3 px-6 rounded-lg transition">
-                ⚙️ Settings
-            </button>
+            <div class="flex gap-3">
+                <button id="botToggle" onclick="toggleBot()" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 px-6 rounded-lg transition flex items-center gap-2">
+                    <span id="toggleIcon">⏸️</span>
+                    <span id="toggleText">Loading...</span>
+                </button>
+                <button onclick="openSettings()" class="bg-yellow-500 hover:bg-yellow-600 text-black font-bold py-3 px-6 rounded-lg transition">
+                    ⚙️ Settings
+                </button>
+            </div>
         </div>
 
         <!-- Topic Rotation Info -->
@@ -236,6 +242,48 @@
 
     <script>
         const API_BASE = '/api';
+
+        // Bot Toggle Functions
+        async function loadBotStatus() {
+            try {
+                const response = await fetch(`${API_BASE}/bot-status`);
+                const data = await response.json();
+                updateToggleButton(data.enabled);
+            } catch (error) {
+                console.error('Error loading bot status:', error);
+            }
+        }
+
+        function updateToggleButton(enabled) {
+            const toggleBtn = document.getElementById('botToggle');
+            const toggleIcon = document.getElementById('toggleIcon');
+            const toggleText = document.getElementById('toggleText');
+            
+            if (enabled) {
+                toggleBtn.className = 'bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition flex items-center gap-2';
+                toggleIcon.textContent = '▶️';
+                toggleText.textContent = 'Bot ON';
+            } else {
+                toggleBtn.className = 'bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg transition flex items-center gap-2';
+                toggleIcon.textContent = '⏸️';
+                toggleText.textContent = 'Bot OFF';
+            }
+        }
+
+        async function toggleBot() {
+            try {
+                const response = await fetch(`${API_BASE}/bot-toggle`, { method: 'POST' });
+                const data = await response.json();
+                updateToggleButton(data.enabled);
+                
+                // Show notification
+                const msg = data.enabled ? '✅ Bot activated!' : '⏸️ Bot paused';
+                alert(msg);
+            } catch (error) {
+                console.error('Error toggling bot:', error);
+                alert('❌ Error toggling bot');
+            }
+        }
 
         // Settings Modal Functions
         function openSettings() {
@@ -541,6 +589,7 @@
         }
 
         // Initial load
+        loadBotStatus();
         fetchStats();
         fetchTopicInfo();
         fetchNextRun();
@@ -548,6 +597,7 @@
 
         // Auto refresh every 30 seconds
         setInterval(() => {
+            loadBotStatus();
             fetchStats();
             fetchTopicInfo();
             fetchNextRun();

@@ -160,120 +160,105 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
 #HargaEmas #InvestasiEmas #EmasHariIni #GoldPrice"""
     
     def generate_poster_image(self, topic):
-        """Generate educational infographic using Gemini 3 Pro Image (Nano Banana Pro)"""
+        """Generate educational infographic using local PIL (more reliable for text)"""
         try:
-            from google.genai import types
-            
-            print(f"   Generating image with Gemini 3 Pro Image...")
-            
-            # Generate image prompt
-            image_prompt = self.goldgen.generate_image_prompt(topic)
-            
-            # Use Gemini 3 Pro Image (Nano Banana Pro)
-            client = genai.Client(api_key=self.gemini_api_key)
-            
-            response = client.models.generate_content(
-                model='gemini-3-pro-image-preview',
-                contents=image_prompt,
-                config=types.GenerateContentConfig(
-                    image_config=types.ImageConfig(
-                        aspect_ratio="9:16",  # Story format (vertical)
-                        image_size="2K"
-                    )
-                )
-            )
-            
-            # Extract image from response
-            for part in response.parts:
-                if hasattr(part, 'inline_data') and part.inline_data:
-                    image_data = part.inline_data.data
-                    
-                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                    image_path = IMAGES_DIR / f"gold_prospecting_{timestamp}.png"
-                    
-                    with open(image_path, 'wb') as f:
-                        f.write(image_data)
-                    
-                    print(f"   ✅ Image generated with Gemini 3 Pro Image (2K, 1:1)")
-                    return image_path
-            
-            print(f"   ⚠️  No image in response, using fallback...")
+            print(f"   Generating infographic with PIL...")
             return self._generate_fallback_image(topic)
             
         except Exception as e:
-            print(f"   ⚠️  Gemini error: {e}, using fallback...")
-            return self._generate_fallback_image(topic)
+            print(f"   ⚠️  Error generating image: {e}")
+            # Return a basic fallback
+            return self._generate_basic_fallback(topic)
     
     def _generate_fallback_image(self, topic):
-        """Fallback: Generate simple infographic locally"""
+        """Generate professional infographic locally with PIL"""
         # Create image 1080x1920 (vertical format)
         width, height = 1080, 1920
         
-        # Gold gradient background
-        img = Image.new('RGB', (width, height), color='#0a0a0a')
+        # Create gradient background (dark earth tones)
+        img = Image.new('RGB', (width, height))
         draw = ImageDraw.Draw(img)
         
-        # Draw gradient effect
+        # Draw gradient from dark brown to darker
         for i in range(height):
-            shade = int(10 + (i / height) * 30)
-            draw.rectangle([(0, i), (width, i+1)], fill=f'#{shade:02x}{shade:02x}{shade:02x}')
+            ratio = i / height
+            r = int(42 - ratio * 20)
+            g = int(37 - ratio * 20)
+            b = int(32 - ratio * 20)
+            draw.rectangle([(0, i), (width, i+1)], fill=(r, g, b))
         
-        # Add gold accent border
+        # Gold accent borders
+        border_width = 20
+        gold_color = '#D4A523'
+        draw.rectangle([(0, 0), (width, border_width)], fill=gold_color)
+        draw.rectangle([(0, height-border_width), (width, height)], fill=gold_color)
+        draw.rectangle([(0, 0), (border_width, height)], fill=gold_color)
+        draw.rectangle([(width-border_width, 0), (width, height)], fill=gold_color)
         
-        # Earth tones background
-        img = Image.new('RGB', (width, height), color='#2a2520')
-        draw = ImageDraw.Draw(img)
-        
-        # Draw gradient
-        for i in range(height):
-            shade_r = int(42 + (i / height) * 20)
-            shade_g = int(37 + (i / height) * 15)
-            shade_b = int(32 + (i / height) * 10)
-            draw.rectangle([(0, i), (width, i+1)], fill=f'#{shade_r:02x}{shade_g:02x}{shade_b:02x}')
-        
-        # Gold border
-        border_width = 15
-        draw.rectangle([(border_width, border_width), 
-                       (width-border_width, height-border_width)], 
-                      outline='#D4A523', width=border_width)
-        
-        # Text content
+        # Load fonts
         try:
-            title_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 70)
-            subtitle_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 45)
-            list_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 35)
+            title_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 90)
+            subtitle_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 50)
+            header_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 55)
+            list_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 42)
+            footer_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 32)
         except:
             title_font = ImageFont.load_default()
             subtitle_font = ImageFont.load_default()
+            header_font = ImageFont.load_default()
             list_font = ImageFont.load_default()
+            footer_font = ImageFont.load_default()
         
-        # Draw headline
-        y_pos = 150
+        # Icon/emoji at top
+        y_pos = 120
+        draw.text((width/2, y_pos), "🪨", font=title_font, anchor="mm")
+        
+        # Headline (gold color, centered)
+        y_pos += 150
         draw.text((width/2, y_pos), topic['headline'], 
-                 fill='#D4A523', font=title_font, anchor="mm")
+                 fill=gold_color, font=title_font, anchor="mm", stroke_width=2, stroke_fill='#000000')
         
-        # Draw subtitle
-        y_pos += 120
+        # Subtitle (white, centered)
+        y_pos += 130
         draw.text((width/2, y_pos), topic['subtitle'], 
                  fill='#FFFFFF', font=subtitle_font, anchor="mm")
         
-        # Draw list header
-        y_pos += 150
-        draw.text((width/2, y_pos), topic['list_header'], 
-                 fill='#D4A523', font=subtitle_font, anchor="mm")
+        # Decorative line
+        y_pos += 80
+        line_margin = 150
+        draw.rectangle([(line_margin, y_pos), (width-line_margin, y_pos+5)], fill=gold_color)
         
-        # Draw list points
+        # List header (gold, centered)
         y_pos += 100
+        draw.text((width/2, y_pos), topic['list_header'], 
+                 fill=gold_color, font=header_font, anchor="mm")
+        
+        # List points (white, left-aligned with bullets)
+        y_pos += 100
+        left_margin = 120
         for point in topic['list_points']:
-            draw.text((100, y_pos), f"• {point}", 
+            # Bullet point
+            draw.ellipse([(left_margin, y_pos+15), (left_margin+15, y_pos+30)], fill=gold_color)
+            # Text
+            draw.text((left_margin + 40, y_pos), point, 
                      fill='#FFFFFF', font=list_font)
-            y_pos += 80
+            y_pos += 90
+        
+        # Footer text
+        y_pos = height - 200
+        draw.text((width/2, y_pos), "Learn the signs. Find the gold.", 
+                 fill='#AAAAAA', font=footer_font, anchor="mm")
+        
+        y_pos += 60
+        draw.text((width/2, y_pos), "🤖 Content created with AI assistance", 
+                 fill='#888888', font=footer_font, anchor="mm")
         
         # Save image
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         image_path = IMAGES_DIR / f"gold_prospecting_{timestamp}.png"
-        img.save(image_path, 'PNG')
+        img.save(image_path, 'PNG', quality=95)
         
+        print(f"   ✅ Infographic generated successfully")
         return image_path
     
     def validate_token(self, fanspage):
@@ -424,6 +409,13 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
     def run(self):
         """Main execution flow"""
         print(f"[{datetime.now()}] Starting auto-post process...")
+        
+        # Check if bot is disabled
+        disabled_file = BASE_DIR / ".DISABLED"
+        if disabled_file.exists():
+            print("⏸️  Bot is DISABLED. Skipping auto-post.")
+            print(f"   (Delete {disabled_file} to re-enable)")
+            return
         
         # First, process queued posts from web app
         self.process_queue()

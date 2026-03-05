@@ -468,5 +468,27 @@ def health():
     """Health check"""
     return jsonify({'status': 'ok', 'timestamp': datetime.now().isoformat()})
 
+@app.route('/api/bot-status', methods=['GET'])
+def get_bot_status():
+    """Get bot enabled/disabled status"""
+    disabled_file = BASE_DIR / ".DISABLED"
+    is_enabled = not disabled_file.exists()
+    return jsonify({'enabled': is_enabled})
+
+@app.route('/api/bot-toggle', methods=['POST'])
+def toggle_bot():
+    """Toggle bot on/off"""
+    disabled_file = BASE_DIR / ".DISABLED"
+    
+    if disabled_file.exists():
+        # Enable bot
+        disabled_file.unlink()
+        return jsonify({'enabled': True, 'message': 'Bot enabled'})
+    else:
+        # Disable bot
+        with open(disabled_file, 'w') as f:
+            f.write(f'Bot disabled at {datetime.now().isoformat()}')
+        return jsonify({'enabled': False, 'message': 'Bot disabled'})
+
 if __name__ == '__main__':
     app.run(host='127.0.0.1', port=18794, debug=False)
