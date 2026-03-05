@@ -114,8 +114,28 @@ class GoldGenAutoPoster:
             return caption, topic
         except Exception as e:
             print(f"   ⚠️  GoldGen caption error: {e}, using fallback...")
-            # Fallback to first topic
-            topic = self.goldgen.topics[0]
+            # Fallback to first topic with layout
+            topic = self.goldgen.get_next_topic()
+            list_text = "\n".join([f"• {point}" for point in topic['list_points']])
+            caption = f"""{topic['headline']}
+
+{topic['subtitle']}
+
+{topic['list_header']}:
+{list_text}
+
+#GoldProspecting #PlacerGold #ProspectingTips"""
+            return caption, topic
+    
+    def generate_content_with_offset(self, offset=0):
+        """Generate content with topic offset (for multiple fanspages in one cycle)"""
+        try:
+            topic = self.goldgen.get_topic_with_offset(offset)
+            caption = self.goldgen.generate_caption(topic)
+            return caption, topic
+        except Exception as e:
+            print(f"   ⚠️  GoldGen caption error: {e}, using fallback...")
+            topic = self.goldgen.get_topic_with_offset(offset)
             list_text = "\n".join([f"• {point}" for point in topic['list_points']])
             caption = f"""{topic['headline']}
 
@@ -279,23 +299,28 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
             print(f"   ❌ Token validation failed: {error}")
             return None, f"Invalid token: {error}"
         
-        # Top 10 cities with highest CTR for gold prospecting ads
+        # Facebook Feeling/Activity IDs (official)
+        feelings = {
+            'excited': '115',
+            'motivated': '106',
+            'blessed': '242',
+            'determined': '114',
+            'hopeful': '109'
+        }
+        
+        # Top gold mining locations with Facebook Place IDs
+        # Note: These are example IDs, you may need to find specific ones
         top_locations = [
-            'Fairbanks, Alaska',      # Gold mining hub
-            'Dawson City, Yukon',     # Historic gold rush
-            'Kalgoorlie, Australia',  # Major gold mining
-            'Johannesburg, South Africa',  # Gold capital
-            'Nevada City, California',     # Gold country
-            'Juneau, Alaska',         # Active mining
-            'Whitehorse, Yukon',      # Mining territory
-            'Ballarat, Australia',    # Gold rush history
-            'Reno, Nevada',           # Mining industry
-            'Denver, Colorado'        # Mining hub
+            {'name': 'Fairbanks, Alaska', 'place_id': '110843418940484'},
+            {'name': 'Nevada City, California', 'place_id': '111975398821990'},
+            {'name': 'Juneau, Alaska', 'place_id': '105535939477573'},
+            {'name': 'Denver, Colorado', 'place_id': '115590505119035'},
         ]
         
-        # Rotate location based on post count
+        # Rotate location
         import random
-        location_name = random.choice(top_locations)
+        location = random.choice(top_locations)
+        feeling_id = random.choice(list(feelings.values()))
         
         # Try posting with retry
         max_retries = 3
@@ -308,25 +333,36 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
                     data = {
                         'message': content,
                         'access_token': fanspage['access_token'],
-                        'ai_generated': 'true',
-                        'tags': 'excited',
-                        'location': location_name  # Use location name instead of place ID
+                        'feeling_id': feeling_id,
+                        'place': location['place_id']
                     }
                     
                     response = requests.post(url, data=data, files=files, timeout=30)
                     
-                if response.status_code == 200:
-                    result = response.json()
-                    print(f"   📍 Location: {location_name}")
-                    return result.get('id'), None
-                else:
-                    error_msg = response.text
-                    if attempt < max_retries - 1:
-                        delay = 2 ** attempt
-                        print(f"   ⚠️  Retry {attempt + 1}/{max_retries} after {delay}s")
-                        time.sleep(delay)
+                    if response.status_code == 200:
+                        result = response.json()
+                        print(f"   📍 Location: {location['name']}")
+                        return result.get('id'), None
                     else:
-                        return None, error_msg
+                        error_msg = response.text
+                        # If place/feeling fails, retry without them
+                        if 'place' in error_msg or 'feeling' in error_msg:
+                            print(f"   ⚠️  Metadata failed, posting without location/feeling...")
+                            data = {
+                                'message': content,
+                                'access_token': fanspage['access_token']
+                            }
+                            image_file.seek(0)  # Reset file pointer
+                            response = requests.post(url, data=data, files={'source': image_file}, timeout=30)
+                            if response.status_code == 200:
+                                return response.json().get('id'), None
+                        
+                        if attempt < max_retries - 1:
+                            delay = 2 ** attempt
+                            print(f"   ⚠️  Retry {attempt + 1}/{max_retries} after {delay}s")
+                            time.sleep(delay)
+                        else:
+                            return None, error_msg
                         
             except Exception as e:
                 if attempt < max_retries - 1:
@@ -395,7 +431,17 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
         # Then, do regular auto-posting
         print(f"Found {len(self.fanspages)} fanspage(s) configured\n")
         
+        # Get starting topic index for this cycle
+        if self.goldgen.state_file.exists():
+            with open(self.goldgen.state_file, 'r') as f:
+                state = json.load(f)
+                base_topic_index = state.get('current_topic_index', 0)
+        else:
+            base_topic_index = 0
+        
         posted_count = 0
+        fanspage_offset = 0  # Track offset for topic assignment
+        
         for idx, fanspage in enumerate(self.fanspages):
             if not fanspage.get('enabled', True):
                 print(f"⏭️  Skipping {fanspage['name']} (disabled)")
@@ -410,10 +456,11 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
                 print(f"   Page ID: {fanspage['page_id']}")
                 print(f"   Interval: {fanspage['interval_hours']} hours")
                 
-                # Generate content
+                # Generate content with offset topic (different for each fanspage)
                 print("   Generating educational content...")
-                content, topic = self.generate_content()
+                content, topic = self.generate_content_with_offset(fanspage_offset)
                 print(f"   Topic: {topic['headline']}")
+                print(f"   Layout: {topic['layout']}")
                 
                 # Generate poster image
                 print("   Generating infographic...")
@@ -428,6 +475,7 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
                     self.log_post(fanspage, content, image_path, fb_post_id, 'success')
                     self.update_last_post_time(fanspage['page_id'])
                     posted_count += 1
+                    fanspage_offset += 1  # Increment for next fanspage
                 else:
                     print(f"   ❌ Failed: {error}")
                     self.log_post(fanspage, content, image_path, None, 'failed', error)
@@ -451,6 +499,15 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
                 error_msg = str(e)
                 print(f"   ❌ Error: {error_msg}\n")
                 self.log_post(fanspage, "", "", None, 'error', error_msg)
+        
+        # Update state once at the end of cycle
+        if posted_count > 0:
+            next_index = (base_topic_index + posted_count) % len(self.goldgen.topics)
+            self.goldgen.state_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(self.goldgen.state_file, 'w') as f:
+                json.dump({'current_topic_index': next_index, 'last_updated': datetime.now().isoformat()}, f)
+            print(f"📊 Posted to {posted_count} fanspage(s) with different topics")
+            print(f"   Next cycle will start from topic index: {next_index}\n")
         
         print(f"[{datetime.now()}] Process completed.\n")
     

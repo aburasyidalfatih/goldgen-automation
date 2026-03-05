@@ -16,6 +16,51 @@ class GoldGenService:
         
         # Topic rotation state
         self.state_file = Path(__file__).parent / "data" / "topic_state.json"
+        
+        # 10 Layouts - rotates every topic
+        self.layouts = [
+            {
+                "name": "CROSS-SECTION CUTAWAY",
+                "composition": "A realistic National Geographic style cross-section of a river bend. Show the water velocity slowing down on the inside curve, depositing gold flakes in the gravel layers. Bright daylight lighting, educational labels."
+            },
+            {
+                "name": "VISUAL CHECKLIST",
+                "composition": "Survivor Manual aesthetic. Rough wood or dirt background. A rugged illustration of a dry riverbed showing exposed bedrock crevices filled with packed gravel and gold. Tools like pickaxes and pans arranged as borders."
+            },
+            {
+                "name": "STEP-BY-STEP PROCESS",
+                "composition": "Vintage Field Guide aesthetic. Aged parchment paper texture background. Hand-drawn scientific illustration of a 'rotten' quartz vein with iron oxide stains versus a sterile white quartz chunk. Typography looks like an old manual."
+            },
+            {
+                "name": "FIELD SIGNS GRID",
+                "composition": "Dark Rock Macro style. Extreme close-up of a rusty, oxidized rock surface. The red and orange iron stains contrast with the dark rock matrix. A small vein of gold is visible within the rust. High contrast lighting."
+            },
+            {
+                "name": "THE GOLDEN PATH",
+                "composition": "Detailed Diagrammatic style. A split screen showing a gold pan. Top half: The raw gravel mix. Bottom half: The concentrated black sand with gold flakes at the edge. Arrows indicate the panning motion to separate the layers."
+            },
+            {
+                "name": "THE MAGNIFYING GLASS",
+                "composition": "Extreme macro zoom style. Show a magnified view through a circular lens of rock texture with microscopic gold inclusions, sulfide crystals, or mineral grains. The magnifying glass frame is visible at edges. Ultra-detailed texture."
+            },
+            {
+                "name": "BEFORE & AFTER",
+                "composition": "Split vertical composition. Left side labeled 'BEFORE' shows normal river conditions. Right side labeled 'AFTER' shows post-flood changes with exposed bedrock, new gravel bars, and shifted gold deposits. Clear dividing line."
+            },
+            {
+                "name": "THE GEOLOGIST'S NOTEBOOK",
+                "composition": "Hand-drawn field journal style. Sketched illustrations of rocks, veins, or terrain features with handwritten annotations, arrows, circles highlighting key features. Aged paper texture with coffee stains and pencil marks."
+            },
+            {
+                "name": "3D BLOCK DIAGRAM",
+                "composition": "Isometric 3D cutaway block of earth layers. Show surface terrain on top, then soil layers, gravel, and bedrock below. Gold veins or deposits visible cutting through layers. Clean technical illustration with depth."
+            },
+            {
+                "name": "THE PROSPECTOR'S MAP",
+                "composition": "Topographic map view from above. Contour lines showing elevation, blue lines for streams, X marks for sample locations. Legend box in corner. Looks like a technical treasure map with grid coordinates."
+            }
+        ]
+        
         self.topics = [
             {
                 "id": 1,
@@ -27,11 +72,7 @@ class GoldGenService:
                     "Behind large boulders (Eddies)",
                     "Bedrock cracks (Natural Riffles)",
                     "Moss roots (Fine Gold Traps)"
-                ],
-                "visual_style": "National Geographic Cross-Section",
-                "layout": "CROSS-SECTION CUTAWAY",
-                "composition": "A realistic National Geographic style cross-section of a river bend. Show the water velocity slowing down on the inside curve, depositing gold flakes in the gravel layers. Bright daylight lighting, educational labels."
-            },
+                ],            },
             {
                 "id": 2,
                 "headline": "BEDROCK TRAPS",
@@ -42,11 +83,7 @@ class GoldGenService:
                     "Boiler holes (Swirling traps)",
                     "Rough slate edges (Natural Riffles)",
                     "Limestone pockets (Chemical traps)"
-                ],
-                "visual_style": "Survivor Manual",
-                "layout": "VISUAL CHECKLIST",
-                "composition": "Survivor Manual aesthetic. Rough wood or dirt background. A rugged illustration of a dry riverbed showing exposed bedrock crevices filled with packed gravel and gold. Tools like pickaxes and pans arranged as borders."
-            },
+                ],            },
             {
                 "id": 3,
                 "headline": "QUARTZ INDICATORS",
@@ -57,11 +94,7 @@ class GoldGenService:
                     "Boxwork texture (Honeycombed)",
                     "Sulfide presence (Pyrite/Arsenopyrite)",
                     "Fractured structure (Not solid white)"
-                ],
-                "visual_style": "Vintage Field Guide",
-                "layout": "FIELD SIGNS GRID",
-                "composition": "Vintage Field Guide aesthetic. Aged parchment paper texture background. Hand-drawn scientific illustration of a 'rotten' quartz vein with iron oxide stains versus a sterile white quartz chunk. Typography looks like an old manual."
-            },
+                ],            },
             {
                 "id": 4,
                 "headline": "IRON STAINING",
@@ -72,11 +105,7 @@ class GoldGenService:
                     "Orange Limonite crusts",
                     "Black Manganese coatings",
                     "Gossan caps on veins"
-                ],
-                "visual_style": "Dark Rock Macro",
-                "layout": "THE GOLDEN PATH",
-                "composition": "Dark Rock Macro style. Extreme close-up of a rusty, oxidized rock surface. The red and orange iron stains contrast with the dark rock matrix. A small vein of gold is visible within the rust. High contrast lighting."
-            },
+                ],            },
             {
                 "id": 5,
                 "headline": "BLACK SAND SECRETS",
@@ -87,11 +116,7 @@ class GoldGenService:
                     "Hematite (Non-magnetic red)",
                     "Ilmenite (Titanium iron)",
                     "Gold (Heaviest of all)"
-                ],
-                "visual_style": "Detailed Diagrammatic",
-                "layout": "STEP-BY-STEP PROCESS",
-                "composition": "Detailed Diagrammatic style. A split screen showing a gold pan. Top half: The raw gravel mix. Bottom half: The concentrated black sand with gold flakes at the edge. Arrows indicate the panning motion to separate the layers."
-            },
+                ],            },
             {
                 "id": 6,
                 "headline": "GOLD VS PYRITE",
@@ -102,11 +127,7 @@ class GoldGenService:
                     "Pyrite: Shatters / Brittle",
                     "Gold: Yellow in shade",
                     "Pyrite: Greenish-grey in shade"
-                ],
-                "visual_style": "Vintage Field Guide",
-                "layout": "VISUAL CHECKLIST",
-                "composition": "Vintage Field Guide aesthetic. Two illustrations side-by-side. Left: A hammer striking a gold nugget which flattens. Right: A hammer striking a pyrite cube which explodes into dust. Old-school scientific drawing style."
-            },
+                ],            },
             {
                 "id": 7,
                 "headline": "ANCIENT CHANNELS",
@@ -117,11 +138,7 @@ class GoldGenService:
                     "Flat distinct terraces above river",
                     "Color change in soil layers",
                     "Old vegetation lines"
-                ],
-                "visual_style": "National Geographic Cross-Section",
-                "layout": "CROSS-SECTION CUTAWAY",
-                "composition": "National Geographic Cross-Section. A cutaway of a valley side. The modern river is at the bottom, but an 'ancient' blue channel is shown high up on the cliffside with gold deposits. Clean, highly realistic 3D cutaway."
-            },
+                ],            },
             {
                 "id": 8,
                 "headline": "PLACER VS LODE",
@@ -132,11 +149,7 @@ class GoldGenService:
                     "Lode: Jagged & Rough (Near source)",
                     "Placer: Riverbeds & Benches",
                     "Lode: Veins & Hard Rock"
-                ],
-                "visual_style": "Detailed Diagrammatic",
-                "layout": "THE GOLDEN PATH",
-                "composition": "Detailed Diagrammatic style. An illustration of a mountain landscape. Arrows show gold eroding from a quartz vein (Lode) at the peak, tumbling down the slope, and becoming rounded nuggets in the river (Placer) below."
-            },
+                ],            },
             {
                 "id": 9,
                 "headline": "RUBY COMPANIONS",
@@ -147,11 +160,7 @@ class GoldGenService:
                     "Glassy luster",
                     "Often dodecahedral shape",
                     "Found with black sand"
-                ],
-                "visual_style": "Dark Rock Macro",
-                "layout": "FIELD SIGNS GRID",
-                "composition": "Dark Rock Macro style. A close-up of a pan bottom. Bright red garnets are mixed with black sand and a few gold flakes. The red gems pop against the dark background. High contrast, gritty texture."
-            },
+                ],            },
             {
                 "id": 10,
                 "headline": "FALSE BEDROCK",
@@ -162,11 +171,7 @@ class GoldGenService:
                     "Blue or grey color often",
                     "Gold sits ON TOP of it",
                     "Don't dig through it!"
-                ],
-                "visual_style": "Survivor Manual",
-                "layout": "CROSS-SECTION CUTAWAY",
-                "composition": "Survivor Manual aesthetic. A cross-section of a river bank. Showing a layer of dense blue clay sandwiched between gravel layers. Gold nuggets are shown resting directly on top of the clay layer, unable to sink further."
-            }
+                ],            }
             ,{
                 "id": 11,
                 "headline": "SULFIDES",
@@ -177,11 +182,7 @@ class GoldGenService:
                     "Arsenopyrite (Arsenic-iron sulfide)",
                     "Chalcopyrite (Copper-iron sulfide)",
                     "Pyrrhotite (Magnetic iron sulfide)"
-                ],
-                "visual_style": "Dark Rock Macro",
-                "layout": "FIELD SIGNS GRID",
-                "composition": "Dark Rock Macro style. Close-up of metallic sulfide crystals embedded in dark host rock. Show golden pyrite cubes, silvery arsenopyrite crystals, and brassy chalcopyrite. High contrast lighting to show metallic luster."
-            }
+                ],            }
             ,{
                 "id": 12,
                 "headline": "GOSSAN CAPS",
@@ -192,11 +193,7 @@ class GoldGenService:
                     "Porous boxwork texture",
                     "Sits above sulfide zone",
                     "Limonite and hematite rich"
-                ],
-                "visual_style": "National Geographic Cross-Section",
-                "layout": "CROSS-SECTION CUTAWAY",
-                "composition": "National Geographic Cross-Section. Vertical cutaway showing rusty gossan cap at surface, transitioning down to oxidized zone, then to primary sulfide zone with gold. Show weathering process with arrows."
-            }
+                ],            }
             ,{
                 "id": 13,
                 "headline": "CONTACT ZONES",
@@ -207,11 +204,7 @@ class GoldGenService:
                     "Limestone-granite boundaries",
                     "Dike-host rock interfaces",
                     "Metamorphic grade changes"
-                ],
-                "visual_style": "Detailed Diagrammatic",
-                "layout": "THE GOLDEN PATH",
-                "composition": "Detailed Diagrammatic style. Show two different rock types meeting at a contact zone. Arrows indicate hydrothermal fluids depositing gold along the contact. Use different colors for each rock type."
-            }
+                ],            }
             ,{
                 "id": 14,
                 "headline": "FAULT LINES",
@@ -222,11 +215,7 @@ class GoldGenService:
                     "Quartz veins along fault",
                     "Slickensides (Polished surfaces)",
                     "Clay gouge (Fault filling)"
-                ],
-                "visual_style": "National Geographic Cross-Section",
-                "layout": "CROSS-SECTION CUTAWAY",
-                "composition": "National Geographic Cross-Section. Show a fault line cutting through rock layers. Quartz veins with gold deposited along the fault plane. Arrows show fluid movement through the fracture system."
-            }
+                ],            }
             ,{
                 "id": 15,
                 "headline": "SKARN DEPOSITS",
@@ -237,11 +226,7 @@ class GoldGenService:
                     "Epidote (Green alteration)",
                     "Magnetite (Black magnetic)",
                     "Calcite replacement zones"
-                ],
-                "visual_style": "Vintage Field Guide",
-                "layout": "FIELD SIGNS GRID",
-                "composition": "Vintage Field Guide aesthetic. Hand-drawn illustrations of skarn minerals. Show garnet crystals, green epidote, and magnetite in limestone host rock. Old-school scientific drawing style."
-            }
+                ],            }
             ,{
                 "id": 16,
                 "headline": "PORPHYRY SYSTEMS",
@@ -252,11 +237,7 @@ class GoldGenService:
                     "Disseminated sulfides",
                     "Potassic alteration (Pink)",
                     "Large intrusive body"
-                ],
-                "visual_style": "Detailed Diagrammatic",
-                "layout": "STEP-BY-STEP PROCESS",
-                "composition": "Detailed Diagrammatic style. Show a large porphyry intrusion with network of tiny veins throughout. Use different colors for alteration zones. Show scale to emphasize massive size."
-            }
+                ],            }
             ,{
                 "id": 17,
                 "headline": "EPITHERMAL VEINS",
@@ -267,11 +248,7 @@ class GoldGenService:
                     "Bladed calcite (After boiling)",
                     "Colloform banding",
                     "Platy calcite pseudomorphs"
-                ],
-                "visual_style": "Dark Rock Macro",
-                "layout": "FIELD SIGNS GRID",
-                "composition": "Dark Rock Macro style. Extreme close-up of banded epithermal quartz vein. Show distinct color bands, colloform textures, and visible gold. High contrast lighting."
-            }
+                ],            }
             ,{
                 "id": 18,
                 "headline": "GREENSTONE BELTS",
@@ -282,11 +259,7 @@ class GoldGenService:
                     "Chlorite-rich (Green color)",
                     "Shear zone hosted",
                     "Archean age rocks"
-                ],
-                "visual_style": "National Geographic Cross-Section",
-                "layout": "THE GOLDEN PATH",
-                "composition": "National Geographic Cross-Section. Show greenstone belt with folded volcanic rocks. Gold deposits along shear zones. Use green tones for chlorite alteration."
-            }
+                ],            }
             ,{
                 "id": 19,
                 "headline": "SLATE BELTS",
@@ -297,11 +270,7 @@ class GoldGenService:
                     "Quartz veins cutting slate",
                     "Coarse gold common",
                     "Historic mining areas"
-                ],
-                "visual_style": "Survivor Manual",
-                "layout": "VISUAL CHECKLIST",
-                "composition": "Survivor Manual aesthetic. Rugged illustration of slate outcrop with white quartz veins. Show gold nuggets in quartz. Tools and equipment as border elements."
-            }
+                ],            }
             ,{
                 "id": 20,
                 "headline": "GLACIAL GOLD",
@@ -312,11 +281,7 @@ class GoldGenService:
                     "Fine flour gold",
                     "Erratic gold distribution",
                     "Moraine deposits"
-                ],
-                "visual_style": "Detailed Diagrammatic",
-                "layout": "CROSS-SECTION CUTAWAY",
-                "composition": "Detailed Diagrammatic style. Show glacier movement over gold-bearing bedrock. Arrows show gold being ground into flour gold and deposited in moraines. Cross-section view."
-            }
+                ],            }
             ,{
                 "id": 21,
                 "headline": "DESERT PROSPECTING",
@@ -327,11 +292,7 @@ class GoldGenService:
                     "Wind classification",
                     "Desert pavement indicators",
                     "Arroyo concentrations"
-                ],
-                "visual_style": "Survivor Manual",
-                "layout": "STEP-BY-STEP PROCESS",
-                "composition": "Survivor Manual aesthetic. Show dry washer equipment in desert setting. Illustrate wind classification process. Desert landscape with arroyos and gold-bearing gravels."
-            }
+                ],            }
             ,{
                 "id": 22,
                 "headline": "BEACH PLACERS",
@@ -342,11 +303,7 @@ class GoldGenService:
                     "Storm berms",
                     "Bedrock outcrops",
                     "Tidal concentration zones"
-                ],
-                "visual_style": "National Geographic Cross-Section",
-                "layout": "CROSS-SECTION CUTAWAY",
-                "composition": "National Geographic Cross-Section. Beach profile showing wave action concentrating gold in black sand layers. Show bedrock traps and storm berm deposits."
-            }
+                ],            }
             ,{
                 "id": 23,
                 "headline": "ELUVIAL DEPOSITS",
@@ -357,11 +314,7 @@ class GoldGenService:
                     "Still near source vein",
                     "Weathered host rock",
                     "Hillside deposits"
-                ],
-                "visual_style": "Detailed Diagrammatic",
-                "layout": "THE GOLDEN PATH",
-                "composition": "Detailed Diagrammatic style. Show gold vein weathering in place. Angular gold pieces in soil directly above and around vein. Arrows show minimal transport."
-            }
+                ],            }
             ,{
                 "id": 24,
                 "headline": "RESIDUAL DEPOSITS",
@@ -372,11 +325,7 @@ class GoldGenService:
                     "Gold enrichment at depth",
                     "Tropical weathering",
                     "Iron-rich surface"
-                ],
-                "visual_style": "National Geographic Cross-Section",
-                "layout": "CROSS-SECTION CUTAWAY",
-                "composition": "National Geographic Cross-Section. Vertical profile showing laterite weathering. Gold concentrated at base of weathered zone. Show tropical weathering process."
-            }
+                ],            }
             ,{
                 "id": 25,
                 "headline": "SPECIFIC GRAVITY",
@@ -387,11 +336,7 @@ class GoldGenService:
                     "Magnetite: 5.2 g/cm³",
                     "Quartz: 2.65 g/cm³",
                     "Water: 1.0 g/cm³"
-                ],
-                "visual_style": "Detailed Diagrammatic",
-                "layout": "STEP-BY-STEP PROCESS",
-                "composition": "Detailed Diagrammatic style. Show settling rates of different minerals in water. Gold sinking fastest, then magnetite, then quartz. Use arrows and numbers to show specific gravity."
-            }
+                ],            }
             ,{
                 "id": 26,
                 "headline": "THE STREAK TEST",
@@ -402,11 +347,7 @@ class GoldGenService:
                     "Chalcopyrite: Greenish-black streak",
                     "Pyrite: Greenish-black streak",
                     "Use unglazed porcelain"
-                ],
-                "visual_style": "Vintage Field Guide",
-                "layout": "VISUAL CHECKLIST",
-                "composition": "Vintage Field Guide aesthetic. Show minerals being streaked on porcelain plate. Display resulting streak colors. Old-school scientific illustration style."
-            }
+                ],            }
             ,{
                 "id": 27,
                 "headline": "ARSENOPYRITE",
@@ -417,11 +358,7 @@ class GoldGenService:
                     "Garlic smell when struck",
                     "Often gold-bearing",
                     "Orthorhombic crystals"
-                ],
-                "visual_style": "Dark Rock Macro",
-                "layout": "FIELD SIGNS GRID",
-                "composition": "Dark Rock Macro style. Close-up of silvery arsenopyrite crystals with visible gold inclusions. Show crystal structure. High contrast metallic luster."
-            }
+                ],            }
             ,{
                 "id": 28,
                 "headline": "GALENA",
@@ -432,11 +369,7 @@ class GoldGenService:
                     "Lead-gray metallic",
                     "Often with silver and gold",
                     "Heavy mineral"
-                ],
-                "visual_style": "Vintage Field Guide",
-                "layout": "FIELD SIGNS GRID",
-                "composition": "Vintage Field Guide aesthetic. Hand-drawn illustration of galena cubes. Show perfect cubic cleavage. Include associated minerals like quartz and gold."
-            }
+                ],            }
             ,{
                 "id": 29,
                 "headline": "MAGNETITE VS HEMATITE",
@@ -447,11 +380,7 @@ class GoldGenService:
                     "Hematite: Red-brown, non-magnetic",
                     "Magnetite: Fe3O4",
                     "Hematite: Fe2O3"
-                ],
-                "visual_style": "Detailed Diagrammatic",
-                "layout": "VISUAL CHECKLIST",
-                "composition": "Detailed Diagrammatic style. Side-by-side comparison of magnetite and hematite. Show magnet test. Display color differences and crystal forms."
-            }
+                ],            }
             ,{
                 "id": 30,
                 "headline": "SERPENTINE ROCK",
@@ -462,11 +391,7 @@ class GoldGenService:
                     "Slippery feel",
                     "Altered ultramafic rock",
                     "Often with chromite"
-                ],
-                "visual_style": "Dark Rock Macro",
-                "layout": "FIELD SIGNS GRID",
-                "composition": "Dark Rock Macro style. Close-up of green serpentine rock texture. Show waxy luster and characteristic green color. Include chromite specks."
-            }
+                ],            }
             ,{
                 "id": 31,
                 "headline": "CALCITE VS QUARTZ",
@@ -477,11 +402,7 @@ class GoldGenService:
                     "Quartz: No reaction",
                     "Calcite: Softer (H=3)",
                     "Quartz: Harder (H=7)"
-                ],
-                "visual_style": "Vintage Field Guide",
-                "layout": "VISUAL CHECKLIST",
-                "composition": "Vintage Field Guide aesthetic. Two illustrations showing acid test. Left: Calcite fizzing with acid drops. Right: Quartz with no reaction. Scientific drawing style."
-            }
+                ],            }
             ,{
                 "id": 32,
                 "headline": "BOXWORK TEXTURE",
@@ -492,11 +413,7 @@ class GoldGenService:
                     "Iron oxide framework",
                     "Former sulfide location",
                     "Porous structure"
-                ],
-                "visual_style": "Dark Rock Macro",
-                "layout": "FIELD SIGNS GRID",
-                "composition": "Dark Rock Macro style. Extreme close-up of boxwork texture showing honeycomb pattern. Iron oxide framework where sulfides weathered out. High detail texture."
-            }
+                ],            }
             ,{
                 "id": 33,
                 "headline": "BOILING ZONES",
@@ -507,11 +424,7 @@ class GoldGenService:
                     "Lattice bladed texture",
                     "Colloform banding",
                     "Crustiform layering"
-                ],
-                "visual_style": "Detailed Diagrammatic",
-                "layout": "FIELD SIGNS GRID",
-                "composition": "Detailed Diagrammatic style. Show various boiling textures in epithermal veins. Illustrate platy calcite, banding patterns, and colloform structures with labels."
-            }
+                ],            }
             ,{
                 "id": 34,
                 "headline": "NUGGET PATCHES",
@@ -522,11 +435,7 @@ class GoldGenService:
                     "Shallow bedrock",
                     "Detector targets",
                     "Erratic distribution"
-                ],
-                "visual_style": "Survivor Manual",
-                "layout": "THE GOLDEN PATH",
-                "composition": "Survivor Manual aesthetic. Show metal detector over ground with nuggets. Illustrate patch distribution pattern. Include prospecting tools and equipment."
-            }
+                ],            }
             ,{
                 "id": 35,
                 "headline": "PAYSTREAKS",
@@ -537,11 +446,7 @@ class GoldGenService:
                     "Follow old channels",
                     "Bedrock irregularities",
                     "Concentrated heavy minerals"
-                ],
-                "visual_style": "National Geographic Cross-Section",
-                "layout": "THE GOLDEN PATH",
-                "composition": "National Geographic Cross-Section. Overhead and cross-section view of paystreak in river. Show narrow gold-rich zone following bedrock channel. Use arrows to show flow."
-            }
+                ],            }
             ,{
                 "id": 36,
                 "headline": "FLOOD GOLD",
@@ -552,11 +457,7 @@ class GoldGenService:
                     "Skim bars (Surface gold)",
                     "Moss and root mats",
                     "Flood debris piles"
-                ],
-                "visual_style": "Detailed Diagrammatic",
-                "layout": "STEP-BY-STEP PROCESS",
-                "composition": "Detailed Diagrammatic style. Show flood stage depositing gold on bars. Illustrate moss mats trapping fine gold. Cross-section of flood deposits."
-            }
+                ],            }
             ,{
                 "id": 37,
                 "headline": "CREVICING",
@@ -567,11 +468,7 @@ class GoldGenService:
                     "Snuffer bottle",
                     "Bedrock cracks",
                     "Exposed bedrock areas"
-                ],
-                "visual_style": "Survivor Manual",
-                "layout": "VISUAL CHECKLIST",
-                "composition": "Survivor Manual aesthetic. Show crevicing tools in use. Illustrate bedrock cracks with gold. Display various crevice tools and techniques."
-            }
+                ],            }
             ,{
                 "id": 38,
                 "headline": "BOOMING",
@@ -582,11 +479,7 @@ class GoldGenService:
                     "Wash overburden away",
                     "Expose bedrock",
                     "Historic method"
-                ],
-                "visual_style": "Vintage Field Guide",
-                "layout": "STEP-BY-STEP PROCESS",
-                "composition": "Vintage Field Guide aesthetic. Historical illustration of booming technique. Show dam, water release, and bedrock exposure. Old-timey prospecting scene."
-            }
+                ],            }
             ,{
                 "id": 39,
                 "headline": "MERCURY IN GOLD",
@@ -597,11 +490,7 @@ class GoldGenService:
                     "Forms gold amalgam",
                     "Historic use in mining",
                     "Environmental contamination"
-                ],
-                "visual_style": "Detailed Diagrammatic",
-                "layout": "VISUAL CHECKLIST",
-                "composition": "Detailed Diagrammatic style. Show mercury-gold amalgam process. Include warning symbols. Illustrate environmental impact and safety concerns."
-            }
+                ],            }
             ,{
                 "id": 40,
                 "headline": "TELLURIDES",
@@ -612,11 +501,7 @@ class GoldGenService:
                     "Sylvanite (Gold-silver telluride)",
                     "Petzite (Silver-gold telluride)",
                     "Often high-grade"
-                ],
-                "visual_style": "Dark Rock Macro",
-                "layout": "FIELD SIGNS GRID",
-                "composition": "Dark Rock Macro style. Close-up of telluride minerals. Show metallic luster and crystal forms. High contrast lighting on metallic surfaces."
-            }
+                ],            }
             ,{
                 "id": 41,
                 "headline": "CARLIN-TYPE GOLD",
@@ -627,11 +512,7 @@ class GoldGenService:
                     "Sediment-hosted",
                     "Arsenic association",
                     "Large tonnage, low grade"
-                ],
-                "visual_style": "Detailed Diagrammatic",
-                "layout": "CROSS-SECTION CUTAWAY",
-                "composition": "Detailed Diagrammatic style. Show sedimentary layers with disseminated gold. Microscopic view inset showing submicroscopic gold in arsenian pyrite."
-            }
+                ],            }
             ,{
                 "id": 42,
                 "headline": "OROGENIC GOLD",
@@ -642,11 +523,7 @@ class GoldGenService:
                     "Metamorphic setting",
                     "Quartz-carbonate veins",
                     "Mesothermal depth"
-                ],
-                "visual_style": "National Geographic Cross-Section",
-                "layout": "THE GOLDEN PATH",
-                "composition": "National Geographic Cross-Section. Show mountain building process with shear zones. Gold deposits in quartz veins along shear zones. Tectonic arrows."
-            }
+                ],            }
             ,{
                 "id": 43,
                 "headline": "VMS DEPOSITS",
@@ -657,11 +534,7 @@ class GoldGenService:
                     "Volcanic host rocks",
                     "Base metals with gold",
                     "Seafloor origin"
-                ],
-                "visual_style": "Detailed Diagrammatic",
-                "layout": "CROSS-SECTION CUTAWAY",
-                "composition": "Detailed Diagrammatic style. Show VMS deposit formation on ancient seafloor. Massive sulfide lens in volcanic rocks. Hydrothermal vent system."
-            }
+                ],            }
             ,{
                 "id": 44,
                 "headline": "WITWATERSRAND",
@@ -672,11 +545,7 @@ class GoldGenService:
                     "Rounded quartz pebbles",
                     "Pyrite and uraninite",
                     "Ancient river deposits"
-                ],
-                "visual_style": "Vintage Field Guide",
-                "layout": "FIELD SIGNS GRID",
-                "composition": "Vintage Field Guide aesthetic. Hand-drawn illustration of conglomerate with rounded pebbles. Show gold and pyrite in matrix. Scientific drawing style."
-            }
+                ],            }
             ,{
                 "id": 45,
                 "headline": "BRECCIA PIPES",
@@ -687,11 +556,7 @@ class GoldGenService:
                     "Pipe-like structure",
                     "Hydrothermal alteration",
                     "Gold in matrix"
-                ],
-                "visual_style": "National Geographic Cross-Section",
-                "layout": "CROSS-SECTION CUTAWAY",
-                "composition": "National Geographic Cross-Section. Vertical pipe of brecciated rock. Show angular fragments with gold-bearing matrix. Hydrothermal fluid pathways."
-            }
+                ],            }
             ,{
                 "id": 46,
                 "headline": "SHEAR ZONES",
@@ -702,11 +567,7 @@ class GoldGenService:
                     "Quartz veins parallel to shear",
                     "Mylonite texture",
                     "Linear structural trend"
-                ],
-                "visual_style": "Detailed Diagrammatic",
-                "layout": "THE GOLDEN PATH",
-                "composition": "Detailed Diagrammatic style. Show shear zone cutting through rock. Illustrate foliation, quartz veins, and gold deposition. Stress arrows showing shear direction."
-            }
+                ],            }
             ,{
                 "id": 47,
                 "headline": "FOLD HINGES",
@@ -717,11 +578,7 @@ class GoldGenService:
                     "Dilation and fracturing",
                     "Quartz vein concentration",
                     "Gold enrichment"
-                ],
-                "visual_style": "National Geographic Cross-Section",
-                "layout": "CROSS-SECTION CUTAWAY",
-                "composition": "National Geographic Cross-Section. Show folded rock layers with gold concentrated at fold hinge. Illustrate dilation zones and quartz veins."
-            }
+                ],            }
             ,{
                 "id": 48,
                 "headline": "SADDLE REEFS",
@@ -732,11 +589,7 @@ class GoldGenService:
                     "Saddle-shaped quartz body",
                     "Bedding-parallel veins",
                     "Classic Victorian goldfields"
-                ],
-                "visual_style": "Vintage Field Guide",
-                "layout": "CROSS-SECTION CUTAWAY",
-                "composition": "Vintage Field Guide aesthetic. Cross-section of anticline with saddle reef at crest. Show saddle-shaped quartz body. Historical mining illustration style."
-            }
+                ],            }
             ,{
                 "id": 49,
                 "headline": "STOCKWORKS",
@@ -747,11 +600,7 @@ class GoldGenService:
                     "Crosscutting veins",
                     "Disseminated gold",
                     "Porphyry and epithermal systems"
-                ],
-                "visual_style": "Detailed Diagrammatic",
-                "layout": "FIELD SIGNS GRID",
-                "composition": "Detailed Diagrammatic style. Show dense network of tiny quartz veins crosscutting host rock. Illustrate stockwork pattern with gold distribution."
-            }
+                ],            }
             ,{
                 "id": 50,
                 "headline": "LATERITE GOLD",
@@ -762,15 +611,11 @@ class GoldGenService:
                     "Iron-rich surface layer",
                     "Gold enrichment at base",
                     "Tropical climate formation"
-                ],
-                "visual_style": "National Geographic Cross-Section",
-                "layout": "CROSS-SECTION CUTAWAY",
-                "composition": "National Geographic Cross-Section. Vertical profile of laterite weathering. Show iron-rich cap, weathered zone, and gold enrichment at base. Tropical setting."
-            }
+                ],            }
         ]
     
     def get_next_topic(self):
-        """Get next topic in rotation"""
+        """Get next topic in rotation with dynamic layout assignment"""
         if self.state_file.exists():
             with open(self.state_file, 'r') as f:
                 state = json.load(f)
@@ -778,7 +623,14 @@ class GoldGenService:
         else:
             current_index = 0
         
-        topic = self.topics[current_index]
+        # Get topic
+        topic = self.topics[current_index].copy()
+        
+        # Assign layout based on current index (rotates every 10 topics)
+        layout_index = current_index % len(self.layouts)
+        layout = self.layouts[layout_index]
+        topic['layout'] = layout['name']
+        topic['composition'] = layout['composition']
         
         # Update state for next run
         next_index = (current_index + 1) % len(self.topics)
@@ -786,6 +638,30 @@ class GoldGenService:
         with open(self.state_file, 'w') as f:
             json.dump({'current_topic_index': next_index, 'last_updated': datetime.now().isoformat()}, f)
         
+        return topic
+    
+    def get_topic_with_offset(self, offset=0):
+        """Get topic with offset (for multiple fanspages without updating state)"""
+        if self.state_file.exists():
+            with open(self.state_file, 'r') as f:
+                state = json.load(f)
+                base_index = state.get('current_topic_index', 0)
+        else:
+            base_index = 0
+        
+        # Calculate index with offset
+        current_index = (base_index + offset) % len(self.topics)
+        
+        # Get topic
+        topic = self.topics[current_index].copy()
+        
+        # Assign layout based on current index
+        layout_index = current_index % len(self.layouts)
+        layout = self.layouts[layout_index]
+        topic['layout'] = layout['name']
+        topic['composition'] = layout['composition']
+        
+        # Don't update state - will be updated by caller
         return topic
     
     def generate_caption(self, topic):
@@ -851,7 +727,10 @@ Generate similar caption for the current topic. Make the headline IRRESISTIBLE t
                 model=self.model,
                 contents=prompt
             )
-            return response.text
+            caption = response.text
+            # Add AI disclosure
+            caption += "\n\n🤖 Content created with AI assistance"
+            return caption
         except Exception as e:
             # Fallback caption
             return f"""🪨 {topic['headline']}
@@ -862,6 +741,8 @@ Generate similar caption for the current topic. Make the headline IRRESISTIBLE t
 {list_text}
 
 Learn the signs. Find the gold.
+
+🤖 Content created with AI assistance
 
 #GoldProspecting #PlacerGold #ProspectingTips #GoldPanning"""
     

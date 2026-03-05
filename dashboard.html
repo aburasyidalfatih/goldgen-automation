@@ -98,16 +98,32 @@
         <!-- Topic Rotation Info -->
         <div class="card rounded-lg p-6 mb-8">
             <h2 class="text-xl font-bold text-yellow-500 mb-4">📚 Current Topic Rotation</h2>
-            <div id="topic-info" class="space-y-3">
-                <div class="flex items-center gap-3">
+            <div id="topic-info" class="space-y-4">
+                <div class="flex items-start gap-3">
                     <span class="text-2xl">→</span>
-                    <div>
-                        <div class="text-lg font-semibold" id="current-topic">Loading...</div>
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2 mb-1">
+                            <div class="text-lg font-semibold" id="current-topic">Loading...</div>
+                            <span class="topic-badge" id="current-layout">-</span>
+                        </div>
                         <div class="text-gray-400 text-sm" id="topic-subtitle">-</div>
+                        <div class="text-gray-500 text-xs mt-1">
+                            Topic <span id="current-index">-</span> of <span id="total-topics">50</span>
+                        </div>
                     </div>
                 </div>
-                <div class="text-sm text-gray-500">
-                    Next: <span id="next-topic" class="text-yellow-500">-</span>
+                <div class="border-t border-gray-700 pt-3">
+                    <div class="text-sm text-gray-400 mb-1">Next in rotation:</div>
+                    <div class="flex items-center gap-2">
+                        <span id="next-topic" class="text-yellow-500 font-semibold">-</span>
+                        <span class="topic-badge text-xs" id="next-layout">-</span>
+                    </div>
+                </div>
+                <div class="bg-blue-900 bg-opacity-20 border border-blue-500 rounded p-3 text-sm">
+                    <div class="text-blue-400 font-semibold mb-1">💡 Layout System</div>
+                    <div class="text-gray-300 text-xs">
+                        <span id="total-layouts">10</span> unique layouts rotate every topic. Each fanspage in a cycle gets different topic & layout to avoid spam detection.
+                    </div>
                 </div>
             </div>
         </div>
@@ -437,9 +453,20 @@
                 const response = await fetch(`${API_BASE}/topic-info`);
                 const data = await response.json();
                 
+                if (data.error) {
+                    console.error('Topic info error:', data.error);
+                    return;
+                }
+                
                 document.getElementById('current-topic').textContent = `${data.current.id}. ${data.current.name}`;
                 document.getElementById('topic-subtitle').textContent = data.current.subtitle;
+                document.getElementById('current-layout').textContent = data.current.layout;
+                document.getElementById('current-index').textContent = data.current.index + 1;
+                document.getElementById('total-topics').textContent = data.total_topics;
+                document.getElementById('total-layouts').textContent = data.total_layouts;
+                
                 document.getElementById('next-topic').textContent = `${data.next.id}. ${data.next.name}`;
+                document.getElementById('next-layout').textContent = data.next.layout;
             } catch (error) {
                 console.error('Error fetching topic info:', error);
             }
@@ -471,7 +498,18 @@
                 container.innerHTML = data.posts.map(post => {
                     const statusIcon = post.status === 'success' ? '✅' : '❌';
                     const statusColor = post.status === 'success' ? 'text-green-500' : 'text-red-500';
-                    const date = new Date(post.timestamp).toLocaleString('en-US');
+                    
+                    // Convert to WIB timezone
+                    const date = new Date(post.timestamp).toLocaleString('en-US', {
+                        timeZone: 'Asia/Jakarta',
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        hour12: false
+                    }) + ' WIB';
                     
                     return `
                         <div class="border border-gray-700 rounded-lg p-4 hover:border-yellow-500 transition">

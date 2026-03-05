@@ -140,36 +140,44 @@ def get_posts():
 
 @app.route('/api/next-run')
 def get_next_run():
-    """Get next scheduled run time"""
+    """Get next scheduled run time (cron runs every hour at :00)"""
     now = datetime.now()
-    next_hour = (now.hour // 3 + 1) * 3
-    if next_hour >= 24:
-        next_run = now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+    
+    # Next hour at :00
+    if now.minute == 0 and now.second < 5:
+        # If we're at the start of the hour, next run is this hour
+        next_run = now.replace(minute=0, second=0, microsecond=0)
     else:
-        next_run = now.replace(hour=next_hour, minute=0, second=0, microsecond=0)
+        # Otherwise, next run is next hour
+        if now.hour == 23:
+            next_run = now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+        else:
+            next_run = now.replace(hour=now.hour + 1, minute=0, second=0, microsecond=0)
     
     return jsonify({
         'next_run': next_run.isoformat(),
-        'next_run_formatted': next_run.strftime('%Y-%m-%d %H:%M:%S')
+        'next_run_formatted': next_run.strftime('%Y-%m-%d %H:%M:%S') + ' WIB'
     })
 
 @app.route('/api/topic-info')
 def get_topic_info():
     """Get current topic rotation info"""
     try:
-        topics = [
-            {"id": 1, "name": "Reading the River", "subtitle": "Gold drops where water slows down"},
-            {"id": 2, "name": "Bedrock Traps", "subtitle": "Nature's own sluice box"},
-            {"id": 3, "name": "Quartz Indicators", "subtitle": "Rusty and rotten holds the fortune"},
-            {"id": 4, "name": "Iron Staining", "subtitle": "Rust is the color of money"},
-            {"id": 5, "name": "Black Sand Secrets", "subtitle": "Heavy minerals lead the way"},
-            {"id": 6, "name": "Gold vs Pyrite", "subtitle": "The hammer never lies"},
-            {"id": 7, "name": "Ancient Channels", "subtitle": "High benches hold forgotten wealth"},
-            {"id": 8, "name": "Placer vs Lode", "subtitle": "Tracking the source upstream"},
-            {"id": 9, "name": "Ruby Companions", "subtitle": "Garnets signal heavy ground"},
-            {"id": 10, "name": "False Bedrock", "subtitle": "Clay layers trap gold too"}
-        ]
+        # Load from goldgen_service to get actual topics
+        from goldgen_service import GoldGenService
         
+        # Load config to get API key
+        config_file = DATA_DIR / "config.json"
+        if config_file.exists():
+            with open(config_file, 'r') as f:
+                config = json.load(f)
+                api_key = config.get('gemini_api_key', 'dummy')
+        else:
+            api_key = 'dummy'
+        
+        service = GoldGenService(api_key)
+        
+        # Get current state
         state_file = DATA_DIR / "topic_state.json"
         if state_file.exists():
             with open(state_file, 'r') as f:
@@ -178,15 +186,34 @@ def get_topic_info():
         else:
             current_index = 0
         
-        current_topic = topics[current_index]
-        next_index = (current_index + 1) % len(topics)
-        next_topic = topics[next_index]
+        # Get current and next topics
+        current_topic = service.topics[current_index]
+        next_index = (current_index + 1) % len(service.topics)
+        next_topic = service.topics[next_index]
+        
+        # Get layout info
+        current_layout_idx = current_index % len(service.layouts)
+        next_layout_idx = next_index % len(service.layouts)
+        current_layout = service.layouts[current_layout_idx]
+        next_layout = service.layouts[next_layout_idx]
         
         return jsonify({
-            'current': current_topic,
-            'next': next_topic,
-            'all_topics': topics,
-            'current_index': current_index
+            'current': {
+                'id': current_topic['id'],
+                'name': current_topic['headline'],
+                'subtitle': current_topic['subtitle'],
+                'layout': current_layout['name'],
+                'index': current_index
+            },
+            'next': {
+                'id': next_topic['id'],
+                'name': next_topic['headline'],
+                'subtitle': next_topic['subtitle'],
+                'layout': next_layout['name'],
+                'index': next_index
+            },
+            'total_topics': len(service.topics),
+            'total_layouts': len(service.layouts)
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
