@@ -669,22 +669,27 @@ class GoldGenService:
         
         list_text = "\n".join([f"• {point}" for point in topic['list_points']])
         
-        prompt = f"""Create a CAPTIVATING EDUCATIONAL CAPTION for a gold prospecting infographic post.
+        prompt = f"""Create a COMPREHENSIVE EDUCATIONAL CAPTION for a gold prospecting infographic post.
 
 TOPIC: {topic['headline']}
 SUBTITLE: {topic['subtitle']}
 
-KEY POINTS:
+KEY POINTS TO EXPLAIN:
 {list_text}
 
 Requirements:
 1. Language: ENGLISH
-2. Max Length: 600 characters
+2. Length: 1000-1500 characters (LONG and DETAILED)
 3. Structure:
    (a) ATTENTION-GRABBING HEADLINE - Use power words, curiosity, or surprising facts
-   (b) Brief explanation with storytelling elements
-   (c) Actionable field tip or "pro secret"
-   (d) Hashtags (4-6 relevant to gold prospecting)
+   (b) Opening hook - 1-2 sentences that create intrigue
+   (c) DETAILED explanation of the topic (3-4 paragraphs)
+       - Explain EACH key point from the list
+       - Include scientific/geological context
+       - Add real-world examples or scenarios
+   (d) Practical field tips - Actionable advice prospectors can use
+   (e) Closing statement - Motivational or thought-provoking
+   (f) Hashtags (6-8 relevant to gold prospecting)
 
 HEADLINE FORMULAS (choose one that fits):
 - "The [Number] Secret(s) [Expert] Don't Tell You About..."
@@ -694,32 +699,32 @@ HEADLINE FORMULAS (choose one that fits):
 - "The Hidden Truth About..."
 - "Stop [Common Mistake] - Do This Instead"
 - "[Surprising Fact] That Will Change How You..."
+- "The Ultimate Guide to..."
+- "Everything You Need to Know About..."
 
-Style: Engaging, educational, creates curiosity and urgency.
-Tone: Expert sharing insider knowledge, slightly mysterious but trustworthy.
+Style: Engaging, educational, comprehensive, creates curiosity.
+Tone: Expert educator sharing deep knowledge, trustworthy and authoritative.
 Format: Clean text without markdown symbols (no **, ##, etc)
 
-Example structures:
+Example structure:
 
-"THE ONE THING PROS LOOK FOR (That Beginners Miss)
+"THE HIDDEN TRUTH ABOUT IRON STAINING (That Could Make You Rich)
 
-While everyone's chasing shiny quartz, experienced prospectors know the real money is in the ugly, rusty, rotten-looking rock. Iron staining means decomposed sulfides - and that's where gold hides.
+Most beginners walk right past the best gold deposits because they're looking for the wrong thing. They want shiny, clean quartz veins. But experienced prospectors know better.
 
-Pro Secret: If it looks "too clean" it's probably empty. Seek the stained and fractured.
+Iron staining is your treasure map. When sulfide minerals like pyrite decompose, they leave behind rusty red and orange stains on the rock. This oxidation process, called gossan formation, is a direct indicator that you're in a mineralized zone. And where there are sulfides, there's often gold.
 
-#GoldProspecting #PlacerGold #ProspectingSecrets #GoldPanning #FindGold"
+Here's what to look for: Red hematite stains indicate iron oxide. Orange limonite crusts show weathered sulfides. Black manganese coatings appear in highly mineralized areas. And those rusty, rotten-looking gossan caps sitting on top of veins? They're literally pointing down to potential gold deposits below.
 
-OR
+The science is simple: Gold often occurs with sulfide minerals in hydrothermal veins. When these veins reach the surface and weather, the sulfides oxidize and create that distinctive rusty appearance. The gold, being chemically stable, remains behind while the sulfides decompose around it.
 
-"WHY MOST PROSPECTORS FAIL (And How to Avoid It)
+Field Tip: If the rock looks "too clean" and pure white, it's probably barren. Seek the stained, fractured, and oxidized material. Use a magnet to test for magnetite in the black sand. Look for boxwork textures where sulfides have weathered away, leaving honeycomb patterns. These are your indicators.
 
-They dig where it looks good. Smart prospectors dig where physics says gold MUST be. Heavy gold sinks to bedrock, gets trapped in crevices, and stays there for centuries while lighter material washes away.
+Remember: Ugly rocks make beautiful gold. Don't judge a vein by its surface appearance.
 
-Field Tip: Find bedrock, find cracks, find gold. It's that simple.
+#GoldProspecting #IronStaining #Gossan #PlacerGold #ProspectingTips #GoldPanning #FindGold #MiningLife"
 
-#GoldProspecting #PlacerGold #ProspectingTips #GoldPanning #GoldHunting"
-
-Generate similar caption for the current topic. Make the headline IRRESISTIBLE to click. Use plain text only, no markdown formatting.
+Generate a similar COMPREHENSIVE caption for the current topic. Make it INFORMATIVE and COMPLETE so readers fully understand the infographic. Use plain text only, no markdown formatting.
 """
         
         try:
