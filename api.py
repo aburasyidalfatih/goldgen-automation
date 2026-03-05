@@ -168,9 +168,12 @@ def get_next_run():
             with open(config_file, 'r') as f:
                 config = json.load(f)
                 fanspages = config.get('fanspages', [])
+                fanspage_delay_minutes = config.get('fanspage_delay_minutes', 60)
             
             conn = get_db()
             cursor = conn.cursor()
+            
+            post_time = next_run  # Start time for first post
             
             for fp in fanspages:
                 if not fp.get('enabled', True):
@@ -186,33 +189,32 @@ def get_next_run():
                 result = cursor.fetchone()
                 last_post = result['last_post'] if result['last_post'] else None
                 
+                will_post = False
                 if last_post:
                     last_post_time = datetime.fromisoformat(last_post)
                     interval_hours = fp.get('interval_hours', 6)
-                    next_post_time = last_post_time + timedelta(hours=interval_hours)
+                    next_eligible_time = last_post_time + timedelta(hours=interval_hours)
                     
-                    # Check if this fanspage will post in next run
-                    if next_post_time <= next_run:
-                        time_until = next_run - now
-                        hours = int(time_until.total_seconds() // 3600)
-                        minutes = int((time_until.total_seconds() % 3600) // 60)
-                        
-                        next_posts.append({
-                            'page_name': fp['name'],
-                            'next_post_time': next_run.strftime('%H:%M WIB'),
-                            'time_until': f'in {hours}h {minutes}m' if hours > 0 else f'in {minutes}m'
-                        })
+                    # Check if this fanspage is eligible to post
+                    if next_eligible_time <= next_run:
+                        will_post = True
                 else:
-                    # Never posted, will post in next run
-                    time_until = next_run - now
+                    # Never posted, will post
+                    will_post = True
+                
+                if will_post:
+                    time_until = post_time - now
                     hours = int(time_until.total_seconds() // 3600)
                     minutes = int((time_until.total_seconds() % 3600) // 60)
                     
                     next_posts.append({
                         'page_name': fp['name'],
-                        'next_post_time': next_run.strftime('%H:%M WIB'),
+                        'next_post_time': post_time.strftime('%H:%M WIB'),
                         'time_until': f'in {hours}h {minutes}m' if hours > 0 else f'in {minutes}m'
                     })
+                    
+                    # Add delay for next fanspage
+                    post_time = post_time + timedelta(minutes=fanspage_delay_minutes)
             
             conn.close()
     except Exception as e:
