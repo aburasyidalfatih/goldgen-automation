@@ -612,6 +612,281 @@ class GoldGenService:
                     "Gold enrichment at base",
                     "Tropical climate formation"
                 ],            }
+            ,{
+                "id": 51,
+                "headline": "METAL DETECTORS",
+                "subtitle": "Electronic gold hunting.",
+                "list_header": "DETECTOR BASICS",
+                "list_points": [
+                    "VLF vs PI technology",
+                    "Ground balance settings",
+                    "Discrimination modes",
+                    "Coil selection for gold"
+                ],            }
+            ,{
+                "id": 52,
+                "headline": "SLUICE BOXES",
+                "subtitle": "Gravity does the work.",
+                "list_header": "SLUICE SETUP",
+                "list_points": [
+                    "Proper angle (5-7 degrees)",
+                    "Water flow rate",
+                    "Riffle types and spacing",
+                    "Matting and carpet choice"
+                ],            }
+            ,{
+                "id": 53,
+                "headline": "CLAIM STAKING",
+                "subtitle": "Securing your ground.",
+                "list_header": "STAKING PROCESS",
+                "list_points": [
+                    "Research available land",
+                    "Mark boundaries properly",
+                    "File with authorities",
+                    "Annual maintenance fees"
+                ],            }
+            ,{
+                "id": 54,
+                "headline": "MERCURY SAFETY",
+                "subtitle": "The silent killer.",
+                "list_header": "MERCURY HAZARDS",
+                "list_points": [
+                    "Vapor inhalation danger",
+                    "Skin absorption risk",
+                    "Environmental contamination",
+                    "Safe alternatives exist"
+                ],            }
+            ,{
+                "id": 55,
+                "headline": "SPRING RUNOFF",
+                "subtitle": "High water opportunity.",
+                "list_header": "RUNOFF ADVANTAGES",
+                "list_points": [
+                    "Exposes new bedrock",
+                    "Moves heavy material",
+                    "Creates new deposits",
+                    "Cleans out crevices"
+                ],            }
+            ,{
+                "id": 56,
+                "headline": "SAMPLING STRATEGIES",
+                "subtitle": "Smart testing saves time.",
+                "list_header": "SAMPLING METHODS",
+                "list_points": [
+                    "Grid pattern sampling",
+                    "Systematic spacing",
+                    "Consistent sample size",
+                    "Record GPS coordinates"
+                ],            }
+            ,{
+                "id": 57,
+                "headline": "SELLING YOUR GOLD",
+                "subtitle": "Getting fair value.",
+                "list_header": "SELLING OPTIONS",
+                "list_points": [
+                    "Local refineries",
+                    "Online buyers",
+                    "Pawn shops (lowest price)",
+                    "Direct to jewelers"
+                ],            }
+            ,{
+                "id": 58,
+                "headline": "GOLD RUSH HISTORY",
+                "subtitle": "Learning from the past.",
+                "list_header": "HISTORIC LESSONS",
+                "list_points": [
+                    "Old workings show deposits",
+                    "Technology left gold behind",
+                    "Maps reveal patterns",
+                    "Tailings hold value"
+                ],            }
+            ,{
+                "id": 59,
+                "headline": "NO GOLD FOUND",
+                "subtitle": "Troubleshooting dry holes.",
+                "list_header": "COMMON MISTAKES",
+                "list_points": [
+                    "Wrong location in stream",
+                    "Not reaching bedrock",
+                    "Overburden too deep",
+                    "Upstream source missing"
+                ],            }
+            ,{
+                "id": 60,
+                "headline": "PROSPECTING CLUBS",
+                "subtitle": "Strength in numbers.",
+                "list_header": "CLUB BENEFITS",
+                "list_points": [
+                    "Access to claims",
+                    "Shared knowledge",
+                    "Group outings",
+                    "Equipment loans"
+                ],            }
+            ,{
+                "id": 61,
+                "headline": "GOLD PANS",
+                "subtitle": "The essential tool.",
+                "list_header": "PAN SELECTION",
+                "list_points": [
+                    "Size: 10-14 inches",
+                    "Riffles vs smooth",
+                    "Green or black color",
+                    "Plastic vs metal"
+                ],            }
+            ,{
+                "id": 62,
+                "headline": "ACID TESTING",
+                "subtitle": "Chemical verification.",
+                "list_header": "ACID TEST PROCEDURE",
+                "list_points": [
+                    "Scratch test surface",
+                    "Apply nitric acid",
+                    "Gold won't react",
+                    "Pyrite dissolves"
+                ],            }
+            ,{
+                "id": 63,
+                "headline": "MINING PERMITS",
+                "subtitle": "Legal requirements.",
+                "list_header": "PERMIT TYPES",
+                "list_points": [
+                    "Recreational permits",
+                    "Commercial licenses",
+                    "Environmental clearance",
+                    "Water rights"
+                ],            }
+            ,{
+                "id": 64,
+                "headline": "AFTER FLOODS",
+                "subtitle": "Nature's redistribution.",
+                "list_header": "POST-FLOOD SIGNS",
+                "list_points": [
+                    "New gravel bars",
+                    "Exposed bedrock",
+                    "Changed stream course",
+                    "Fresh concentrations"
+                ],            }
+            ,{
+                "id": 65,
+                "headline": "FINE GOLD RECOVERY",
+                "subtitle": "Capturing flour gold.",
+                "list_header": "FINE GOLD TECHNIQUES",
+                "list_points": [
+                    "Blue bowl concentrator",
+                    "Miller table",
+                    "Spiral panning",
+                    "Chemical recovery"
+                ],            }
+            ,{
+                "id": 66,
+                "headline": "ASSAYING",
+                "subtitle": "Professional analysis.",
+                "list_header": "ASSAY METHODS",
+                "list_points": [
+                    "Fire assay (most accurate)",
+                    "XRF analysis",
+                    "ICP testing",
+                    "Sample preparation"
+                ],            }
+            ,{
+                "id": 67,
+                "headline": "FAMOUS NUGGETS",
+                "subtitle": "Legendary finds.",
+                "list_header": "RECORD NUGGETS",
+                "list_points": [
+                    "Welcome Stranger (72kg)",
+                    "Hand of Faith (27kg)",
+                    "Pepita Canaã (60kg)",
+                    "Great Triangle (36kg)"
+                ],            }
+            ,{
+                "id": 68,
+                "headline": "GOLD PRICING",
+                "subtitle": "Understanding value.",
+                "list_header": "PRICING FACTORS",
+                "list_points": [
+                    "Spot price per ounce",
+                    "Purity percentage",
+                    "Buyer's premium",
+                    "Specimen vs melt value"
+                ],            }
+            ,{
+                "id": 69,
+                "headline": "EQUIPMENT FAILURES",
+                "subtitle": "Field repairs.",
+                "list_header": "COMMON FAILURES",
+                "list_points": [
+                    "Detector coil damage",
+                    "Sluice riffle loss",
+                    "Pan cracks",
+                    "Pump failures"
+                ],            }
+            ,{
+                "id": 70,
+                "headline": "TAILINGS",
+                "subtitle": "Old dumps, new gold.",
+                "list_header": "TAILINGS POTENTIAL",
+                "list_points": [
+                    "Old tech missed fine gold",
+                    "Modern recovery better",
+                    "Already crushed material",
+                    "Known gold presence"
+                ],            }
+            ,{
+                "id": 71,
+                "headline": "DREDGES",
+                "subtitle": "Underwater mining.",
+                "list_header": "DREDGE BASICS",
+                "list_points": [
+                    "Suction power (HP)",
+                    "Nozzle size selection",
+                    "Sluice box design",
+                    "Legal restrictions"
+                ],            }
+            ,{
+                "id": 72,
+                "headline": "ENVIRONMENTAL RULES",
+                "subtitle": "Protecting waterways.",
+                "list_header": "ENVIRONMENTAL LAWS",
+                "list_points": [
+                    "No stream pollution",
+                    "Restore disturbed areas",
+                    "Protect fish habitat",
+                    "Proper waste disposal"
+                ],            }
+            ,{
+                "id": 73,
+                "headline": "DRONE PROSPECTING",
+                "subtitle": "Aerial reconnaissance.",
+                "list_header": "DRONE APPLICATIONS",
+                "list_points": [
+                    "Mapping terrain",
+                    "Spotting outcrops",
+                    "Access scouting",
+                    "Thermal imaging"
+                ],            }
+            ,{
+                "id": 74,
+                "headline": "GHOST TOWNS",
+                "subtitle": "Mining camp remnants.",
+                "list_header": "GHOST TOWN CLUES",
+                "list_points": [
+                    "Old workings nearby",
+                    "Tailings piles",
+                    "Equipment remains",
+                    "Historical records"
+                ],            }
+            ,{
+                "id": 75,
+                "headline": "SPECIMEN GOLD",
+                "subtitle": "Collectible pieces.",
+                "list_header": "SPECIMEN VALUE",
+                "list_points": [
+                    "Natural crystal form",
+                    "Attached quartz matrix",
+                    "Aesthetic appeal",
+                    "Worth more than melt"
+                ],            }
         ]
     
     def get_next_topic(self):
