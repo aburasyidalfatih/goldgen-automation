@@ -327,13 +327,30 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
             'hopeful': '109'
         }
         
-        # Top gold mining locations with Facebook Place IDs
-        # Note: These are example IDs, you may need to find specific ones
+        # Top gold mining locations worldwide with Facebook Place IDs
         top_locations = [
+            # USA
             {'name': 'Fairbanks, Alaska', 'place_id': '110843418940484'},
             {'name': 'Nevada City, California', 'place_id': '111975398821990'},
             {'name': 'Juneau, Alaska', 'place_id': '105535939477573'},
             {'name': 'Denver, Colorado', 'place_id': '115590505119035'},
+            {'name': 'Deadwood, South Dakota', 'place_id': '108424385857528'},
+            # Australia
+            {'name': 'Kalgoorlie, Western Australia', 'place_id': '108659255821735'},
+            {'name': 'Ballarat, Victoria', 'place_id': '110822688939497'},
+            # Canada
+            {'name': 'Dawson City, Yukon', 'place_id': '111948228824766'},
+            {'name': 'Timmins, Ontario', 'place_id': '109503229067684'},
+            {'name': 'Yellowknife, Northwest Territories', 'place_id': '110560688970018'},
+            # South Africa
+            {'name': 'Johannesburg, South Africa', 'place_id': '110471888969932'},
+            {'name': 'Kimberley, South Africa', 'place_id': '108103742550819'},
+            # South America
+            {'name': 'Ouro Preto, Brazil', 'place_id': '112149645469956'},
+            {'name': 'La Rinconada, Peru', 'place_id': '106377926061356'},
+            # Other
+            {'name': 'Lihir Island, Papua New Guinea', 'place_id': '114952118520588'},
+            {'name': 'Carlin, Nevada', 'place_id': '109435549074552'},
         ]
         
         # Rotate location
