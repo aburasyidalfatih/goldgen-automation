@@ -11,40 +11,10 @@
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: {
-                        sans: ['Outfit', 'sans-serif'],
-                    },
-                    colors: {
-                        gold: {
-                            400: '#FBBF24',
-                            500: '#D4A523',
-                            600: '#B8860B',
-                        }
-                    },
-                    animation: {
-                        'fade-in-up': 'fadeInUp 0.6s ease-out forwards',
-                        'pulse-glow': 'pulseGlow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-                    },
-                    keyframes: {
-                        fadeInUp: {
-                            '0%': { opacity: '0', transform: 'translateY(20px)' },
-                            '100%': { opacity: '1', transform: 'translateY(0)' },
-                        },
-                        pulseGlow: {
-                            '0%, 100%': { opacity: 1, boxShadow: '0 0 15px rgba(212, 165, 35, 0.2)' },
-                            '50%': { opacity: .8, boxShadow: '0 0 30px rgba(212, 165, 35, 0.5)' },
-                        }
-                    }
-                }
-            }
-        }
-    </script>
+    
     <style>
         body {
+            font-family: 'Outfit', sans-serif;
             background-image: 
                 radial-gradient(circle at 15% 50%, rgba(212, 165, 35, 0.08), transparent 25%),
                 radial-gradient(circle at 85% 30%, rgba(212, 165, 35, 0.05), transparent 25%);
@@ -56,24 +26,33 @@
             -webkit-appearance: none;
             margin: 0;
         }
+    
+        @keyframes fadeInUp {
+            0% { opacity: 0; transform: translateY(20px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in-up {
+            animation: fadeInUp 0.6s ease-out forwards;
+        }
+        
     </style>
 </head>
     <body class="min-h-screen flex items-center justify-center p-4 text-zinc-200">
         <!-- Glow effect behind card -->
-        <div class="absolute w-64 h-64 bg-gold-600/20 rounded-full blur-3xl -z-10 animate-pulse"></div>
+        <div class="absolute w-64 h-64 bg-amber-600/20 rounded-full blur-3xl -z-10 animate-pulse"></div>
     
         <div class="animate-fade-in-up bg-zinc-900/60 backdrop-blur-xl border border-zinc-800/80 p-8 sm:p-10 rounded-2xl shadow-2xl w-full max-w-md relative overflow-hidden group">
             
             <!-- Subtle top border accent -->
-            <div class="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-gold-500 to-transparent opacity-50 group-hover:opacity-100 transition-opacity duration-500"></div>
+            <div class="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-amber-500 to-transparent opacity-50 group-hover:opacity-100 transition-opacity duration-500"></div>
     
             <div class="text-center mb-8">
-                <div class="inline-flex items-center justify-center w-14 h-14 rounded-full bg-zinc-800/80 border border-gold-500/30 mb-4 shadow-lg shadow-gold-500/20">
-                    <svg width="24" height="24" class="w-6 h-6 text-gold-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <div class="inline-flex items-center justify-center w-14 h-14 rounded-full bg-zinc-800/80 border border-amber-500/30 mb-4 shadow-lg shadow-amber-500/20">
+                    <svg width="24" height="24" class="w-6 h-6 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
                     </svg>
                 </div>
-            <h1 class="text-2xl sm:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-gold-400 to-gold-600 mb-2">GoldGen</h1>
+            <h1 class="text-2xl sm:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-amber-600 mb-2">GoldGen</h1>
             <p class="text-zinc-400 text-sm sm:text-base font-light">Secure Automation Dashboard</p>
         </div>
         
@@ -85,7 +64,7 @@
                     id="pin" 
                     placeholder="Enter 6-digit PIN"
                     maxlength="6"
-                    class="w-full px-5 py-4 bg-zinc-950/50 border border-zinc-800 text-white text-center text-2xl tracking-[0.5em] font-medium rounded-xl focus:outline-none focus:border-gold-500 focus:ring-1 focus:ring-gold-500/50 transition-all duration-300 placeholder:text-zinc-600 placeholder:tracking-normal placeholder:text-base"
+                    class="w-full px-5 py-4 bg-zinc-950/50 border border-zinc-800 text-white text-center text-2xl tracking-[0.5em] font-medium rounded-xl focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500/50 transition-all duration-300 placeholder:text-zinc-600 placeholder:tracking-normal placeholder:text-base"
                     autofocus
                     autocomplete="off"
                 >
@@ -95,7 +74,7 @@
             
             <button 
                 type="submit"
-                class="w-full relative overflow-hidden group bg-gradient-to-r from-gold-600 to-gold-500 text-zinc-950 font-bold py-4 rounded-xl transition-all duration-300 transform hover:-translate-y-0.5 hover:shadow-lg hover:shadow-gold-500/40 active:translate-y-0 active:shadow-none"
+                class="w-full relative overflow-hidden group bg-gradient-to-r from-amber-600 to-amber-500 text-zinc-950 font-bold py-4 rounded-xl transition-all duration-300 transform hover:-translate-y-0.5 hover:shadow-lg hover:shadow-amber-500/40 active:translate-y-0 active:shadow-none"
             >
                 <span class="relative z-10 flex items-center justify-center gap-2">
                     Access Dashboard
@@ -117,6 +96,15 @@
         @keyframes shimmer {
             100% { transform: translateX(100%); }
         }
+    
+        @keyframes fadeInUp {
+            0% { opacity: 0; transform: translateY(20px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in-up {
+            animation: fadeInUp 0.6s ease-out forwards;
+        }
+        
     </style>
 
     <script>

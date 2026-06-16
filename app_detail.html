@@ -11,22 +11,10 @@
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: { sans: ['Outfit', 'sans-serif'] },
-                    colors: { gold: { 400: '#FBBF24', 500: '#D4A523', 600: '#B8860B' } },
-                    animation: { 'fade-in-up': 'fadeInUp 0.6s ease-out forwards' },
-                    keyframes: {
-                        fadeInUp: { '0%': { opacity: '0', transform: 'translateY(20px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } }
-                    }
-                }
-            }
-        }
-    </script>
+    
     <style>
         body {
+            font-family: 'Outfit', sans-serif;
             background-color: #09090b; /* zinc-950 */
             background-image: radial-gradient(circle at 50% 0%, rgba(212, 165, 35, 0.08), transparent 50%);
             -webkit-tap-highlight-color: transparent;
@@ -46,21 +34,30 @@
             background: linear-gradient(90deg, #D4A523, #FBBF24);
             transition: width 0.5s ease-out;
         }
+    
+        @keyframes fadeInUp {
+            0% { opacity: 0; transform: translateY(20px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in-up {
+            animation: fadeInUp 0.6s ease-out forwards;
+        }
+        
     </style>
 </head>
 <body class="text-zinc-200 min-h-screen p-4 sm:p-8">
     <div class="container mx-auto max-w-6xl animate-fade-in-up">
         
         <div class="card rounded-2xl p-8 mb-8 text-center relative overflow-hidden group">
-            <div class="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-gold-500 to-transparent opacity-50 group-hover:opacity-100 transition-opacity duration-500"></div>
+            <div class="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-amber-500 to-transparent opacity-50 group-hover:opacity-100 transition-opacity duration-500"></div>
             <h1 class="text-3xl sm:text-5xl font-bold tracking-tight mb-2">
-                <span class="text-transparent bg-clip-text bg-gradient-to-r from-gold-400 to-gold-600">GoldGen</span> Auto Poster
+                <span class="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-amber-600">GoldGen</span> Auto Poster
             </h1>
             <p class="text-zinc-400 text-sm sm:text-lg font-light">Detail Aplikasi & Statistik Sistem</p>
         </div>
 
         <div id="loading" class="text-center p-12 text-zinc-400 font-medium">
-            <svg width="32" height="32" class="animate-spin h-8 w-8 text-gold-500 mx-auto mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <svg width="32" height="32" class="animate-spin h-8 w-8 text-amber-500 mx-auto mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
@@ -74,7 +71,7 @@
                 <!-- Statistik -->
                 <div class="card rounded-xl p-6">
                     <h2 class="text-xl font-semibold mb-4 flex items-center gap-2 border-b border-zinc-800 pb-3">
-                        <span class="text-gold-500">📊</span> Statistik
+                        <span class="text-amber-500">📊</span> Statistik
                     </h2>
                     <div class="space-y-3">
                         <div class="flex justify-between items-center py-1">
@@ -91,7 +88,7 @@
                         </div>
                         <div class="flex justify-between items-center py-1">
                             <span class="text-zinc-400">Success Rate</span>
-                            <span class="font-bold text-lg text-gold-400" id="success-rate">-</span>
+                            <span class="font-bold text-lg text-amber-400" id="success-rate">-</span>
                         </div>
                         <div class="w-full h-2 bg-zinc-800 rounded-full mt-4 overflow-hidden">
                             <div class="progress-fill h-full text-[0px]" id="success-progress" style="width: 0%;"></div>
@@ -102,7 +99,7 @@
                 <!-- System Info -->
                 <div class="card rounded-xl p-6">
                     <h2 class="text-xl font-semibold mb-4 flex items-center gap-2 border-b border-zinc-800 pb-3">
-                        <span class="text-gold-500">⚙️</span> System Info
+                        <span class="text-amber-500">⚙️</span> System Info
                     </h2>
                     <div class="space-y-3">
                         <div class="flex justify-between items-center py-1">
@@ -127,7 +124,7 @@
                 <!-- Disk Usage -->
                 <div class="card rounded-xl p-6">
                     <h2 class="text-xl font-semibold mb-4 flex items-center gap-2 border-b border-zinc-800 pb-3">
-                        <span class="text-gold-500">💾</span> Disk Usage
+                        <span class="text-amber-500">💾</span> Disk Usage
                     </h2>
                     <div class="space-y-3">
                         <div class="flex justify-between items-center py-1">
@@ -153,7 +150,7 @@
                 <!-- Features -->
                 <div class="card rounded-xl p-6">
                     <h2 class="text-xl font-semibold mb-4 flex items-center gap-2 border-b border-zinc-800 pb-3">
-                        <span class="text-gold-500">🚀</span> Features
+                        <span class="text-amber-500">🚀</span> Features
                     </h2>
                     <ul class="space-y-2 text-zinc-300" id="features-list"></ul>
                 </div>
@@ -162,14 +159,14 @@
                 <div class="space-y-6">
                     <div class="card rounded-xl p-6">
                         <h2 class="text-xl font-semibold mb-4 flex items-center gap-2 border-b border-zinc-800 pb-3">
-                            <span class="text-gold-500">🛠️</span> Tech Stack
+                            <span class="text-amber-500">🛠️</span> Tech Stack
                         </h2>
                         <div class="flex flex-wrap gap-2" id="tech-stack"></div>
                     </div>
 
                     <div class="card rounded-xl p-6">
                         <h2 class="text-xl font-semibold mb-4 flex items-center gap-2 border-b border-zinc-800 pb-3">
-                            <span class="text-gold-500">⏰</span> Schedule
+                            <span class="text-amber-500">⏰</span> Schedule
                         </h2>
                         <div class="flex justify-between items-center mb-3">
                             <span class="text-zinc-400">Interval</span>
@@ -183,7 +180,7 @@
             <!-- Last Post -->
             <div class="card rounded-xl p-6">
                 <h2 class="text-xl font-semibold mb-4 flex items-center gap-2 border-b border-zinc-800 pb-3">
-                    <span class="text-gold-500">📝</span> Last Post Activity
+                    <span class="text-amber-500">📝</span> Last Post Activity
                 </h2>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div class="bg-zinc-900/50 p-4 rounded-lg border border-zinc-800/50">
@@ -192,7 +189,7 @@
                     </div>
                     <div class="bg-zinc-900/50 p-4 rounded-lg border border-zinc-800/50">
                         <div class="text-zinc-500 text-sm mb-1">Page Name</div>
-                        <div class="font-medium text-gold-400" id="last-page">-</div>
+                        <div class="font-medium text-amber-400" id="last-page">-</div>
                     </div>
                     <div class="bg-zinc-900/50 p-4 rounded-lg border border-zinc-800/50">
                         <div class="text-zinc-500 text-sm mb-1">Status</div>
@@ -204,11 +201,11 @@
             <!-- Quick Links -->
             <div class="card rounded-xl p-6 text-center space-y-4">
                 <h2 class="text-xl font-semibold mb-2 flex items-center justify-center gap-2">
-                    <span class="text-gold-500">🔗</span> Quick Links
+                    <span class="text-amber-500">🔗</span> Quick Links
                 </h2>
                 <div class="flex flex-wrap justify-center gap-3">
                     <a href="/dashboard" class="px-6 py-2.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-white rounded-xl transition-all shadow-lg hover:shadow-xl font-medium">Dashboard</a>
-                    <a href="https://gold.kelasmaster.id" target="_blank" class="px-6 py-2.5 bg-gradient-to-r from-gold-600 to-gold-500 hover:from-gold-500 hover:to-gold-400 text-zinc-950 border border-gold-400 rounded-xl transition-all shadow-[0_0_15px_rgba(212,165,35,0.2)] hover:shadow-[0_0_20px_rgba(212,165,35,0.4)] font-bold">Live Site</a>
+                    <a href="https://gold.kelasmaster.id" target="_blank" class="px-6 py-2.5 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-zinc-950 border border-amber-400 rounded-xl transition-all shadow-[0_0_15px_rgba(212,165,35,0.2)] hover:shadow-[0_0_20px_rgba(212,165,35,0.4)] font-bold">Live Site</a>
                     <a href="/api/health" target="_blank" class="px-6 py-2.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-white rounded-xl transition-all shadow-lg hover:shadow-xl font-medium">Health Check</a>
                     <button onclick="location.reload()" class="px-6 py-2.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-white rounded-xl transition-all shadow-lg hover:shadow-xl font-medium">Refresh Data</button>
                 </div>
@@ -253,7 +250,7 @@
                 data.features.forEach(feature => {
                     const li = document.createElement('li');
                     li.className = 'flex items-start gap-2';
-                    li.innerHTML = `<span class="text-gold-500 mt-1">✓</span> <span>${feature}</span>`;
+                    li.innerHTML = `<span class="text-amber-500 mt-1">✓</span> <span>${feature}</span>`;
                     featuresList.appendChild(li);
                 });
                 
@@ -262,7 +259,7 @@
                 techStack.innerHTML = '';
                 data.tech_stack.forEach(tech => {
                     const badge = document.createElement('span');
-                    badge.className = 'px-3 py-1 bg-zinc-800 border border-zinc-700 rounded-full text-sm text-gold-200';
+                    badge.className = 'px-3 py-1 bg-zinc-800 border border-zinc-700 rounded-full text-sm text-amber-200';
                     badge.textContent = tech;
                     techStack.appendChild(badge);
                 });
@@ -273,7 +270,7 @@
                 scheduleTimes.innerHTML = '';
                 data.schedule.times.forEach(time => {
                     const badge = document.createElement('span');
-                    badge.className = 'px-3 py-1 bg-gold-500/10 border border-gold-500/20 text-gold-400 rounded-lg text-sm font-medium';
+                    badge.className = 'px-3 py-1 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-lg text-sm font-medium';
                     badge.textContent = time;
                     scheduleTimes.appendChild(badge);
                 });

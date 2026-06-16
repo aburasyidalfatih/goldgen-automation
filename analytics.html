@@ -11,20 +11,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <!-- Tailwind CSS -->
 <script src="https://cdn.tailwindcss.com"></script>
-<script>
-    tailwind.config = {
-        theme: {
-            extend: {
-                fontFamily: { sans: ['Outfit', 'sans-serif'] },
-                colors: { gold: { 400: '#FBBF24', 500: '#D4A523', 600: '#B8860B' } },
-                animation: { 'fade-in-up': 'fadeInUp 0.6s ease-out forwards' },
-                keyframes: {
-                    fadeInUp: { '0%': { opacity: '0', transform: 'translateY(20px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } }
-                }
-            }
-        }
-    }
-</script>
+
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { 
@@ -84,7 +71,7 @@
   .page-card .stats span { display: flex; align-items: center; gap: 6px; }
 </style>
 </head>
-<body class="selection:bg-gold-500/30">
+<body class="selection:bg-amber-500/30">
 <div class="topbar">
   <h1>📊 Analitik Engagement</h1>
   <nav>
