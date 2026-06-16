@@ -492,7 +492,7 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
             # Check if already posted this hour
             conn = get_db_connection()
             cursor = conn.cursor()
-            cursor.execute('SELECT last_posted FROM last_post_time WHERE page_id = ?', (fanspage['page_id'],))
+            cursor.execute('SELECT timestamp FROM last_post_time WHERE page_id = ?', (fanspage['page_id'],))
             result = cursor.fetchone()
             conn.close()
             
@@ -507,7 +507,7 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
         else:
             conn = get_db_connection()
             cursor = conn.cursor()
-            cursor.execute('SELECT last_posted FROM last_post_time WHERE page_id = ?', (fanspage['page_id'],))
+            cursor.execute('SELECT timestamp FROM last_post_time WHERE page_id = ?', (fanspage['page_id'],))
             result = cursor.fetchone()
             conn.close()
             
@@ -524,7 +524,7 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute('''
-            INSERT OR REPLACE INTO last_post_time (page_id, last_posted)
+            INSERT OR REPLACE INTO last_post_time (page_id, timestamp)
             VALUES (?, ?)
         ''', (page_id, datetime.now().isoformat()))
         conn.commit()
@@ -656,7 +656,7 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
             
             # Get pending posts
             cursor.execute('''
-                SELECT id, page_id, caption, image_path
+                SELECT id, page_id, content as caption, image_path
                 FROM post_queue
                 WHERE status = 'pending'
                 ORDER BY created_at ASC
