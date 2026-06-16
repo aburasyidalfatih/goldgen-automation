@@ -18,6 +18,7 @@ services:
       - PORT=18794
       - HOST=0.0.0.0
       - PYTHONUNBUFFERED=1
+      - TZ=Asia/Jakarta
 
 volumes:
   goldgen_data:
