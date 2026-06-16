@@ -13,6 +13,10 @@
     <script src="https://cdn.tailwindcss.com"></script>
     
     <style>
+        /* Anti-FOUC */
+        body { visibility: hidden; opacity: 0; transition: opacity 0.5s ease; }
+        body.ready { visibility: visible; opacity: 1; }
+
         body {
             font-family: 'Outfit', sans-serif;
             background-image: 
@@ -93,6 +97,10 @@
     </div>
 
     <style>
+        /* Anti-FOUC */
+        body { visibility: hidden; opacity: 0; transition: opacity 0.5s ease; }
+        body.ready { visibility: visible; opacity: 1; }
+
         @keyframes shimmer {
             100% { transform: translateX(100%); }
         }
@@ -157,6 +165,13 @@
 
         pinInput.addEventListener('input', (e) => {
             e.target.value = e.target.value.replace(/\D/g, '');
+        });
+    </script>
+
+    <script>
+        // Reveal body smoothly after Tailwind CDN generates the styles
+        window.addEventListener('load', () => {
+            setTimeout(() => { document.body.classList.add('ready'); }, 100);
         });
     </script>
 </body>

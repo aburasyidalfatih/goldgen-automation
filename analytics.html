@@ -13,6 +13,10 @@
 <script src="https://cdn.tailwindcss.com"></script>
 
 <style>
+        /* Anti-FOUC */
+        body { visibility: hidden; opacity: 0; transition: opacity 0.5s ease; }
+        body.ready { visibility: visible; opacity: 1; }
+
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { 
       font-family: 'Outfit', sans-serif; 
@@ -358,5 +362,12 @@ function renderAnalytics(data) {
 
 loadAnalytics();
 </script>
+
+    <script>
+        // Reveal body smoothly after Tailwind CDN generates the styles
+        window.addEventListener('load', () => {
+            setTimeout(() => { document.body.classList.add('ready'); }, 100);
+        });
+    </script>
 </body>
 </html>
