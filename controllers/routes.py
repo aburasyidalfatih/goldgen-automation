@@ -489,7 +489,8 @@ def add_fanspage():
             'name': data['name'],
             'page_id': data['page_id'],
             'access_token': data['access_token'],
-            'enabled': True
+            'enabled': True,
+            'token_created_date': datetime.now().isoformat()
         }
         
         # Support both interval_hours and schedule_hours
@@ -530,6 +531,7 @@ def update_fanspage(page_id):
                     page['enabled'] = data['enabled']
                 if 'access_token' in data and data['access_token']:
                     page['access_token'] = data['access_token']
+                    page['token_created_date'] = datetime.now().isoformat()
                 break
         
         with open(CONFIG_PATH, 'w') as f:
