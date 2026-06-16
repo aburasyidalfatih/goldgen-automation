@@ -18,7 +18,7 @@ class CommentAnalyzer:
             self.config = json.load(f)
 
         self.gemini_api_key = self.config['gemini_api_key']
-        self.text_model = self.config.get('text_model', 'gemini-2.5-flash')
+        self.text_model = self.config.get('text_model', 'gemini-3.5-flash')
         self.fanspages = [fp for fp in self.config.get('fanspages', []) if fp.get('enabled', True)]
         self.db_path = 'data/posts.db'
         self._init_db()

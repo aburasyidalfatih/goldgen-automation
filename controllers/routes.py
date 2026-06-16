@@ -415,7 +415,7 @@ def get_config():
             'configured': True,
             'has_gemini_key': bool(config.get('gemini_api_key')),
             'image_model': config.get('image_model', 'gemini-3.1-flash-image'),
-            'text_model': config.get('text_model', 'gemini-2.5-flash'),
+            'text_model': config.get('text_model', 'gemini-3.5-flash'),
             'fanspage_delay_minutes': config.get('fanspage_delay_minutes', 60),
             'fanspages': fanspages
         })
@@ -924,7 +924,7 @@ Analisa pola konten dan berikan insight dalam format JSON berikut (HANYA output 
         from google import genai as google_genai
         client = google_genai.Client(api_key=api_key)
         
-        text_model = config.get('text_model', 'gemini-2.5-flash')
+        text_model = config.get('text_model', 'gemini-3.5-flash')
         
         response = client.models.generate_content(
             model=text_model,

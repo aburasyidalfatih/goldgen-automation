@@ -19,7 +19,7 @@ class CommentReplier:
         
         # Gemini API key
         self.gemini_api_key = self.config['gemini_api_key']
-        self.text_model = self.config.get('text_model', 'gemini-2.5-flash')
+        self.text_model = self.config.get('text_model', 'gemini-3.5-flash')
         
         # Get all fanspages
         self.fanspages = [fp for fp in self.config.get('fanspages', []) if fp.get('enabled', True)]

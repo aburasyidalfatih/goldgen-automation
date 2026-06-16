@@ -10,7 +10,7 @@ from pathlib import Path
 from datetime import datetime
 
 class GoldGenService:
-    def __init__(self, api_key, model='gemini-2.5-flash'):
+    def __init__(self, api_key, model='gemini-3.5-flash'):
         self.client = genai.Client(api_key=api_key)
         self.model = model
         
