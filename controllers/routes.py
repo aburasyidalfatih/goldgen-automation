@@ -746,9 +746,11 @@ def get_app_info():
         last_post = cursor.fetchone()
         
         # Get fanspages count
-        with open(CONFIG_PATH, 'r') as f:
-            config = json.load(f)
-        fanspages_count = len(config.get('fanspages', []))
+        fanspages_count = 0
+        if CONFIG_PATH.exists():
+            with open(CONFIG_PATH, 'r') as f:
+                config = json.load(f)
+            fanspages_count = len(config.get('fanspages', []))
         
         # Calculate uptime
         import os
@@ -820,8 +822,10 @@ def update_settings():
     try:
         data = request.json
         
-        with open(CONFIG_PATH, 'r') as f:
-            config = json.load(f)
+        config = {}
+        if CONFIG_PATH.exists():
+            with open(CONFIG_PATH, 'r') as f:
+                config = json.load(f)
         
         if 'gemini_api_key' in data and data['gemini_api_key']:
             api_key = data['gemini_api_key']
@@ -855,8 +859,10 @@ def update_settings():
 def get_ai_insights():
     """Use Gemini to analyze which content patterns get highest engagement"""
     try:
-        with open(CONFIG_PATH, 'r') as f:
-            config = json.load(f)
+        config = {}
+        if CONFIG_PATH.exists():
+            with open(CONFIG_PATH, 'r') as f:
+                config = json.load(f)
         api_key = config.get('gemini_api_key', '')
         if not api_key:
             return jsonify({'error': 'Gemini API key belum dikonfigurasi'}), 400
@@ -997,8 +1003,10 @@ def get_analytics():
         import urllib.request, urllib.error
         from concurrent.futures import ThreadPoolExecutor, as_completed
 
-        with open(CONFIG_PATH, 'r') as f:
-            config = json.load(f)
+        config = {}
+        if CONFIG_PATH.exists():
+            with open(CONFIG_PATH, 'r') as f:
+                config = json.load(f)
 
         page_tokens = {p['page_id']: (p['name'], p.get('access_token', '')) for p in config.get('fanspages', [])}
 
