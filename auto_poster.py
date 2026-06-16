@@ -39,7 +39,7 @@ class GoldGenAutoPoster:
         self.setup_gemini()
         self.cleanup_old_images()  # Cleanup on startup
     
-    def cleanup_old_images(self, days=7):
+    def cleanup_old_images(self, days=1):
         """Delete images older than N days to save disk space"""
         try:
             import time
