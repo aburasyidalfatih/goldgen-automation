@@ -48,6 +48,35 @@ def login_page():
 def serve_dashboard():
     return send_from_directory(".", "dashboard_schedule.html")
 
+@bp.route("/video-lab")
+@require_pin
+def serve_video_lab():
+    return send_from_directory(".", "video_lab.html")
+
+@bp.route('/api/video-lab/generate', methods=['POST'])
+@require_pin
+def generate_video_lab():
+    data = request.json
+    psid = data.get('psid')
+    psidts = data.get('psidts', '')
+    psidcc = data.get('psidcc', '')
+    prompt = data.get('prompt')
+
+    import sys
+    import os
+    # Add root to sys.path to import video_generator_lab
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from video_generator_lab import GeminiVideoLab
+    
+    lab = GeminiVideoLab(psid, psidts, psidcc)
+
+    def generate():
+        for chunk in lab.generate_video(prompt):
+            yield chunk
+
+    from flask import Response
+    return Response(generate(), mimetype='text/plain')
+
 @bp.route("/detail")
 def serve_detail():
     """Serve app detail page (public access)"""

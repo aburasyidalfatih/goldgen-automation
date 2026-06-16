@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Lab - GoldGen</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #0f172a; color: #f8fafc; }
+        .lab-container { max-width: 800px; margin: 0 auto; }
+    </style>
+</head>
+<body class="p-8">
+    <div class="lab-container">
+        <div class="flex justify-between items-center mb-8">
+            <h1 class="text-4xl font-bold text-blue-400">🧪 Video Lab (Experimental)</h1>
+            <a href="/" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm font-semibold transition-colors">← Back to Dashboard</a>
+        </div>
+
+        <div class="bg-gray-800 p-6 rounded-lg border border-red-900 mb-8">
+            <h2 class="text-xl font-bold mb-4 text-red-400">⚠️ Cookie Injection Settings</h2>
+            <p class="text-sm text-gray-400 mb-4">Metode ini bersifat tidak resmi (unofficial) dan berpotensi gagal sewaktu-waktu. Anda harus mengekstrak cookie dari browser pribadi Anda.</p>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-semibold mb-2">__Secure-1PSID</label>
+                    <input type="text" id="cookie1psid" class="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded focus:border-blue-500 focus:outline-none" placeholder="Masukan cookie __Secure-1PSID">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold mb-2">__Secure-1PSIDTS</label>
+                    <input type="text" id="cookie1psidts" class="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded focus:border-blue-500 focus:outline-none" placeholder="Masukan cookie __Secure-1PSIDTS (Opsional)">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold mb-2">__Secure-1PSIDCC</label>
+                    <input type="text" id="cookie1psidcc" class="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded focus:border-blue-500 focus:outline-none" placeholder="Masukan cookie __Secure-1PSIDCC (Opsional)">
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-gray-800 p-6 rounded-lg mb-8">
+            <h2 class="text-xl font-bold mb-4 text-blue-300">🎬 Generate Video</h2>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-semibold mb-2">Video Prompt</label>
+                    <textarea id="promptText" rows="4" class="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded focus:border-blue-500 focus:outline-none" placeholder="Contoh: A cinematic 4k drone shot over a winding river where gold panning takes place..."></textarea>
+                </div>
+                
+                <button id="generateBtn" onclick="generateVideo()" class="w-full py-3 bg-blue-600 hover:bg-blue-500 rounded font-bold transition-colors">
+                    Mulai Injeksi & Generate Video
+                </button>
+            </div>
+        </div>
+
+        <div id="resultArea" class="bg-gray-800 p-6 rounded-lg hidden">
+            <h2 class="text-xl font-bold mb-4 text-green-400">Hasil Render (Log)</h2>
+            <div id="statusLog" class="p-4 bg-gray-900 rounded border border-gray-700 font-mono text-sm mb-4 h-48 overflow-y-auto whitespace-pre-wrap text-yellow-300"></div>
+            
+            <div id="videoContainer" class="hidden">
+                <video id="outputVideo" controls class="w-full rounded border border-gray-700">
+                    <source src="" type="video/mp4">
+                    Your browser does not support the video tag.
+                </video>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Load saved cookies if any
+        window.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const res = await fetch('/api/config');
+                const config = await res.json();
+                if (config.video_cookies) {
+                    document.getElementById('cookie1psid').value = config.video_cookies.psid || '';
+                    document.getElementById('cookie1psidts').value = config.video_cookies.psidts || '';
+                    document.getElementById('cookie1psidcc').value = config.video_cookies.psidcc || '';
+                }
+            } catch (e) {
+                console.error("Failed to load config", e);
+            }
+        });
+
+        async function generateVideo() {
+            const btn = document.getElementById('generateBtn');
+            const statusLog = document.getElementById('statusLog');
+            const resultArea = document.getElementById('resultArea');
+            const videoContainer = document.getElementById('videoContainer');
+            const outputVideo = document.getElementById('outputVideo');
+            
+            const psid = document.getElementById('cookie1psid').value;
+            const psidts = document.getElementById('cookie1psidts').value;
+            const psidcc = document.getElementById('cookie1psidcc').value;
+            const prompt = document.getElementById('promptText').value;
+
+            if (!psid || !prompt) {
+                alert("Cookie __Secure-1PSID dan Prompt wajib diisi!");
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = "Sedang Melakukan Spoofing Server Google...";
+            btn.classList.add('opacity-50');
+            
+            resultArea.classList.remove('hidden');
+            videoContainer.classList.add('hidden');
+            statusLog.textContent = "[LOG] Memulai koneksi tidak resmi ke gemini.google.com...\n";
+
+            try {
+                const res = await fetch('/api/video-lab/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        psid: psid,
+                        psidts: psidts,
+                        psidcc: psidcc,
+                        prompt: prompt
+                    })
+                });
+
+                const reader = res.body.getReader();
+                const decoder = new TextDecoder('utf-8');
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    const chunk = decoder.decode(value, { stream: true });
+                    statusLog.textContent += chunk;
+                    statusLog.scrollTop = statusLog.scrollHeight;
+                    
+                    // Simple check if video URL is found in the log stream
+                    if (chunk.includes("URL:")) {
+                        const match = chunk.match(/URL:\s*(https?:\/\/[^\s]+)/);
+                        if (match && match[1]) {
+                            outputVideo.src = match[1];
+                            videoContainer.classList.remove('hidden');
+                        }
+                    }
+                }
+            } catch (error) {
+                statusLog.textContent += `\n[ERROR] Koneksi gagal: ${error.message}`;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = "Mulai Injeksi & Generate Video";
+                btn.classList.remove('opacity-50');
+            }
+        }
+    </script>
+</body>
+</html>
