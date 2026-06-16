@@ -414,7 +414,7 @@ def get_config():
         return jsonify({
             'configured': True,
             'has_gemini_key': bool(config.get('gemini_api_key')),
-            'image_model': config.get('image_model', 'gemini-3.1-flash-image-preview'),
+            'image_model': config.get('image_model', 'gemini-3.1-flash-image'),
             'text_model': config.get('text_model', 'gemini-2.5-flash'),
             'fanspage_delay_minutes': config.get('fanspage_delay_minutes', 60),
             'fanspages': fanspages

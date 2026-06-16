@@ -62,7 +62,7 @@ class GoldGenAutoPoster:
             with open(CONFIG_PATH, 'r') as f:
                 config = json.load(f)
                 self.gemini_api_key = config.get('gemini_api_key')
-                self.image_model = config.get('image_model', 'gemini-3.1-flash-image-preview')
+                self.image_model = config.get('image_model', 'gemini-3.1-flash-image')
                 self.text_model = config.get('text_model', 'gemini-2.5-flash')
                 self.fanspages = config.get('fanspages', [])
                 self.fanspage_delay_minutes = config.get('fanspage_delay_minutes', 60)
