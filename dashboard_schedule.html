@@ -432,8 +432,9 @@
             
             container.innerHTML = config.fanspages.map((fp, index) => {
                 const scheduleHours = fp.schedule_hours || [];
-                const nextHours = scheduleHours.filter(h => h > currentHour);
-                const nextHour = nextHours.length > 0 ? nextHours[0] : scheduleHours[0];
+                const sortedHours = [...scheduleHours].sort((a, b) => a - b);
+                const nextHours = sortedHours.filter(h => h > currentHour);
+                const nextHour = nextHours.length > 0 ? nextHours[0] : sortedHours[0];
                 
                 // Check if should be posting now
                 const isScheduledNow = scheduleHours.includes(currentHour);
@@ -461,7 +462,7 @@
                         <div class="flex-1">
                             <div class="font-bold text-lg mb-1 flex items-center">${fp.name}${tokenDot}${tokenStatusText}</div>
                             <div class="text-sm text-gray-400">
-                                Schedule: ${scheduleHours.map(h => `${String(h).padStart(2, '0')}:00`).join(', ')}
+                                Schedule: ${sortedHours.map(h => `${String(h).padStart(2, '0')}:00`).join(', ')}
                             </div>
                         </div>
                         <div class="flex items-center gap-4">
