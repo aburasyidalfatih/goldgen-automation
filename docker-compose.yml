@@ -11,10 +11,15 @@ services:
       - "18794:18794"
     restart: unless-stopped
     volumes:
-      - ./data:/app/data
-      - ./generated_images:/app/generated_images
-      - ./logs:/app/logs
+      - goldgen_data:/app/data
+      - goldgen_images:/app/generated_images
+      - goldgen_logs:/app/logs
     environment:
       - PORT=18794
       - HOST=0.0.0.0
       - PYTHONUNBUFFERED=1
+
+volumes:
+  goldgen_data:
+  goldgen_images:
+  goldgen_logs:
