@@ -10,7 +10,10 @@ ENV/
 
 # Sensitive data
 data/config.json
+data/config.json.backup.*
 *.log
+logs/
+.env
 
 # Generated content
 generated_images/*.png
@@ -29,3 +32,6 @@ data/posts_backup_*.db
 # OS
 .DS_Store
 Thumbs.db
+
+# Archive
+archive/

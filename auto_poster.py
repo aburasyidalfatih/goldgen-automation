@@ -8,6 +8,7 @@ import os
 import json
 import sqlite3
 import requests
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 from google import genai
@@ -15,6 +16,14 @@ from PIL import Image, ImageDraw, ImageFont
 import io
 import base64
 import time
+
+# Telegram notifier
+sys.path.insert(0, '/home/ubuntu')
+try:
+    from telegram_notifier import send_notification
+except:
+    def send_notification(msg):
+        pass
 
 # Configuration
 BASE_DIR = Path(__file__).parent
@@ -59,6 +68,8 @@ class GoldGenAutoPoster:
             with open(CONFIG_PATH, 'r') as f:
                 config = json.load(f)
                 self.gemini_api_key = config.get('gemini_api_key')
+                self.image_model = config.get('image_model', 'gemini-3.1-flash-image-preview')
+                self.text_model = config.get('text_model', 'gemini-2.5-flash')
                 self.fanspages = config.get('fanspages', [])
                 self.fanspage_delay_minutes = config.get('fanspage_delay_minutes', 60)
                 
@@ -97,13 +108,25 @@ class GoldGenAutoPoster:
                 last_posted TEXT NOT NULL
             )
         ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS post_queue (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                page_id TEXT NOT NULL,
+                caption TEXT,
+                image_path TEXT,
+                status TEXT DEFAULT 'pending',
+                created_at TEXT NOT NULL,
+                posted_at TEXT,
+                error_message TEXT
+            )
+        ''')
         conn.commit()
         conn.close()
     
     def setup_gemini(self):
         """Setup Gemini AI with GoldGen style"""
         from goldgen_service import GoldGenService
-        self.goldgen = GoldGenService(self.gemini_api_key)
+        self.goldgen = GoldGenService(self.gemini_api_key, model=self.text_model)
     
 
     def generate_content(self):
@@ -160,48 +183,65 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
 #HargaEmas #InvestasiEmas #EmasHariIni #GoldPrice"""
     
     def generate_poster_image(self, topic):
-        """Generate educational infographic using Gemini 3.1 Pro"""
+        """Generate educational infographic using Gemini image model"""
         try:
             from google.genai import types
-            
-            print(f"   Generating image with Gemini 3.1 Pro...")
-            
-            # Generate image prompt
+
+            print(f"   Generating image with {self.image_model}...")
+
             image_prompt = self.goldgen.generate_image_prompt(topic)
-            
-            # Use Gemini 3.1 Pro for image generation
             client = genai.Client(api_key=self.gemini_api_key)
-            
+
             response = client.models.generate_content(
-                model='gemini-3-pro-image-preview',
+                model=self.image_model,
                 contents=image_prompt,
                 config=types.GenerateContentConfig(
+                    response_modalities=['TEXT', 'IMAGE'],
                     image_config=types.ImageConfig(
-                        aspect_ratio="9:16",  # Vertical story format
+                        aspect_ratio="9:16",
                         image_size="2K"
                     )
                 )
             )
-            
-            # Extract image from response
+
             for part in response.parts:
-                if hasattr(part, 'inline_data') and part.inline_data:
-                    image_data = part.inline_data.data
-                    
+                if image := part.as_image():
                     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
                     image_path = IMAGES_DIR / f"gold_prospecting_{timestamp}.png"
-                    
-                    with open(image_path, 'wb') as f:
-                        f.write(image_data)
-                    
-                    print(f"   ✅ Image generated with Gemini 3.1 Pro")
+                    image.save(str(image_path))
+                    print(f"   ✅ Image generated with {self.image_model}")
                     return image_path
-            
+
             print(f"   ⚠️  No image in response, using PIL fallback...")
             return self._generate_fallback_image(topic)
-            
+
         except Exception as e:
-            print(f"   ⚠️  Gemini error: {e}, using PIL fallback...")
+            print(f"   ⚠️  Gemini error: {e}, retrying in 30s...")
+            import time
+            time.sleep(30)
+            try:
+                from google.genai import types
+                client = genai.Client(api_key=self.gemini_api_key)
+                response = client.models.generate_content(
+                    model=self.image_model,
+                    contents=image_prompt,
+                    config=types.GenerateContentConfig(
+                        response_modalities=['TEXT', 'IMAGE'],
+                        image_config=types.ImageConfig(
+                            aspect_ratio="9:16",
+                            image_size="2K"
+                        )
+                    )
+                )
+                for part in response.parts:
+                    if image := part.as_image():
+                        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                        image_path = IMAGES_DIR / f"gold_prospecting_{timestamp}.png"
+                        image.save(str(image_path))
+                        print(f"   ✅ Image generated with {self.image_model} (retry)")
+                        return image_path
+            except Exception as e2:
+                print(f"   ⚠️  Gemini retry failed: {e2}, using PIL fallback...")
             return self._generate_fallback_image(topic)
     
     def _generate_fallback_image(self, topic):
@@ -377,8 +417,13 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
                     
                     if response.status_code == 200:
                         result = response.json()
+                        post_id = result.get('id')
                         print(f"   📍 Location: {location['name']}")
-                        return result.get('id'), None
+                        
+                        # Send Telegram notification
+                        send_notification(f"✅ <b>Goldgen Bot</b>\n\n📝 Posted to Facebook\n📍 {location['name']}\n🆔 {post_id}")
+                        
+                        return post_id, None
                     else:
                         error_msg = response.text
                         # If place/feeling fails, retry without them
@@ -406,17 +451,24 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
                     print(f"   ⚠️  Error: {e}, retry {attempt + 1}/{max_retries} after {delay}s")
                     time.sleep(delay)
                 else:
+                    send_notification(f"❌ <b>Goldgen Bot Error</b>\n\n{str(e)[:200]}")
                     return None, str(e)
         
         return None, "Max retries exceeded"
     
-    def log_post(self, fanspage, content, image_path, fb_post_id, status, error_message=None):
+    def log_post(self, fanspage, content, image_path, fb_post_id, status, error_message=None, layout_name=None):
         """Log post to database"""
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
+        # Add layout_name column if not exists
+        try:
+            cursor.execute("ALTER TABLE posts ADD COLUMN layout_name TEXT")
+            conn.commit()
+        except Exception:
+            pass
         cursor.execute('''
-            INSERT INTO posts (timestamp, page_id, page_name, content, image_path, fb_post_id, status, error_message)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO posts (timestamp, page_id, page_name, content, image_path, fb_post_id, status, error_message, layout_name)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             datetime.now().isoformat(),
             fanspage['page_id'],
@@ -425,26 +477,53 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
             str(image_path),
             fb_post_id,
             status,
-            error_message
+            error_message,
+            layout_name
         ))
         conn.commit()
         conn.close()
     
     def should_post(self, fanspage):
-        """Check if enough time has passed since last post for this page"""
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        cursor.execute('SELECT last_posted FROM last_post_time WHERE page_id = ?', (fanspage['page_id'],))
-        result = cursor.fetchone()
-        conn.close()
+        """Check if current hour matches fanspage schedule"""
+        current_hour = datetime.now().hour
         
-        if not result:
-            return True
+        # Support both old interval_hours and new schedule_hours
+        if 'schedule_hours' in fanspage:
+            schedule_hours = fanspage['schedule_hours']
+            
+            # Check if current hour is in schedule
+            if current_hour not in schedule_hours:
+                return False
+            
+            # Check if already posted this hour
+            conn = sqlite3.connect(DB_PATH)
+            cursor = conn.cursor()
+            cursor.execute('SELECT last_posted FROM last_post_time WHERE page_id = ?', (fanspage['page_id'],))
+            result = cursor.fetchone()
+            conn.close()
+            
+            if not result:
+                return True
+            
+            last_posted = datetime.fromisoformat(result[0])
+            # Only post once per scheduled hour (different hour OR different day)
+            return last_posted.hour != current_hour or last_posted.date() != datetime.now().date()
         
-        from datetime import timedelta
-        last_posted = datetime.fromisoformat(result[0])
-        interval = timedelta(hours=fanspage['interval_hours'])
-        return datetime.now() >= last_posted + interval
+        # Fallback to old interval-based logic
+        else:
+            conn = sqlite3.connect(DB_PATH)
+            cursor = conn.cursor()
+            cursor.execute('SELECT last_posted FROM last_post_time WHERE page_id = ?', (fanspage['page_id'],))
+            result = cursor.fetchone()
+            conn.close()
+            
+            if not result:
+                return True
+            
+            from datetime import timedelta
+            last_posted = datetime.fromisoformat(result[0])
+            interval = timedelta(hours=fanspage.get('interval_hours', 6))
+            return datetime.now() >= last_posted + interval
     
     def update_last_post_time(self, page_id):
         """Update last post time for a page"""
@@ -483,7 +562,6 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
             base_topic_index = 0
         
         posted_count = 0
-        fanspage_offset = 0  # Track offset for topic assignment
         
         for idx, fanspage in enumerate(self.fanspages):
             if not fanspage.get('enabled', True):
@@ -491,17 +569,28 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
                 continue
             
             if not self.should_post(fanspage):
-                print(f"⏰ Skipping {fanspage['name']} (interval not reached)")
+                schedule_info = f"schedule: {fanspage.get('schedule_hours', 'N/A')}" if 'schedule_hours' in fanspage else f"interval: {fanspage.get('interval_hours', 6)}h"
+                print(f"⏰ Skipping {fanspage['name']} ({schedule_info})")
                 continue
             
             try:
                 print(f"📄 Processing: {fanspage['name']}")
                 print(f"   Page ID: {fanspage['page_id']}")
-                print(f"   Interval: {fanspage['interval_hours']} hours")
+                schedule_info = f"Schedule: {fanspage['schedule_hours']}" if 'schedule_hours' in fanspage else f"Interval: {fanspage.get('interval_hours', 6)} hours"
+                print(f"   {schedule_info}")
                 
+                # VALIDATE TOKEN BEFORE GENERATING ANYTHING
+                print("   Validating Facebook token...")
+                valid, token_error = self.validate_token(fanspage)
+                if not valid:
+                    print(f"   ❌ Token invalid: {token_error}")
+                    print("   ⚠️  Skipping generation to save Gemini API tokens.")
+                    self.log_post(fanspage, "[SKIPPED]", "", None, 'failed', f"Token validation failed before generation: {token_error}")
+                    continue
+
                 # Generate content with offset topic (different for each fanspage)
                 print("   Generating educational content...")
-                content, topic = self.generate_content_with_offset(fanspage_offset)
+                content, topic = self.generate_content_with_offset(idx)
                 print(f"   Topic: {topic['headline']}")
                 print(f"   Layout: {topic['layout']}")
                 
@@ -515,13 +604,12 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
                 
                 if fb_post_id:
                     print(f"   ✅ Success! Post ID: {fb_post_id}")
-                    self.log_post(fanspage, content, image_path, fb_post_id, 'success')
+                    self.log_post(fanspage, content, image_path, fb_post_id, 'success', layout_name=topic.get('layout'))
                     self.update_last_post_time(fanspage['page_id'])
                     posted_count += 1
-                    fanspage_offset += 1  # Increment for next fanspage
                 else:
                     print(f"   ❌ Failed: {error}")
-                    self.log_post(fanspage, content, image_path, None, 'failed', error)
+                    self.log_post(fanspage, content, image_path, None, 'failed', error, layout_name=topic.get('layout'))
                 
                 print()
                 
@@ -534,7 +622,7 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
                     )
                     if has_more:
                         delay_seconds = self.fanspage_delay_minutes * 60
-                        print(f"⏳ Waiting {self.fanspage_delay_minutes} minutes before next fanspage to avoid spam detection...")
+                        print(f"⏳ Waiting {self.fanspage_delay_minutes} minutes before next fanspage...")
                         print(f"   Next post at: {(datetime.now() + timedelta(seconds=delay_seconds)).strftime('%H:%M:%S')}\n")
                         time.sleep(delay_seconds)
                 
@@ -544,6 +632,7 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
                 self.log_post(fanspage, "", "", None, 'error', error_msg)
         
         # Update state once at the end of cycle
+        # ALWAYS update state even if posted_count = 0 to prevent stuck topics
         if posted_count > 0:
             next_index = (base_topic_index + posted_count) % len(self.goldgen.topics)
             self.goldgen.state_file.parent.mkdir(parents=True, exist_ok=True)
@@ -551,6 +640,15 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
                 json.dump({'current_topic_index': next_index, 'last_updated': datetime.now().isoformat()}, f)
             print(f"📊 Posted to {posted_count} fanspage(s) with different topics")
             print(f"   Next cycle will start from topic index: {next_index}\n")
+        else:
+            # Update timestamp even if no posts (to track bot is running)
+            if self.goldgen.state_file.exists():
+                with open(self.goldgen.state_file, 'r') as f:
+                    state = json.load(f)
+                state['last_updated'] = datetime.now().isoformat()
+                with open(self.goldgen.state_file, 'w') as f:
+                    json.dump(state, f)
+            print(f"📊 No posts made this cycle (all fanspages waiting for interval)\n")
         
         print(f"[{datetime.now()}] Process completed.\n")
     

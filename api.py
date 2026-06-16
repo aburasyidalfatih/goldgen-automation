@@ -4,15 +4,17 @@ Web Dashboard for GoldGen Auto Poster
 Simple Flask API to serve dashboard data
 """
 
-from flask import Flask, jsonify, send_from_directory, request
+from flask import Flask, jsonify, send_from_directory, request, session, redirect, url_for
 from flask_cors import CORS
 import sqlite3
 from pathlib import Path
 from datetime import datetime, timedelta
 import json
+from functools import wraps
 
 app = Flask(__name__)
 CORS(app)
+app.secret_key = 'goldgen-dashboard-secret-key-2026'  # For session management
 
 BASE_DIR = Path(__file__).parent
 DB_PATH = BASE_DIR / "data" / "posts.db"
@@ -20,12 +22,68 @@ IMAGES_DIR = BASE_DIR / "generated_images"
 DATA_DIR = BASE_DIR / "data"
 CONFIG_PATH = DATA_DIR / "config.json"
 
+# PIN Configuration
+DASHBOARD_PIN = "888888"
+
+def require_pin(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get('authenticated'):
+            return jsonify({'error': 'Unauthorized', 'require_auth': True}), 401
+        return f(*args, **kwargs)
+    return decorated_function
+
 def get_db():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 
-@app.route('/api/health')
+
+@app.route("/")
+def index():
+    """Redirect to login or dashboard based on auth status"""
+    if session.get('authenticated'):
+        return redirect('/dashboard')
+    return redirect('/login')
+
+@app.route("/login")
+def login_page():
+    """Serve login page"""
+    return send_from_directory(".", "login.html")
+
+@app.route("/dashboard")
+@require_pin
+def serve_dashboard():
+    return send_from_directory(".", "dashboard_schedule.html")
+
+@app.route("/detail")
+def serve_detail():
+    """Serve app detail page (public access)"""
+    return send_from_directory(".", "app_detail.html")
+
+@app.route('/api/auth/login', methods=['POST'])
+def login():
+    """Authenticate with PIN"""
+    data = request.json
+    pin = data.get('pin', '')
+    
+    if pin == DASHBOARD_PIN:
+        session['authenticated'] = True
+        return jsonify({'success': True, 'message': 'Authentication successful'})
+    else:
+        return jsonify({'success': False, 'message': 'Invalid PIN'}), 401
+
+@app.route('/api/auth/logout', methods=['POST'])
+def logout():
+    """Logout"""
+    session.pop('authenticated', None)
+    return jsonify({'success': True, 'message': 'Logged out'})
+
+@app.route('/api/auth/check', methods=['GET'])
+def check_auth():
+    """Check if authenticated"""
+    return jsonify({'authenticated': session.get('authenticated', False)})
+
 def health_check():
     """Health check endpoint for monitoring"""
     try:
@@ -66,6 +124,7 @@ def health_check():
         }), 500
 
 @app.route('/api/stats')
+@require_pin
 def get_stats():
     """Get overall statistics"""
     try:
@@ -75,6 +134,11 @@ def get_stats():
         # Total posts
         cursor.execute("SELECT COUNT(*) as total FROM posts")
         total = cursor.fetchone()['total']
+        
+        # Today's posts (since midnight)
+        today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+        cursor.execute("SELECT COUNT(*) as today FROM posts WHERE timestamp >= ?", (today_start,))
+        today = cursor.fetchone()['today']
         
         # Success count
         cursor.execute("SELECT COUNT(*) as success FROM posts WHERE status='success'")
@@ -95,6 +159,8 @@ def get_stats():
         conn.close()
         
         return jsonify({
+            'total_posts': total,
+            'today_posts': today,
             'total': total,
             'success': success,
             'failed': failed,
@@ -105,6 +171,7 @@ def get_stats():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/posts')
+@require_pin
 def get_posts():
     """Get recent posts"""
     try:
@@ -139,46 +206,35 @@ def get_posts():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/next-run')
+@require_pin
 def get_next_run():
-    """Get next scheduled run time and which fanspages will post"""
+    """Get next scheduled run time and all fanspages schedule"""
     now = datetime.now()
     
-    # Cron runs every 3 hours at :00
-    current_hour = now.hour
-    next_cron_hours = [0, 3, 6, 9, 12, 15, 18, 21]
-    
-    # Find next cron run
-    next_hour = None
-    for h in next_cron_hours:
-        if h > current_hour or (h == current_hour and now.minute == 0 and now.second < 5):
-            next_hour = h
-            break
-    
-    if next_hour is None:
-        # Next run is tomorrow at 00:00
-        next_run = now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+    # Cron runs every hour at :00
+    if now.minute == 0 and now.second < 5:
+        # Currently at the hour, next run is next hour
+        next_run = now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
     else:
-        next_run = now.replace(hour=next_hour, minute=0, second=0, microsecond=0)
+        # Next run is at the next hour
+        next_run = now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
     
-    # Get fanspages that will post next
-    next_posts = []
+    # Get ALL fanspages schedule
+    all_schedules = []
     try:
         config_file = DATA_DIR / "config.json"
         if config_file.exists():
             with open(config_file, 'r') as f:
                 config = json.load(f)
                 fanspages = config.get('fanspages', [])
-                fanspage_delay_minutes = config.get('fanspage_delay_minutes', 60)
             
             conn = get_db()
             cursor = conn.cursor()
             
-            post_time = next_run  # Start time for first post
+            # Track posting order for delay calculation
+            ready_count = 0
             
-            for fp in fanspages:
-                if not fp.get('enabled', True):
-                    continue
-                
+            for idx, fp in enumerate(fanspages):
                 # Get last post time
                 cursor.execute('''
                     SELECT MAX(timestamp) as last_post 
@@ -189,44 +245,71 @@ def get_next_run():
                 result = cursor.fetchone()
                 last_post = result['last_post'] if result['last_post'] else None
                 
-                will_post = False
                 if last_post:
                     last_post_time = datetime.fromisoformat(last_post)
                     interval_hours = fp.get('interval_hours', 6)
                     next_eligible_time = last_post_time + timedelta(hours=interval_hours)
                     
-                    # Check if this fanspage is eligible to post
+                    # Check if ready to post
                     if next_eligible_time <= next_run:
-                        will_post = True
+                        # Will post on next cron
+                        # Calculate actual posting time with delay
+                        delay_minutes = ready_count * config.get('fanspage_delay_minutes', 60)
+                        actual_post_time = next_run + timedelta(minutes=delay_minutes)
+                        # Next post after that
+                        next_post_time = actual_post_time + timedelta(hours=interval_hours)
+                        ready_count += 1
+                    else:
+                        # Not ready yet, use calculated time
+                        next_post_time = next_eligible_time
                 else:
-                    # Never posted, will post
-                    will_post = True
+                    # Never posted, will post on next cron
+                    delay_minutes = ready_count * config.get('fanspage_delay_minutes', 60)
+                    actual_post_time = next_run + timedelta(minutes=delay_minutes)
+                    next_post_time = actual_post_time + timedelta(hours=interval_hours)
+                    ready_count += 1
+                    last_post_time = None
                 
-                if will_post:
-                    time_until = post_time - now
-                    hours = int(time_until.total_seconds() // 3600)
-                    minutes = int((time_until.total_seconds() % 3600) // 60)
-                    
-                    next_posts.append({
-                        'page_name': fp['name'],
-                        'next_post_time': post_time.strftime('%H:%M WIB'),
-                        'time_until': f'in {hours}h {minutes}m' if hours > 0 else f'in {minutes}m'
-                    })
-                    
-                    # Add delay for next fanspage
-                    post_time = post_time + timedelta(minutes=fanspage_delay_minutes)
+                time_until = next_post_time - now
+                hours = int(time_until.total_seconds() // 3600)
+                minutes = int((time_until.total_seconds() % 3600) // 60)
+                
+                # Status - all should be scheduled (future)
+                if not fp.get('enabled', True):
+                    status = 'disabled'
+                    status_icon = '⏸️'
+                else:
+                    status = 'scheduled'
+                    status_icon = '⏰'
+                
+                all_schedules.append({
+                    'page_name': fp['name'],
+                    'page_id': fp['page_id'],
+                    'enabled': fp.get('enabled', True),
+                    'interval_hours': fp.get('interval_hours', 6),
+                    'last_post': last_post_time.strftime('%Y-%m-%d %H:%M') if last_post else 'Never',
+                    'next_post_time': next_post_time.strftime('%Y-%m-%d %H:%M'),
+                    'next_post_formatted': next_post_time.strftime('%H:%M WIB'),
+                    'time_until': f'{hours}h {minutes}m' if hours > 0 else f'{minutes}m',
+                    'status': status,
+                    'status_icon': status_icon
+                })
+            
+            # Sort by next_post_time
+            all_schedules.sort(key=lambda x: x['next_post_time'])
             
             conn.close()
     except Exception as e:
-        print(f"Error getting next posts: {e}")
+        print(f"Error getting schedules: {e}")
     
     return jsonify({
         'next_run': next_run.isoformat(),
         'next_run_formatted': next_run.strftime('%Y-%m-%d %H:%M:%S') + ' WIB',
-        'next_posts': next_posts
+        'all_schedules': all_schedules
     })
 
 @app.route('/api/topic-info')
+@require_pin
 def get_topic_info():
     """Get current topic rotation info"""
     try:
@@ -300,19 +383,45 @@ def get_config():
         with open(CONFIG_PATH, 'r') as f:
             config = json.load(f)
         
+        now = datetime.now()
         fanspages = []
         for page in config.get('fanspages', []):
+            # Token expiration check
+            token_created = page.get('token_created_date')
+            token_warning = None
+            days_until_expire = None
+            
+            if token_created:
+                created_date = datetime.fromisoformat(token_created)
+                days_since_created = (now - created_date).days
+                days_until_expire = 60 - days_since_created
+                
+                if days_until_expire <= 0:
+                    token_warning = "EXPIRED"
+                elif days_until_expire <= 7:
+                    token_warning = "CRITICAL"
+                elif days_until_expire <= 14:
+                    token_warning = "WARNING"
+            else:
+                token_warning = "UNKNOWN"
+            
             fanspages.append({
                 'name': page['name'],
                 'page_id': page['page_id'],
-                'interval_hours': page['interval_hours'],
+                'interval_hours': page.get('interval_hours'),
+                'schedule_hours': page.get('schedule_hours', []),
                 'enabled': page.get('enabled', True),
-                'has_token': bool(page.get('access_token'))
+                'has_token': bool(page.get('access_token')),
+                'token_warning': token_warning,
+                'days_until_expire': days_until_expire,
+                'token_created_date': token_created
             })
         
         return jsonify({
             'configured': True,
             'has_gemini_key': bool(config.get('gemini_api_key')),
+            'image_model': config.get('image_model', 'gemini-3.1-flash-image-preview'),
+            'text_model': config.get('text_model', 'gemini-2.5-flash'),
             'fanspage_delay_minutes': config.get('fanspage_delay_minutes', 60),
             'fanspages': fanspages
         })
@@ -380,13 +489,24 @@ def add_fanspage():
         if 'fanspages' not in config:
             config['fanspages'] = []
         
-        config['fanspages'].append({
+        # Check if page_id already exists
+        if any(fp['page_id'] == data['page_id'] for fp in config['fanspages']):
+            return jsonify({'error': 'Fanspage with this Page ID already exists'}), 400
+        
+        new_fanspage = {
             'name': data['name'],
             'page_id': data['page_id'],
             'access_token': data['access_token'],
-            'interval_hours': int(data['interval_hours']),
             'enabled': True
-        })
+        }
+        
+        # Support both interval_hours and schedule_hours
+        if 'schedule_hours' in data:
+            new_fanspage['schedule_hours'] = data['schedule_hours']
+        elif 'interval_hours' in data:
+            new_fanspage['interval_hours'] = int(data['interval_hours'])
+        
+        config['fanspages'].append(new_fanspage)
         
         with open(CONFIG_PATH, 'w') as f:
             json.dump(config, f, indent=2)
@@ -410,6 +530,10 @@ def update_fanspage(page_id):
                     page['name'] = data['name']
                 if 'interval_hours' in data:
                     page['interval_hours'] = int(data['interval_hours'])
+                if 'schedule_hours' in data:
+                    page['schedule_hours'] = data['schedule_hours']
+                    # Remove interval_hours if schedule_hours is set
+                    page.pop('interval_hours', None)
                 if 'enabled' in data:
                     page['enabled'] = data['enabled']
                 if 'access_token' in data and data['access_token']:
@@ -557,5 +681,481 @@ def toggle_bot():
             f.write(f'Bot disabled at {datetime.now().isoformat()}')
         return jsonify({'enabled': False, 'message': 'Bot disabled'})
 
+@app.route('/api/stats/enhanced')
+def get_stats_enhanced():
+    """Get enhanced statistics with today's posts"""
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        # Total posts
+        cursor.execute("SELECT COUNT(*) as total FROM posts")
+        total = cursor.fetchone()['total']
+        
+        # Today's posts
+        today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+        cursor.execute("SELECT COUNT(*) as today FROM posts WHERE timestamp >= ?", (today_start,))
+        today = cursor.fetchone()['today']
+        
+        # Success count
+        cursor.execute("SELECT COUNT(*) as success FROM posts WHERE status='success'")
+        success = cursor.fetchone()['success']
+        
+        # Failed count
+        cursor.execute("SELECT COUNT(*) as failed FROM posts WHERE status='failed'")
+        failed = cursor.fetchone()['failed']
+        
+        # Last 24 hours
+        yesterday = (datetime.now() - timedelta(days=1)).isoformat()
+        cursor.execute("SELECT COUNT(*) as last24h FROM posts WHERE timestamp > ?", (yesterday,))
+        last_24h = cursor.fetchone()['last24h']
+        
+        # Success rate
+        success_rate = (success / total * 100) if total > 0 else 0
+        
+        conn.close()
+        
+        return jsonify({
+            'total_posts': total,
+            'today_posts': today,
+            'success': success,
+            'failed': failed,
+            'last_24h': last_24h,
+            'success_rate': round(success_rate, 1)
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/app-info', methods=['GET'])
+def get_app_info():
+    """Get application information and details"""
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        # Get total posts
+        cursor.execute("SELECT COUNT(*) as total FROM posts")
+        total_posts = cursor.fetchone()['total']
+        
+        # Get successful posts
+        cursor.execute("SELECT COUNT(*) as total FROM posts WHERE status='success'")
+        success_posts = cursor.fetchone()['total']
+        
+        # Get failed posts
+        cursor.execute("SELECT COUNT(*) as total FROM posts WHERE status='failed'")
+        failed_posts = cursor.fetchone()['total']
+        
+        # Get first post date
+        cursor.execute("SELECT MIN(timestamp) as first_post FROM posts")
+        first_post = cursor.fetchone()['first_post']
+        
+        # Get last post
+        cursor.execute("SELECT timestamp, page_name, status FROM posts ORDER BY id DESC LIMIT 1")
+        last_post = cursor.fetchone()
+        
+        # Get fanspages count
+        with open(CONFIG_PATH, 'r') as f:
+            config = json.load(f)
+        fanspages_count = len(config.get('fanspages', []))
+        
+        # Calculate uptime
+        import os
+        import psutil
+        process = psutil.Process(os.getpid())
+        uptime_seconds = (datetime.now() - datetime.fromtimestamp(process.create_time())).total_seconds()
+        
+        # Get disk usage
+        import shutil
+        total, used, free = shutil.disk_usage(str(BASE_DIR))
+        
+        conn.close()
+        
+        return jsonify({
+            'app_name': 'GoldGen Auto Poster',
+            'version': '2.0',
+            'description': 'Automated Facebook posting system for gold price updates',
+            'url': 'https://gold.kelasmaster.id',
+            'port': 18794,
+            'tech_stack': ['Python', 'Flask', 'SQLite', 'Gemini AI'],
+            'features': [
+                'Auto-generate gold price posters with AI',
+                'Multi-fanpage support',
+                'Scheduled posting every 3 hours',
+                'Auto-reply to comments',
+                'Web dashboard with PIN authentication',
+                'Post history tracking',
+                'Topic rotation system'
+            ],
+            'statistics': {
+                'total_posts': total_posts,
+                'successful_posts': success_posts,
+                'failed_posts': failed_posts,
+                'success_rate': round((success_posts / total_posts * 100) if total_posts > 0 else 0, 2),
+                'fanspages_count': fanspages_count,
+                'first_post_date': first_post,
+                'last_post': {
+                    'timestamp': last_post['timestamp'] if last_post else None,
+                    'page_name': last_post['page_name'] if last_post else None,
+                    'status': last_post['status'] if last_post else None
+                } if last_post else None
+            },
+            'system': {
+                'uptime_seconds': int(uptime_seconds),
+                'uptime_formatted': str(timedelta(seconds=int(uptime_seconds))),
+                'disk_total_gb': round(total / (1024**3), 2),
+                'disk_used_gb': round(used / (1024**3), 2),
+                'disk_free_gb': round(free / (1024**3), 2),
+                'disk_usage_percent': round((used / total) * 100, 2)
+            },
+            'schedule': {
+                'interval': 'Every 3 hours',
+                'times': ['00:00', '03:00', '06:00', '09:00', '12:00', '15:00', '18:00', '21:00']
+            },
+            'endpoints': {
+                'dashboard': '/dashboard',
+                'api_stats': '/api/stats',
+                'api_posts': '/api/posts',
+                'api_config': '/api/config',
+                'api_health': '/api/health'
+            }
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/settings', methods=['POST'])
+def update_settings():
+    """Update settings (API key and image model)"""
+    try:
+        data = request.json
+        
+        with open(CONFIG_PATH, 'r') as f:
+            config = json.load(f)
+        
+        if 'gemini_api_key' in data and data['gemini_api_key']:
+            api_key = data['gemini_api_key']
+            # Validate API Key
+            try:
+                from google import genai
+                client = genai.Client(api_key=api_key)
+                # Just try to list models to verify key
+                for _ in client.models.list(config={'page_size': 1}):
+                    break
+            except Exception as e:
+                return jsonify({'success': False, 'error': f'Invalid Gemini API Key: {str(e)}'}), 400
+            
+            config['gemini_api_key'] = api_key
+        
+        if 'image_model' in data:
+            config['image_model'] = data['image_model']
+            
+        if 'text_model' in data:
+            config['text_model'] = data['text_model']
+        
+        with open(CONFIG_PATH, 'w') as f:
+            json.dump(config, f, indent=2)
+        
+        return jsonify({'success': True, 'message': 'Settings updated successfully'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/analytics/insights')
+@require_pin
+def get_ai_insights():
+    """Use Gemini to analyze which content patterns get highest engagement"""
+    try:
+        with open(CONFIG_PATH, 'r') as f:
+            config = json.load(f)
+        api_key = config.get('gemini_api_key', '')
+        if not api_key:
+            return jsonify({'error': 'Gemini API key belum dikonfigurasi'}), 400
+
+        days = int(request.args.get('days', 30))
+        since = (datetime.now() - timedelta(days=days)).isoformat()
+
+        conn = get_db()
+        rows = conn.execute("""
+            SELECT p.content, p.page_name, ec.likes, ec.comments, (ec.likes+ec.comments) as total
+            FROM posts p
+            JOIN engagement_cache ec ON ec.fb_post_id = p.fb_post_id
+            WHERE p.status='success' AND p.timestamp >= ?
+            ORDER BY total DESC
+        """, (since,)).fetchall()
+        conn.close()
+
+        if len(rows) < 3:
+            return jsonify({'error': 'Data engagement belum cukup. Coba refresh analitik dulu.'}), 400
+
+        # Top 10 & bottom 10
+        top = rows[:10]
+        bottom = rows[-10:]
+
+        def summarize(rows):
+            return '\n\n'.join([
+                f"[{r['page_name']} | ❤️{r['likes']} 💬{r['comments']}]\n{r['content'][:400]}..."
+                for r in rows
+            ])
+
+        prompt = f"""Kamu adalah analis konten media sosial. Berikut data postingan Facebook dari akun edukasi emas/prospecting.
+
+TOP 10 POSTINGAN (engagement tertinggi):
+{summarize(top)}
+
+BOTTOM 10 POSTINGAN (engagement terendah):
+{summarize(bottom)}
+
+Analisa pola konten dan berikan insight dalam format JSON berikut (HANYA output JSON, tanpa markdown):
+{{
+  "top_patterns": ["pola 1", "pola 2", "pola 3"],
+  "avoid_patterns": ["pola 1", "pola 2"],
+  "best_topics": ["topik 1", "topik 2", "topik 3"],
+  "best_hook_style": "deskripsi gaya pembuka yang paling efektif",
+  "best_cta_style": "deskripsi call-to-action yang paling efektif",
+  "summary": "ringkasan 2-3 kalimat tentang konten yang paling disukai audiens"
+}}"""
+
+        from google import genai as google_genai
+        client = google_genai.Client(api_key=api_key)
+        
+        text_model = config.get('text_model', 'gemini-2.5-flash')
+        
+        response = client.models.generate_content(
+            model=text_model,
+            contents=prompt
+        )
+        text = response.text.strip()
+        # Strip markdown code block if present
+        if text.startswith('```'):
+            text = text.split('\n', 1)[1].rsplit('```', 1)[0].strip()
+        insights = json.loads(text)
+        return jsonify({'success': True, 'insights': insights, 'analyzed': len(rows)})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/analytics')
+@require_pin
+def serve_analytics():
+    return send_from_directory(".", "analytics.html")
+
+@app.route('/api/analyze-comments', methods=['POST'])
+@require_pin
+def analyze_comments():
+    """Analisis komentar dari semua page dan simpan insight ke DB"""
+    try:
+        from comment_analyzer import CommentAnalyzer
+        analyzer = CommentAnalyzer()
+
+        results = []
+        for page in analyzer.fanspages:
+            page_name = page['name']
+            page_id = page['page_id']
+            access_token = page['access_token']
+
+            comments = analyzer.get_recent_comments(page_id, access_token, days=3)
+            if len(comments) < 3:
+                results.append({'page': page_name, 'status': 'skipped', 'reason': f'Only {len(comments)} comments'})
+                continue
+
+            analysis = analyzer.analyze_with_gemini(comments, page_name)
+            if not analysis:
+                results.append({'page': page_name, 'status': 'error', 'reason': 'Gemini analysis failed'})
+                continue
+
+            analyzer.save_insight(page_id, page_name, len(comments), analysis)
+            results.append({
+                'page': page_name,
+                'status': 'success',
+                'total_comments': len(comments),
+                'sentiment': analysis.get('sentiment'),
+                'top_keywords': analysis.get('top_keywords', []),
+                'suggested_topics': analysis.get('suggested_topics', [])
+            })
+
+        # Ambil top preferences terbaru
+        top_prefs = analyzer.get_top_preferences(10)
+
+        return jsonify({'success': True, 'results': results, 'top_preferences': top_prefs})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/comment-insights')
+@require_pin
+def get_comment_insights():
+    """Ambil insight komentar terbaru dari DB"""
+    try:
+        conn = get_db()
+        rows = conn.execute(
+            'SELECT * FROM comment_insights ORDER BY analyzed_at DESC LIMIT 5'
+        ).fetchall()
+        prefs = conn.execute(
+            'SELECT topic_keyword, boost_score FROM topic_preferences ORDER BY boost_score DESC LIMIT 10'
+        ).fetchall()
+        conn.close()
+        return jsonify({
+            'insights': [dict(r) for r in rows],
+            'top_preferences': [{'keyword': r['topic_keyword'], 'score': r['boost_score']} for r in prefs]
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/analytics')
+@require_pin
+def get_analytics():
+    """Fetch engagement data — cached in DB, parallel fetch from Facebook API"""
+    try:
+        import urllib.request, urllib.error
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        with open(CONFIG_PATH, 'r') as f:
+            config = json.load(f)
+
+        page_tokens = {p['page_id']: (p['name'], p.get('access_token', '')) for p in config.get('fanspages', [])}
+
+        days = int(request.args.get('days', 7))
+        since = (datetime.now() - timedelta(days=days)).isoformat()
+
+        conn = get_db()
+
+        # Ensure cache table exists
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS engagement_cache (
+                fb_post_id TEXT PRIMARY KEY,
+                likes INTEGER DEFAULT 0,
+                comments INTEGER DEFAULT 0,
+                cached_at TEXT NOT NULL
+            )
+        """)
+        conn.commit()
+
+        posts = conn.execute(
+            "SELECT id, fb_post_id, page_id, page_name, timestamp, layout_name FROM posts "
+            "WHERE status='success' AND fb_post_id IS NOT NULL AND timestamp >= ? ORDER BY timestamp DESC",
+            (since,)
+        ).fetchall()
+
+        # Split: cached vs needs fetch (cache valid 1 hour)
+        cache_cutoff = (datetime.now() - timedelta(hours=1)).isoformat()
+        cached = {
+            row['fb_post_id']: row
+            for row in conn.execute(
+                "SELECT fb_post_id, likes, comments FROM engagement_cache WHERE cached_at >= ?",
+                (cache_cutoff,)
+            ).fetchall()
+        }
+
+        to_fetch = [p for p in posts if p['fb_post_id'] not in cached]
+
+        def fetch_one(post):
+            page_id = post['page_id']
+            _, token = page_tokens.get(page_id, ('', ''))
+            if not token:
+                return None
+            try:
+                url = (f"https://graph.facebook.com/v21.0/{post['fb_post_id']}"
+                       f"?fields=id,likes.summary(true),comments.summary(true)"
+                       f"&access_token={token}")
+                r = urllib.request.urlopen(url, timeout=8)
+                d = json.loads(r.read())
+                return {
+                    'fb_post_id': post['fb_post_id'],
+                    'likes': d.get('likes', {}).get('summary', {}).get('total_count', 0),
+                    'comments': d.get('comments', {}).get('summary', {}).get('total_count', 0),
+                }
+            except Exception:
+                return None
+
+        # Parallel fetch for uncached posts (max 10 workers)
+        if to_fetch:
+            with ThreadPoolExecutor(max_workers=10) as ex:
+                futures = {ex.submit(fetch_one, p): p for p in to_fetch}
+                for future in as_completed(futures):
+                    result = future.result()
+                    if result:
+                        conn.execute(
+                            "INSERT OR REPLACE INTO engagement_cache (fb_post_id, likes, comments, cached_at) VALUES (?,?,?,?)",
+                            (result['fb_post_id'], result['likes'], result['comments'], datetime.now().isoformat())
+                        )
+            conn.commit()
+            # Reload cache
+            cached = {
+                row['fb_post_id']: row
+                for row in conn.execute(
+                    "SELECT fb_post_id, likes, comments FROM engagement_cache WHERE cached_at >= ?",
+                    (cache_cutoff,)
+                ).fetchall()
+            }
+
+        results = []
+        for post in posts:
+            c = cached.get(post['fb_post_id'])
+            if not c:
+                continue
+            likes, comments = c['likes'], c['comments']
+            results.append({
+                'post_id': post['id'],
+                'fb_post_id': post['fb_post_id'],
+                'page_id': post['page_id'],
+                'page_name': post['page_name'],
+                'timestamp': post['timestamp'],
+                'layout_name': post['layout_name'],
+                'likes': likes,
+                'comments': comments,
+                'total_engagement': likes + comments,
+            })
+
+        conn.close()
+
+        summary = {}
+        for r in results:
+            pid = r['page_id']
+            if pid not in summary:
+                summary[pid] = {'page_name': r['page_name'], 'total_likes': 0, 'total_comments': 0, 'post_count': 0}
+            summary[pid]['total_likes'] += r['likes']
+            summary[pid]['total_comments'] += r['comments']
+            summary[pid]['post_count'] += 1
+
+        for pid in summary:
+            total = summary[pid]['total_likes'] + summary[pid]['total_comments']
+            count = summary[pid]['post_count']
+            summary[pid]['avg_engagement'] = round(total / count, 1) if count else 0
+
+        # Layout summary
+        layout_map = {}
+        for r in results:
+            ln = r['layout_name'] or 'Unknown'
+            if ln not in layout_map:
+                layout_map[ln] = {'total_likes': 0, 'total_comments': 0, 'post_count': 0}
+            layout_map[ln]['total_likes'] += r['likes']
+            layout_map[ln]['total_comments'] += r['comments']
+            layout_map[ln]['post_count'] += 1
+        layout_summary = []
+        for ln, d in layout_map.items():
+            total = d['total_likes'] + d['total_comments']
+            layout_summary.append({
+                'layout_name': ln,
+                'post_count': d['post_count'],
+                'total_likes': d['total_likes'],
+                'total_comments': d['total_comments'],
+                'avg_engagement': round(total / d['post_count'], 1) if d['post_count'] else 0
+            })
+        layout_summary.sort(key=lambda x: x['avg_engagement'], reverse=True)
+
+        return jsonify({
+            'posts': results,
+            'summary': list(summary.values()),
+            'layout_summary': layout_summary,
+            'days': days,
+            'total_fetched': len(results),
+            'from_cache': len(results) - len(to_fetch),
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/privacy-policy')
+def privacy_policy():
+    return send_from_directory('.', 'privacy_policy.html')
+
 if __name__ == '__main__':
-    app.run(host='127.0.0.1', port=18794, debug=False)
+    app.run(host='0.0.0.0', port=18794, debug=False)
+
+

@@ -95,17 +95,24 @@ crontab -e
 
 ```
 goldgen-automation/
-├── auto_poster.py          # Main script
-├── setup.py                # Setup configuration
-├── run.sh                  # Cron wrapper script
-├── requirements.txt        # Python dependencies
-├── venv/                   # Virtual environment
+├── api.py                      # Web API server (port 18794)
+├── auto_poster.py             # Main automation script
+├── goldgen_service.py         # Core service logic
+├── dashboard_schedule.html    # Web dashboard UI
+├── run.sh                     # Cron wrapper script
+├── requirements.txt           # Python dependencies
+├── README.md                  # This file
 ├── data/
-│   ├── config.json        # Configuration (API keys, tokens)
-│   └── posts.db           # SQLite database
-├── logs/
-│   └── auto_poster.log    # Execution logs
-└── generated_images/       # Generated poster images
+│   ├── config.json           # Configuration (API keys, tokens)
+│   ├── posts.db              # SQLite database
+│   └── topic_state.json      # Topic rotation state
+├── generated_images/          # Generated poster images
+├── logs/                      # Execution logs
+├── venv/                      # Virtual environment
+└── archive/                   # Archived old files
+    ├── old_scripts/          # Old/unused scripts
+    ├── old_docs/             # Old documentation
+    └── old_logs/             # Old log files
 ```
 
 ## Troubleshooting
@@ -170,3 +177,20 @@ sqlite3 data/posts.db "SELECT timestamp, error_message FROM posts WHERE status='
 - File permissions are set to user-only access
 - Never commit config.json to git
 - Rotate Facebook tokens regularly (every 60 days recommended)
+
+## Changelog
+
+### 2026-03-27
+- **Fitur Analisa Komentar** — tombol "💬 Analisa Komentar" di halaman Analytics
+  - Ambil komentar dari semua page (3 hari terakhir)
+  - Analisis dengan Gemini AI: sentiment, top keywords, suggested topics
+  - Simpan ke tabel `comment_insights` & `topic_preferences` di DB
+  - Tampilkan akumulasi preferensi audience
+- **5 topik baru** ditambahkan ke hardcode berdasarkan hasil analisis komentar:
+  - [76] GOLD VS PYRITE
+  - [77] FIELD TESTS FOR GOLD
+  - [78] MINERAL IDENTIFICATION
+  - [79] GOLD DEPOSIT TYPES
+  - [80] GEOLOGICAL FORMATIONS
+- Total topics: **80**
+- File baru: `comment_analyzer.py`

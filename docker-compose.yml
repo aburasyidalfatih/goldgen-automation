@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  goldgen-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: goldgen-automation:latest
+    container_name: goldgen-bot
+    ports:
+      - "18794:18794"
+    restart: unless-stopped
+    volumes:
+      - ./data:/app/data
+      - ./generated_images:/app/generated_images
+      - ./logs:/app/logs
+    environment:
+      - PORT=18794
+      - HOST=0.0.0.0
+      - PYTHONUNBUFFERED=1

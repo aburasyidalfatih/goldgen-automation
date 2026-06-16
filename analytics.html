@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Analitik Engagement — GoldGen</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f0f; color: #e0e0e0; min-height: 100vh; }
+  .topbar { background: #1a1a1a; border-bottom: 1px solid #2a2a2a; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; }
+  .topbar h1 { font-size: 18px; font-weight: 600; color: #f5c842; }
+  .topbar nav a { color: #aaa; text-decoration: none; margin-left: 20px; font-size: 14px; }
+  .topbar nav a:hover { color: #f5c842; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
+  .filter-bar { display: flex; gap: 10px; margin-bottom: 24px; align-items: center; flex-wrap: wrap; }
+  .filter-bar label { font-size: 14px; color: #aaa; }
+  .filter-bar select, .filter-bar button { background: #1e1e1e; border: 1px solid #333; color: #e0e0e0; padding: 8px 14px; border-radius: 6px; font-size: 14px; cursor: pointer; }
+  .filter-bar button { background: #f5c842; color: #000; font-weight: 600; border: none; }
+  .filter-bar button:hover { background: #e0b030; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 28px; }
+  .card { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px; padding: 18px; }
+  .card .label { font-size: 12px; color: #888; margin-bottom: 6px; text-transform: uppercase; letter-spacing: .5px; }
+  .card .value { font-size: 28px; font-weight: 700; color: #f5c842; }
+  .card .sub { font-size: 12px; color: #666; margin-top: 4px; }
+  .section { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px; padding: 20px; margin-bottom: 24px; }
+  .section h2 { font-size: 15px; font-weight: 600; margin-bottom: 16px; color: #ccc; }
+  .chart-wrap { position: relative; height: 260px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 10px 12px; color: #888; font-weight: 500; border-bottom: 1px solid #2a2a2a; }
+  td { padding: 10px 12px; border-bottom: 1px solid #1e1e1e; }
+  tr:hover td { background: #1e1e1e; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+  .badge-likes { background: #2a1f00; color: #f5c842; }
+  .badge-comments { background: #001f2a; color: #42c8f5; }
+  .insight-box { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px; padding: 20px; margin-bottom: 24px; }
+  .insight-box h2 { font-size: 15px; font-weight: 600; margin-bottom: 16px; color: #f5c842; }
+  .insight-summary { background: #111; border-left: 3px solid #f5c842; padding: 12px 16px; border-radius: 4px; font-size: 14px; line-height: 1.6; margin-bottom: 16px; color: #ddd; }
+  .insight-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+  .insight-card { background: #111; border: 1px solid #2a2a2a; border-radius: 8px; padding: 14px; }
+  .insight-card h4 { font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 10px; }
+  .insight-card ul { list-style: none; padding: 0; }
+  .insight-card li { font-size: 13px; color: #ccc; padding: 5px 0; border-bottom: 1px solid #1e1e1e; line-height: 1.5; }
+  .insight-card li:last-child { border-bottom: none; }
+  .insight-card li::before { content: '→ '; color: #f5c842; }
+  .error { text-align: center; padding: 40px; color: #e55; font-size: 14px; }
+  .page-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 24px; }
+  .page-card { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px; padding: 14px; }
+  .page-card .name { font-weight: 600; font-size: 14px; margin-bottom: 8px; color: #f5c842; }
+  .page-card .stats { display: flex; gap: 12px; font-size: 13px; color: #aaa; }
+  .page-card .stats span { display: flex; align-items: center; gap: 4px; }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <h1>📊 Analitik Engagement</h1>
+  <nav>
+    <a href="/dashboard">← Dashboard</a>
+  </nav>
+</div>
+
+<div class="container">
+  <div class="filter-bar">
+    <label>Periode:</label>
+    <select id="days-select">
+      <option value="3">3 Hari</option>
+      <option value="7" selected>7 Hari</option>
+      <option value="14">14 Hari</option>
+      <option value="30">30 Hari</option>
+    </select>
+    <button onclick="loadAnalytics()">🔄 Refresh</button>
+    <button onclick="loadInsights()" id="insights-btn" style="background:#1e1e1e;border:1px solid #444;color:#e0e0e0">🤖 Analisa AI</button>
+    <button onclick="analyzeComments()" id="comments-btn" style="background:#1e1e1e;border:1px solid #7c6aff;color:#a89fff">💬 Analisa Komentar</button>
+    <span id="status-text" style="font-size:13px;color:#666;margin-left:8px"></span>
+  </div>
+
+  <div id="comments-insights-section"></div>
+  <div id="insights-section"></div>
+<div id="main-content"><div class="loading">⏳ Memuat data engagement dari Facebook...</div></div>
+</div>
+
+<script>
+async function loadInsights() {
+  const days = document.getElementById('days-select').value;
+  const btn = document.getElementById('insights-btn');
+  const el = document.getElementById('insights-section');
+  btn.disabled = true;
+  btn.textContent = '⏳ Menganalisa...';
+  el.innerHTML = '<div class="insight-box"><div class="loading">🤖 Gemini sedang menganalisa pola konten...</div></div>';
+
+  try {
+    const res = await fetch('/api/analytics/insights?days=' + days, { credentials: 'include' });
+    const data = await res.json();
+    if (!data.success) { el.innerHTML = `<div class="insight-box"><div class="error">❌ ${data.error}</div></div>`; return; }
+
+    const ins = data.insights;
+    el.innerHTML = `<div class="insight-box">
+      <h2>🤖 Analisa AI — Pola Konten Terbaik (${data.analyzed} postingan)</h2>
+      <div class="insight-summary">${ins.summary}</div>
+      <div class="insight-grid">
+        <div class="insight-card">
+          <h4>✅ Pola yang Berhasil</h4>
+          <ul>${ins.top_patterns.map(p => `<li>${p}</li>`).join('')}</ul>
+        </div>
+        <div class="insight-card">
+          <h4>❌ Pola yang Perlu Dihindari</h4>
+          <ul>${ins.avoid_patterns.map(p => `<li>${p}</li>`).join('')}</ul>
+        </div>
+        <div class="insight-card">
+          <h4>🏆 Topik Terpopuler</h4>
+          <ul>${ins.best_topics.map(p => `<li>${p}</li>`).join('')}</ul>
+        </div>
+        <div class="insight-card">
+          <h4>🎯 Gaya Hook Terbaik</h4>
+          <ul><li>${ins.best_hook_style}</li></ul>
+          <h4 style="margin-top:12px">📣 Gaya CTA Terbaik</h4>
+          <ul><li>${ins.best_cta_style}</li></ul>
+        </div>
+      </div>
+    </div>`;
+  } catch(e) {
+    el.innerHTML = `<div class="insight-box"><div class="error">❌ ${e.message}</div></div>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🤖 Analisa AI';
+  }
+}
+
+async function analyzeComments() {
+  const btn = document.getElementById('comments-btn');
+  const el = document.getElementById('comments-insights-section');
+  btn.disabled = true;
+  btn.textContent = '⏳ Menganalisa komentar...';
+  el.innerHTML = '<div class="insight-box"><div class="loading">💬 Mengambil komentar dari Facebook dan menganalisa dengan AI...</div></div>';
+
+  try {
+    const res = await fetch('/api/analyze-comments', { method: 'POST', credentials: 'include' });
+    const data = await res.json();
+    if (!data.success) { el.innerHTML = `<div class="insight-box"><div class="error">❌ ${data.error}</div></div>`; return; }
+
+    const prefs = data.top_preferences || [];
+    let html = `<div class="insight-box">
+      <h2>💬 Analisa Komentar Audience</h2>`;
+
+    data.results.forEach(r => {
+      if (r.status === 'skipped') {
+        html += `<p style="color:#666">⚠️ ${r.page}: ${r.reason}</p>`;
+        return;
+      }
+      if (r.status === 'error') {
+        html += `<p style="color:#e74c3c">❌ ${r.page}: ${r.reason}</p>`;
+        return;
+      }
+      const sentimentColor = r.sentiment === 'positive' ? '#2ecc71' : r.sentiment === 'negative' ? '#e74c3c' : '#f39c12';
+      html += `<div style="margin-bottom:20px;padding:16px;background:#1a1a2e;border-radius:8px;border-left:3px solid ${sentimentColor}">
+        <h3 style="margin:0 0 8px">📘 ${r.page} <span style="font-size:12px;color:${sentimentColor};font-weight:normal">${r.sentiment} · ${r.total_comments} komentar</span></h3>
+        <div style="margin-bottom:8px"><strong>🔑 Keywords:</strong> ${r.top_keywords.join(', ')}</div>
+        <div><strong>💡 Topik yang disarankan:</strong>
+          <ul style="margin:6px 0 0;padding-left:20px">
+            ${r.suggested_topics.map(t => `<li><strong>${t.topic}</strong> — <span style="color:#888">${t.reason}</span></li>`).join('')}
+          </ul>
+        </div>
+      </div>`;
+    });
+
+    if (prefs.length > 0) {
+      html += `<div style="margin-top:16px;padding:16px;background:#1a1a2e;border-radius:8px">
+        <h3 style="margin:0 0 12px">🎯 Akumulasi Preferensi Audience</h3>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          ${prefs.map(p => `<span style="background:rgba(124,106,255,0.15);border:1px solid rgba(124,106,255,0.3);padding:4px 12px;border-radius:20px;font-size:13px;color:#a89fff">${p.keyword} <strong>(${p.score}x)</strong></span>`).join('')}
+        </div>
+      </div>`;
+    }
+
+    html += `</div>`;
+    el.innerHTML = html;
+  } catch(e) {
+    el.innerHTML = `<div class="insight-box"><div class="error">❌ ${e.message}</div></div>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '💬 Analisa Komentar';
+  }
+}
+
+async function loadAnalytics() {
+  const days = document.getElementById('days-select').value;
+  const el = document.getElementById('main-content');
+  const st = document.getElementById('status-text');
+  el.innerHTML = '<div class="loading">⏳ Mengambil data dari Facebook API...</div>';
+  st.textContent = '';
+
+  try {
+    const res = await fetch('/api/analytics?days=' + days, { credentials: 'include' });
+    const data = await res.json();
+    if (data.error) { el.innerHTML = `<div class="error">❌ ${data.error}</div>`; return; }
+
+    st.textContent = `${data.total_fetched} postingan • ${data.from_cache} dari cache`;
+    renderAnalytics(data);
+  } catch(e) {
+    el.innerHTML = `<div class="error">❌ Gagal memuat: ${e.message}</div>`;
+  }
+}
+
+function renderAnalytics(data) {
+  const { posts, summary, days } = data;
+
+  const totalLikes = posts.reduce((s, p) => s + p.likes, 0);
+  const totalComments = posts.reduce((s, p) => s + p.comments, 0);
+  const avgEng = posts.length ? ((totalLikes + totalComments) / posts.length).toFixed(1) : 0;
+  const topPost = posts.reduce((a, b) => b.total_engagement > (a?.total_engagement || 0) ? b : a, null);
+
+  // Summary cards
+  let html = `<div class="cards">
+    <div class="card"><div class="label">Total Postingan</div><div class="value">${posts.length}</div><div class="sub">dalam ${days} hari</div></div>
+    <div class="card"><div class="label">Total Likes</div><div class="value">${totalLikes.toLocaleString()}</div></div>
+    <div class="card"><div class="label">Total Komentar</div><div class="value">${totalComments.toLocaleString()}</div></div>
+    <div class="card"><div class="label">Avg Engagement/Post</div><div class="value">${avgEng}</div></div>
+  </div>`;
+
+  // Per-page summary
+  html += `<div class="page-summary">`;
+  for (const s of summary) {
+    html += `<div class="page-card">
+      <div class="name">${s.page_name}</div>
+      <div class="stats">
+        <span>📝 ${s.post_count} post</span>
+        <span>❤️ ${s.total_likes}</span>
+        <span>💬 ${s.total_comments}</span>
+        <span>⚡ avg ${s.avg_engagement}</span>
+      </div>
+    </div>`;
+  }
+  html += `</div>`;
+
+  // Layout summary (only if data exists)
+  const layoutsWithData = (data.layout_summary || []).filter(l => l.layout_name !== 'Unknown');
+  if (layoutsWithData.length > 0) {
+    html += `<div class="section"><h2>🎨 Performa per Layout</h2>
+      <table>
+        <thead><tr><th>Layout</th><th>Jumlah Post</th><th>Total Likes</th><th>Total Komentar</th><th>Avg Engagement</th></tr></thead>
+        <tbody>`;
+    for (const l of layoutsWithData) {
+      html += `<tr>
+        <td><strong>${l.layout_name}</strong></td>
+        <td>${l.post_count}</td>
+        <td><span class="badge badge-likes">❤️ ${l.total_likes}</span></td>
+        <td><span class="badge badge-comments">💬 ${l.total_comments}</span></td>
+        <td><strong>${l.avg_engagement}</strong></td>
+      </tr>`;
+    }
+    html += `</tbody></table>
+      <p style="font-size:12px;color:#555;margin-top:10px">⚠️ Data layout hanya tersedia untuk postingan setelah fitur tracking diaktifkan.</p>
+    </div>`;
+  } else {
+    html += `<div class="section"><h2>🎨 Performa per Layout</h2>
+      <p style="color:#555;font-size:13px">⏳ Data layout belum tersedia. Akan muncul setelah postingan berikutnya dibuat.</p>
+    </div>`;
+  }
+
+  // Chart section
+  html += `<div class="section"><h2>📈 Engagement per Hari</h2><div class="chart-wrap"><canvas id="chart-daily"></canvas></div></div>`;
+
+  // Per-page bar chart
+  html += `<div class="section"><h2>🏆 Perbandingan Fanspage</h2><div class="chart-wrap"><canvas id="chart-pages"></canvas></div></div>`;
+
+  // Table
+  html += `<div class="section"><h2>📋 Detail Postingan</h2>
+    <table>
+      <thead><tr><th>Waktu</th><th>Fanspage</th><th>Likes</th><th>Komentar</th><th>Total</th><th>Link</th></tr></thead>
+      <tbody>`;
+  for (const p of posts) {
+    const ts = new Date(p.timestamp).toLocaleString('id-ID', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+    const link = `https://www.facebook.com/${p.fb_post_id}`;
+    html += `<tr>
+      <td>${ts}</td>
+      <td>${p.page_name}</td>
+      <td><span class="badge badge-likes">❤️ ${p.likes}</span></td>
+      <td><span class="badge badge-comments">💬 ${p.comments}</span></td>
+      <td><strong>${p.total_engagement}</strong></td>
+      <td><a href="${link}" target="_blank" style="color:#f5c842;font-size:12px">Lihat ↗</a></td>
+    </tr>`;
+  }
+  html += `</tbody></table></div>`;
+
+  document.getElementById('main-content').innerHTML = html;
+
+  // Build daily chart data
+  const dailyMap = {};
+  for (const p of posts) {
+    const day = p.timestamp.substring(0, 10);
+    if (!dailyMap[day]) dailyMap[day] = { likes: 0, comments: 0 };
+    dailyMap[day].likes += p.likes;
+    dailyMap[day].comments += p.comments;
+  }
+  const labels = Object.keys(dailyMap).sort();
+  const likesData = labels.map(d => dailyMap[d].likes);
+  const commentsData = labels.map(d => dailyMap[d].comments);
+
+  new Chart(document.getElementById('chart-daily'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Likes', data: likesData, backgroundColor: '#f5c842cc' },
+        { label: 'Komentar', data: commentsData, backgroundColor: '#42c8f5cc' }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#aaa' } } },
+      scales: {
+        x: { ticks: { color: '#888' }, grid: { color: '#222' } },
+        y: { ticks: { color: '#888' }, grid: { color: '#222' } }
+      }
+    }
+  });
+
+  // Per-page chart
+  new Chart(document.getElementById('chart-pages'), {
+    type: 'bar',
+    data: {
+      labels: summary.map(s => s.page_name),
+      datasets: [
+        { label: 'Total Likes', data: summary.map(s => s.total_likes), backgroundColor: '#f5c842cc' },
+        { label: 'Total Komentar', data: summary.map(s => s.total_comments), backgroundColor: '#42c8f5cc' }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#aaa' } } },
+      scales: {
+        x: { ticks: { color: '#888' }, grid: { color: '#222' } },
+        y: { ticks: { color: '#888' }, grid: { color: '#222' } }
+      }
+    }
+  });
+}
+
+loadAnalytics();
+</script>
+</body>
+</html>

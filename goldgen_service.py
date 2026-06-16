@@ -10,9 +10,9 @@ from pathlib import Path
 from datetime import datetime
 
 class GoldGenService:
-    def __init__(self, api_key):
+    def __init__(self, api_key, model='gemini-2.5-flash'):
         self.client = genai.Client(api_key=api_key)
-        self.model = 'gemini-3-flash-preview'
+        self.model = model
         
         # Topic rotation state
         self.state_file = Path(__file__).parent / "data" / "topic_state.json"
@@ -493,47 +493,47 @@ class GoldGenService:
                 ],            }
             ,{
                 "id": 40,
-                "headline": "TELLURIDES",
-                "subtitle": "The silver-gold mix.",
-                "list_header": "TELLURIDE MINERALS",
+                "headline": "RIVER PHYSICS FOR GOLD",
+                "subtitle": "Water does the sorting for you.",
+                "list_header": "HYDROLOGICAL GOLD TRAPS",
                 "list_points": [
-                    "Calaverite (Gold telluride)",
-                    "Sylvanite (Gold-silver telluride)",
-                    "Petzite (Silver-gold telluride)",
-                    "Often high-grade"
+                    "Gold drops at velocity change points",
+                    "Inside bends = low energy = gold drops",
+                    "Bedrock steps create hydraulic jumps",
+                    "Flood events redistribute entire paystreaks"
                 ],            }
             ,{
                 "id": 41,
-                "headline": "CARLIN-TYPE GOLD",
-                "subtitle": "Invisible and disseminated.",
-                "list_header": "CARLIN CHARACTERISTICS",
+                "headline": "DETECTOR GROUND BALANCE",
+                "subtitle": "The setting that finds more gold.",
+                "list_header": "GROUND BALANCE SECRETS",
                 "list_points": [
-                    "Submicroscopic gold",
-                    "Sediment-hosted",
-                    "Arsenic association",
-                    "Large tonnage, low grade"
+                    "Mineralized soil masks gold signals",
+                    "Manual balance beats auto in hot ground",
+                    "Salt ground vs iron ground response",
+                    "Threshold tone reveals hidden targets"
                 ],            }
             ,{
                 "id": 42,
-                "headline": "OROGENIC GOLD",
+                "headline": "OROGENIC GOLD SIGNS",
                 "subtitle": "Mountain building riches.",
-                "list_header": "OROGENIC FEATURES",
+                "list_header": "FIELD INDICATORS",
                 "list_points": [
-                    "Shear zone hosted",
-                    "Metamorphic setting",
-                    "Quartz-carbonate veins",
-                    "Mesothermal depth"
+                    "Quartz-carbonate veins in shear zones",
+                    "Visible sulfide blebs in quartz",
+                    "Chlorite alteration halos (green rock)",
+                    "Ribbon quartz = repeated fluid pulses"
                 ],            }
             ,{
                 "id": 43,
-                "headline": "VMS DEPOSITS",
-                "subtitle": "Volcanic massive sulfides.",
-                "list_header": "VMS INDICATORS",
+                "headline": "READING BEDROCK COLOR",
+                "subtitle": "The rock tells you where to dig.",
+                "list_header": "COLOR INDICATORS",
                 "list_points": [
-                    "Massive sulfide lenses",
-                    "Volcanic host rocks",
-                    "Base metals with gold",
-                    "Seafloor origin"
+                    "Red/orange = iron oxide = sulfide weathering",
+                    "Green = chlorite = hydrothermal alteration",
+                    "White bleached = silica flooding",
+                    "Black = manganese = mineralized zone"
                 ],            }
             ,{
                 "id": 44,
@@ -636,25 +636,25 @@ class GoldGenService:
                 ],            }
             ,{
                 "id": 53,
-                "headline": "CLAIM STAKING",
-                "subtitle": "Securing your ground.",
-                "list_header": "STAKING PROCESS",
+                "headline": "GARNET GOLD CONNECTION",
+                "subtitle": "Red gems point to riches.",
+                "list_header": "WHY GARNETS SIGNAL GOLD",
                 "list_points": [
-                    "Research available land",
-                    "Mark boundaries properly",
-                    "File with authorities",
-                    "Annual maintenance fees"
+                    "Both form in high-pressure metamorphic zones",
+                    "Garnet-rich black sand = heavy mineral concentration",
+                    "Almandine garnet most common gold companion",
+                    "Deep red color visible even in murky water"
                 ],            }
             ,{
                 "id": 54,
-                "headline": "MERCURY SAFETY",
-                "subtitle": "The silent killer.",
-                "list_header": "MERCURY HAZARDS",
+                "headline": "MAGNETITE GOLD TRAP",
+                "subtitle": "Follow the black sand.",
+                "list_header": "MAGNETITE AS GOLD INDICATOR",
                 "list_points": [
-                    "Vapor inhalation danger",
-                    "Skin absorption risk",
-                    "Environmental contamination",
-                    "Safe alternatives exist"
+                    "Same specific gravity zone as fine gold",
+                    "Magnet test reveals concentration zones",
+                    "Black sand layers = natural sluice effect",
+                    "Magnetite-rich bedrock pockets trap nuggets"
                 ],            }
             ,{
                 "id": 55,
@@ -887,32 +887,129 @@ class GoldGenService:
                     "Aesthetic appeal",
                     "Worth more than melt"
                 ],            }
+            ,{
+                "id": 76,
+                "headline": "GOLD VS PYRITE",
+                "subtitle": "The test that saves you from fool's gold.",
+                "list_header": "FIELD IDENTIFICATION",
+                "list_points": [
+                    "Streak test: Gold = yellow, Pyrite = greenish-black",
+                    "Hardness: Gold dents, Pyrite shatters",
+                    "Shape: Gold irregular, Pyrite cubic crystals",
+                    "Weight: Gold much heavier in hand"
+                ],            }
+            ,{
+                "id": 77,
+                "headline": "FIELD TESTS FOR GOLD",
+                "subtitle": "Identify gold on the spot — no lab needed.",
+                "list_header": "PRACTICAL TESTS",
+                "list_points": [
+                    "Acid test (nitric acid reaction)",
+                    "Magnet test (gold is non-magnetic)",
+                    "Float test (gold sinks fast)",
+                    "Scratch test on unglazed ceramic"
+                ],            }
+            ,{
+                "id": 78,
+                "headline": "MINERAL IDENTIFICATION",
+                "subtitle": "Know what you're holding before you celebrate.",
+                "list_header": "KEY MINERALS TO KNOW",
+                "list_points": [
+                    "Pyrite (Fool's Gold) — cubic, brittle",
+                    "Chalcopyrite — brassy yellow, iridescent",
+                    "Mica — flaky, lightweight",
+                    "Magnetite — black, magnetic"
+                ],            }
+            ,{
+                "id": 79,
+                "headline": "GOLD DEPOSIT TYPES",
+                "subtitle": "Not all gold is found the same way.",
+                "list_header": "DEPOSIT CATEGORIES",
+                "list_points": [
+                    "Placer deposits (rivers & streams)",
+                    "Lode/vein deposits (hard rock)",
+                    "Alluvial fans (ancient waterways)",
+                    "Residual deposits (weathered bedrock)"
+                ],            }
+            ,{
+                "id": 80,
+                "headline": "GEOLOGICAL FORMATIONS",
+                "subtitle": "Read the rocks, find the gold.",
+                "list_header": "KEY FORMATIONS",
+                "list_points": [
+                    "Skarn zones (contact metamorphism)",
+                    "Greenstone belts (ancient volcanic)",
+                    "Shear zones (fault-related gold)",
+                    "Intrusive contacts (granite margins)"
+                ],            }
         ]
     
+    def _get_audience_preferences(self):
+        """Ambil top topic preferences dari analisis komentar"""
+        try:
+            import sqlite3
+            conn = sqlite3.connect('data/posts.db')
+            rows = conn.execute(
+                'SELECT topic_keyword, boost_score FROM topic_preferences ORDER BY boost_score DESC LIMIT 10'
+            ).fetchall()
+            conn.close()
+            return [r[0] for r in rows]
+        except Exception:
+            return []
+
     def get_next_topic(self):
-        """Get next topic in rotation with dynamic layout assignment"""
+        """Get next topic in rotation, prioritize topics matching audience preferences"""
         if self.state_file.exists():
             with open(self.state_file, 'r') as f:
                 state = json.load(f)
                 current_index = state.get('current_topic_index', 0)
         else:
             current_index = 0
-        
+
+        # Cek audience preferences dari analisis komentar
+        preferences = self._get_audience_preferences()
+
+        selected_index = current_index
+        if preferences:
+            # Cari topic yang paling match dengan preferences audience
+            best_match_index = None
+            best_score = 0
+            for i, topic in enumerate(self.topics):
+                topic_text = f"{topic['headline']} {topic['subtitle']} {' '.join(topic.get('list_points', []))}".lower()
+                score = sum(1 for pref in preferences if pref.lower() in topic_text)
+                if score > best_score:
+                    best_score = score
+                    best_match_index = i
+
+            # Pakai topic yang match jika score > 0 dan belum dipakai baru-baru ini
+            recently_used = state.get('recently_used', []) if self.state_file.exists() else []
+            if best_match_index is not None and best_score > 0 and best_match_index not in recently_used[-5:]:
+                selected_index = best_match_index
+
         # Get topic
-        topic = self.topics[current_index].copy()
-        
-        # Assign layout based on current index (rotates every 10 topics)
-        layout_index = current_index % len(self.layouts)
+        topic = self.topics[selected_index].copy()
+
+        # Assign layout
+        layout_index = selected_index % len(self.layouts)
         layout = self.layouts[layout_index]
         topic['layout'] = layout['name']
         topic['composition'] = layout['composition']
-        
-        # Update state for next run
+
+        # Update state
         next_index = (current_index + 1) % len(self.topics)
+        recently_used = state.get('recently_used', []) if self.state_file.exists() else []
+        recently_used.append(selected_index)
+        if len(recently_used) > 20:
+            recently_used = recently_used[-20:]
+
         self.state_file.parent.mkdir(parents=True, exist_ok=True)
         with open(self.state_file, 'w') as f:
-            json.dump({'current_topic_index': next_index, 'last_updated': datetime.now().isoformat()}, f)
-        
+            json.dump({
+                'current_topic_index': next_index,
+                'last_updated': datetime.now().isoformat(),
+                'recently_used': recently_used
+            }, f)
+
         return topic
     
     def get_topic_with_offset(self, offset=0):
@@ -944,7 +1041,7 @@ class GoldGenService:
         
         list_text = "\n".join([f"• {point}" for point in topic['list_points']])
         
-        prompt = f"""Create a COMPREHENSIVE EDUCATIONAL CAPTION for a gold prospecting infographic post.
+        prompt = f"""Create a VIRAL EDUCATIONAL CAPTION for a gold prospecting Facebook post.
 
 TOPIC: {topic['headline']}
 SUBTITLE: {topic['subtitle']}
@@ -952,64 +1049,44 @@ SUBTITLE: {topic['subtitle']}
 KEY POINTS TO EXPLAIN:
 {list_text}
 
+=== PROVEN VIRAL FORMULA (based on top-performing posts analysis) ===
+
+HOOK STYLE (MUST USE ONE):
+- "While beginners [do X], real veterans know [secret Y]"
+- "Most people walk right past [thing] because they don't know [secret]"
+- "The [number] secret(s) that separate amateur prospectors from legends"
+- "Stop [common mistake]. Here's what actually works..."
+- "What successful prospectors know about [topic] that nobody talks about"
+
+CONTENT STRUCTURE:
+1. HEADLINE — Bombastic, provocative, promises exclusive insider knowledge
+2. Opening hook (2 sentences) — Create urgency, highlight beginner mistake vs pro knowledge
+3. Core explanation (3-4 paragraphs) — Each paragraph explains ONE visual/physical indicator they can use IN THE FIELD TODAY. Connect mineral indicators to gold presence with clear cause-effect logic.
+4. FIELD TIP — Start with "Field Tip:" — Give ONE specific, actionable technique they can use immediately
+5. Closing — Short motivational line about ugly/broken rocks hiding the best gold
+6. CTA — Ask about their personal field experience with this specific indicator. Examples:
+   - "What's your experience with [specific indicator] in your local area?"
+   - "Have you encountered [specific sign] in the field? Tag a fellow prospector who needs to see this."
+   - "That [specific rock/mineral] you almost tossed might be worth a second look."
+7. Hashtags (6-8, mix of: #GoldProspecting #[TopicSpecific] #ProspectingTips #GoldMining #Geology #FindGold)
+
+=== WHAT MAKES POSTS GO VIRAL (apply these) ===
+✅ Focus on VISUAL indicators they can see with their eyes (color, texture, smell, weight)
+✅ Use "Pro vs Beginner" framing — makes reader feel like they're getting insider secrets
+✅ Mention specific minerals by name (Magnetite, Garnet, Arsenopyrite, Pyrite) — builds authority
+✅ Include the PHYSICS/SCIENCE behind why it works — not just "look for X" but "X happens because Y"
+✅ Field tips must be IMMEDIATELY actionable — something they can do on their next trip
+✅ Length: 1000-1500 characters — detailed enough to feel valuable
+
+❌ AVOID: Pure academic/historical theory with no field application
+❌ AVOID: Administrative topics (permits, regulations, selling)
+❌ AVOID: Equipment selection guides without connecting to gold discovery
+❌ AVOID: Markdown symbols (**, ##, etc) — plain text only
+
 Requirements:
-1. Language: ENGLISH
-2. Length: 1000-1500 characters (LONG and DETAILED)
-3. Structure:
-   (a) ATTENTION-GRABBING HEADLINE - Use power words, curiosity, or surprising facts
-   (b) Opening hook - 1-2 sentences that create intrigue
-   (c) DETAILED explanation of the topic (3-4 paragraphs)
-       - Explain EACH key point from the list
-       - Include scientific/geological context
-       - Add real-world examples or scenarios
-   (d) Practical field tips - Actionable advice prospectors can use
-   (e) Closing statement - Motivational or thought-provoking
-   (f) CALL-TO-ACTION - Encourage engagement WITHOUT directly asking for comments
-       Examples:
-       - "What's your experience with [topic]?"
-       - "Have you encountered [situation] in the field?"
-       - "Share your [discovery/finding/technique]"
-       - "Tag a fellow prospector who needs to see this"
-       - "What would you add to this list?"
-       - "Your [rock/sample/location] might be the next big find"
-   (g) Hashtags (6-8 relevant to gold prospecting)
-
-HEADLINE FORMULAS (choose one that fits):
-- "The [Number] Secret(s) [Expert] Don't Tell You About..."
-- "Why [Common Belief] Is WRONG About..."
-- "This [Simple Thing] Changed Everything..."
-- "What [Successful People] Know About..."
-- "The Hidden Truth About..."
-- "Stop [Common Mistake] - Do This Instead"
-- "[Surprising Fact] That Will Change How You..."
-- "The Ultimate Guide to..."
-- "Everything You Need to Know About..."
-
-Style: Engaging, educational, comprehensive, creates curiosity.
-Tone: Expert educator sharing deep knowledge, trustworthy and authoritative.
-Format: Clean text without markdown symbols (no **, ##, etc)
-
-Example structure:
-
-"THE HIDDEN TRUTH ABOUT IRON STAINING (That Could Make You Rich)
-
-Most beginners walk right past the best gold deposits because they're looking for the wrong thing. They want shiny, clean quartz veins. But experienced prospectors know better.
-
-Iron staining is your treasure map. When sulfide minerals like pyrite decompose, they leave behind rusty red and orange stains on the rock. This oxidation process, called gossan formation, is a direct indicator that you're in a mineralized zone. And where there are sulfides, there's often gold.
-
-Here's what to look for: Red hematite stains indicate iron oxide. Orange limonite crusts show weathered sulfides. Black manganese coatings appear in highly mineralized areas. And those rusty, rotten-looking gossan caps sitting on top of veins? They're literally pointing down to potential gold deposits below.
-
-The science is simple: Gold often occurs with sulfide minerals in hydrothermal veins. When these veins reach the surface and weather, the sulfides oxidize and create that distinctive rusty appearance. The gold, being chemically stable, remains behind while the sulfides decompose around it.
-
-Field Tip: If the rock looks "too clean" and pure white, it's probably barren. Seek the stained, fractured, and oxidized material. Use a magnet to test for magnetite in the black sand. Look for boxwork textures where sulfides have weathered away, leaving honeycomb patterns. These are your indicators.
-
-Remember: Ugly rocks make beautiful gold. Don't judge a vein by its surface appearance.
-
-What's been your experience with iron-stained rocks? That rusty specimen you almost tossed might be worth a second look.
-
-#GoldProspecting #IronStaining #Gossan #PlacerGold #ProspectingTips #GoldPanning #FindGold #MiningLife"
-
-Generate a similar COMPREHENSIVE caption for the current topic. Make it INFORMATIVE and COMPLETE so readers fully understand the infographic. ALWAYS include a natural call-to-action that encourages sharing experiences or tagging others. Use plain text only, no markdown formatting.
+- Language: ENGLISH
+- Format: Clean plain text, no markdown
+- Tone: Expert educator sharing "expensive knowledge for free" — authoritative but accessible
 """
         
         try:
