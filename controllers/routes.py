@@ -372,8 +372,10 @@ def get_config():
         if not CONFIG_PATH.exists():
             return jsonify({'configured': False, 'fanspages': [], 'fanspage_delay_minutes': 60})
         
-        with open(CONFIG_PATH, 'r') as f:
-            config = json.load(f)
+        config = {'fanspages': []}
+        if CONFIG_PATH.exists():
+            with open(CONFIG_PATH, 'r') as f:
+                config = json.load(f)
         
         now = datetime.now()
         fanspages = []
@@ -475,8 +477,10 @@ def add_fanspage():
     try:
         data = request.json
         
-        with open(CONFIG_PATH, 'r') as f:
-            config = json.load(f)
+        config = {}
+        if CONFIG_PATH.exists():
+            with open(CONFIG_PATH, 'r') as f:
+                config = json.load(f)
         
         if 'fanspages' not in config:
             config['fanspages'] = []
@@ -514,8 +518,10 @@ def update_fanspage(page_id):
     try:
         data = request.json
         
-        with open(CONFIG_PATH, 'r') as f:
-            config = json.load(f)
+        config = {'fanspages': []}
+        if CONFIG_PATH.exists():
+            with open(CONFIG_PATH, 'r') as f:
+                config = json.load(f)
         
         for page in config['fanspages']:
             if page['page_id'] == page_id:
@@ -545,8 +551,10 @@ def update_fanspage(page_id):
 def delete_fanspage(page_id):
     """Delete fanspage"""
     try:
-        with open(CONFIG_PATH, 'r') as f:
-            config = json.load(f)
+        config = {'fanspages': []}
+        if CONFIG_PATH.exists():
+            with open(CONFIG_PATH, 'r') as f:
+                config = json.load(f)
         
         config['fanspages'] = [p for p in config['fanspages'] if p['page_id'] != page_id]
         
