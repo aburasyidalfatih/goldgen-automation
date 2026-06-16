@@ -3,43 +3,121 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Goldgen Dashboard - Login</title>
+    <title>Goldgen - Login</title>
+    <!-- Google Fonts: Outfit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Outfit', 'sans-serif'],
+                    },
+                    colors: {
+                        gold: {
+                            400: '#FBBF24',
+                            500: '#D4A523',
+                            600: '#B8860B',
+                        }
+                    },
+                    animation: {
+                        'fade-in-up': 'fadeInUp 0.6s ease-out forwards',
+                        'pulse-glow': 'pulseGlow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    },
+                    keyframes: {
+                        fadeInUp: {
+                            '0%': { opacity: '0', transform: 'translateY(20px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
+                        },
+                        pulseGlow: {
+                            '0%, 100%': { opacity: 1, boxShadow: '0 0 15px rgba(212, 165, 35, 0.2)' },
+                            '50%': { opacity: .8, boxShadow: '0 0 30px rgba(212, 165, 35, 0.5)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-image: 
+                radial-gradient(circle at 15% 50%, rgba(212, 165, 35, 0.08), transparent 25%),
+                radial-gradient(circle at 85% 30%, rgba(212, 165, 35, 0.05), transparent 25%);
+            background-color: #09090b; /* zinc-950 */
+        }
+        /* Hide arrows for number input */
+        input[type="tel"]::-webkit-inner-spin-button,
+        input[type="tel"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+    </style>
 </head>
-<body class="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 min-h-screen flex items-center justify-center p-4">
-    <div class="bg-gray-800 p-6 sm:p-8 rounded-lg shadow-2xl w-full max-w-md border border-yellow-600">
-        <div class="text-center mb-6">
-            <h1 class="text-2xl sm:text-3xl font-bold text-yellow-500 mb-2">🔐 Goldgen Dashboard</h1>
-            <p class="text-gray-400 text-sm sm:text-base">Enter PIN to access</p>
+<body class="min-h-screen flex items-center justify-center p-4 text-zinc-200 selection:bg-gold-500/30">
+    <!-- Glow effect behind card -->
+    <div class="absolute w-64 h-64 bg-gold-600/20 rounded-full blur-3xl -z-10 animate-pulse"></div>
+
+    <div class="animate-fade-in-up bg-zinc-900/60 backdrop-blur-xl border border-zinc-800/80 p-8 sm:p-10 rounded-2xl shadow-2xl w-full max-w-md relative overflow-hidden group">
+        
+        <!-- Subtle top border accent -->
+        <div class="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-gold-500 to-transparent opacity-50 group-hover:opacity-100 transition-opacity duration-500"></div>
+
+        <div class="text-center mb-8">
+            <div class="inline-flex items-center justify-center w-14 h-14 rounded-full bg-zinc-800/80 border border-gold-500/30 mb-4 shadow-[0_0_15px_rgba(212,165,35,0.15)]">
+                <svg class="w-6 h-6 text-gold-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                </svg>
+            </div>
+            <h1 class="text-2xl sm:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-gold-400 to-gold-600 mb-2">GoldGen</h1>
+            <p class="text-zinc-400 text-sm sm:text-base font-light">Secure Automation Dashboard</p>
         </div>
         
-        <form id="loginForm" class="space-y-4">
-            <div>
+        <form id="loginForm" class="space-y-6">
+            <div class="relative">
                 <input 
                     type="tel" 
                     inputmode="numeric"
                     id="pin" 
                     placeholder="Enter 6-digit PIN"
                     maxlength="6"
-                    class="w-full px-4 py-4 bg-gray-700 text-white text-center text-xl sm:text-2xl tracking-widest rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 touch-manipulation"
+                    class="w-full px-5 py-4 bg-zinc-950/50 border border-zinc-800 text-white text-center text-2xl tracking-[0.5em] font-medium rounded-xl focus:outline-none focus:border-gold-500 focus:ring-1 focus:ring-gold-500/50 transition-all duration-300 placeholder:text-zinc-600 placeholder:tracking-normal placeholder:text-base"
                     autofocus
+                    autocomplete="off"
                 >
             </div>
             
-            <div id="error" class="hidden text-red-400 text-sm text-center"></div>
+            <div id="error" class="hidden text-red-400 text-sm text-center font-medium opacity-0 transition-opacity duration-300"></div>
             
             <button 
                 type="submit"
-                class="w-full bg-yellow-600 hover:bg-yellow-700 active:bg-yellow-800 text-white font-bold py-4 rounded-lg transition duration-200 touch-manipulation"
+                class="w-full relative overflow-hidden group bg-gradient-to-r from-gold-600 to-gold-500 text-zinc-950 font-bold py-4 rounded-xl transition-all duration-300 transform hover:-translate-y-0.5 hover:shadow-[0_0_20px_rgba(212,165,35,0.4)] active:translate-y-0 active:shadow-none"
             >
-                Login
+                <span class="relative z-10 flex items-center justify-center gap-2">
+                    Access Dashboard
+                    <svg class="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
+                    </svg>
+                </span>
+                <!-- Hover shimmer effect -->
+                <div class="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent group-hover:animate-[shimmer_1.5s_infinite]"></div>
             </button>
         </form>
         
-        <div class="mt-6 text-center text-gray-500 text-xs sm:text-sm">
-            <p>Protected Dashboard</p>
+        <div class="mt-8 text-center text-zinc-600 text-xs font-medium uppercase tracking-widest">
+            <p>Protected By 256-bit Encryption</p>
         </div>
     </div>
+
+    <style>
+        @keyframes shimmer {
+            100% { transform: translateX(100%); }
+        }
+    </style>
 
     <script>
         const form = document.getElementById('loginForm');
@@ -78,10 +156,17 @@
         function showError(message) {
             errorDiv.textContent = message;
             errorDiv.classList.remove('hidden');
-            setTimeout(() => errorDiv.classList.add('hidden'), 3000);
+            // Slight delay for transition to work
+            setTimeout(() => {
+                errorDiv.classList.add('opacity-100');
+            }, 10);
+            
+            setTimeout(() => {
+                errorDiv.classList.remove('opacity-100');
+                setTimeout(() => errorDiv.classList.add('hidden'), 300);
+            }, 3000);
         }
 
-        // Auto-focus and select on input
         pinInput.addEventListener('input', (e) => {
             e.target.value = e.target.value.replace(/\D/g, '');
         });
