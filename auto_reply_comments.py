@@ -9,9 +9,11 @@ import requests
 import time
 import sqlite3
 from datetime import datetime
+from core.database import get_db_connection
+from core.config import CONFIG_PATH
 
 class CommentReplier:
-    def __init__(self, config_path='data/config.json'):
+    def __init__(self, config_path=CONFIG_PATH):
         with open(config_path, 'r') as f:
             self.config = json.load(f)
         
@@ -31,7 +33,7 @@ class CommentReplier:
     
     def _init_db(self):
         """Initialize database for tracking replied comments"""
-        conn = sqlite3.connect(self.db_path)
+        conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS replied_comments (
@@ -93,7 +95,7 @@ class CommentReplier:
     
     def is_already_replied(self, comment_id):
         """Check if comment already replied"""
-        conn = sqlite3.connect(self.db_path)
+        conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute('SELECT comment_id FROM replied_comments WHERE comment_id = ?', (comment_id,))
         result = cursor.fetchone()
@@ -208,7 +210,7 @@ Langsung berikan balasan saja tanpa penjelasan tambahan."""
     
     def save_replied_comment(self, comment_id, post_id, user_name, comment_text, reply_text):
         """Save replied comment to database"""
-        conn = sqlite3.connect(self.db_path)
+        conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute('''
             INSERT INTO replied_comments (comment_id, post_id, user_name, comment_text, reply_text)

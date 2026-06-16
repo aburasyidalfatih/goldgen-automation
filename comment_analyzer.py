@@ -10,10 +10,10 @@ import sqlite3
 import requests
 from datetime import datetime, timedelta
 from pathlib import Path
-
-
+from core.database import get_db_connection
+from core.config import CONFIG_PATH
 class CommentAnalyzer:
-    def __init__(self, config_path='data/config.json'):
+    def __init__(self, config_path=CONFIG_PATH):
         with open(config_path, 'r') as f:
             self.config = json.load(f)
 
@@ -24,7 +24,7 @@ class CommentAnalyzer:
         self._init_db()
 
     def _init_db(self):
-        conn = sqlite3.connect(self.db_path)
+        conn = get_db_connection()
         cursor = conn.cursor()
         # Tabel insight dari analisis komentar
         cursor.execute('''
@@ -148,7 +148,7 @@ Reply ONLY with this JSON (no markdown, keep all strings simple ASCII):
 
     def save_insight(self, page_id, page_name, total_comments, analysis):
         """Simpan hasil analisis ke DB"""
-        conn = sqlite3.connect(self.db_path)
+        conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute('''
             INSERT INTO comment_insights 
@@ -187,7 +187,7 @@ Reply ONLY with this JSON (no markdown, keep all strings simple ASCII):
 
     def get_top_preferences(self, limit=10):
         """Ambil topik dengan boost score tertinggi untuk dipakai di content generation"""
-        conn = sqlite3.connect(self.db_path)
+        conn = get_db_connection()
         cursor = conn.cursor()
         rows = cursor.execute(
             'SELECT topic_keyword, boost_score FROM topic_preferences ORDER BY boost_score DESC LIMIT ?',
@@ -198,7 +198,7 @@ Reply ONLY with this JSON (no markdown, keep all strings simple ASCII):
 
     def get_latest_insight(self):
         """Ambil insight terbaru untuk ditampilkan di dashboard"""
-        conn = sqlite3.connect(self.db_path)
+        conn = get_db_connection()
         cursor = conn.cursor()
         row = cursor.execute(
             'SELECT * FROM comment_insights ORDER BY analyzed_at DESC LIMIT 1'

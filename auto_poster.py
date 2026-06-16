@@ -18,20 +18,14 @@ import base64
 import time
 
 # Telegram notifier
-sys.path.insert(0, '/home/ubuntu')
 try:
     from telegram_notifier import send_notification
 except:
     def send_notification(msg):
         pass
 
-# Configuration
-BASE_DIR = Path(__file__).parent
-DATA_DIR = BASE_DIR / "data"
-LOGS_DIR = BASE_DIR / "logs"
-IMAGES_DIR = BASE_DIR / "generated_images"
-DB_PATH = DATA_DIR / "posts.db"
-CONFIG_PATH = DATA_DIR / "config.json"
+from core.config import BASE_DIR, DATA_DIR, LOGS_DIR, IMAGES_DIR, DB_PATH, CONFIG_PATH
+from core.database import get_db_connection
 
 # Ensure directories exist
 DATA_DIR.mkdir(exist_ok=True)
@@ -87,7 +81,7 @@ class GoldGenAutoPoster:
     
     def init_database(self):
         """Initialize SQLite database for tracking posts"""
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS posts (
@@ -458,7 +452,7 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
     
     def log_post(self, fanspage, content, image_path, fb_post_id, status, error_message=None, layout_name=None):
         """Log post to database"""
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_db_connection()
         cursor = conn.cursor()
         # Add layout_name column if not exists
         try:
@@ -496,7 +490,7 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
                 return False
             
             # Check if already posted this hour
-            conn = sqlite3.connect(DB_PATH)
+            conn = get_db_connection()
             cursor = conn.cursor()
             cursor.execute('SELECT last_posted FROM last_post_time WHERE page_id = ?', (fanspage['page_id'],))
             result = cursor.fetchone()
@@ -511,7 +505,7 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
         
         # Fallback to old interval-based logic
         else:
-            conn = sqlite3.connect(DB_PATH)
+            conn = get_db_connection()
             cursor = conn.cursor()
             cursor.execute('SELECT last_posted FROM last_post_time WHERE page_id = ?', (fanspage['page_id'],))
             result = cursor.fetchone()
@@ -527,7 +521,7 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
     
     def update_last_post_time(self, page_id):
         """Update last post time for a page"""
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute('''
             INSERT OR REPLACE INTO last_post_time (page_id, last_posted)
@@ -657,7 +651,7 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
         print("\n🔄 Checking post queue from web app...")
         
         try:
-            conn = sqlite3.connect(DB_PATH)
+            conn = get_db_connection()
             cursor = conn.cursor()
             
             # Get pending posts
