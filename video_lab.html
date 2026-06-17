@@ -103,14 +103,21 @@
                 const btn = document.querySelector('button[onclick="fetchRandomPrompt()"]');
                 btn.textContent = "🎲 Mengambil...";
                 const res = await fetch('/api/video-lab/random-prompt');
-                const data = await res.json();
-                if (data.prompt) {
-                    document.getElementById('promptText').value = data.prompt;
+                const text = await res.text();
+                try {
+                    const data = JSON.parse(text);
+                    if (data.prompt) {
+                        document.getElementById('promptText').value = data.prompt;
+                    }
+                } catch (e) {
+                    throw new Error("Server response is not JSON: " + text.substring(0, 100));
                 }
                 btn.textContent = "🎲 Generate Prompt Topik";
             } catch (error) {
                 console.error("Gagal mengambil prompt acak:", error);
-                alert("Gagal mengambil prompt acak dari server.");
+                alert("Error: " + error.message);
+                const btn = document.querySelector('button[onclick="fetchRandomPrompt()"]');
+                btn.textContent = "🎲 Generate Prompt Topik";
             }
         }
 
