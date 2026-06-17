@@ -473,6 +473,11 @@
                                 <div class="text-xs text-gray-500 mt-1">${scheduleHours.length} posts/day</div>
                             </div>
                             <div class="flex gap-2">
+                                <button onclick="triggerManualPost('${fp.page_id}', '${fp.name}')" 
+                                        class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm transition-colors font-semibold"
+                                        title="Trigger post immediately">
+                                    Post Now
+                                </button>
                                 <button onclick="editFanspage('${fp.page_id}')" 
                                         class="px-3 py-1 bg-gray-600 hover:bg-gray-700 text-white rounded text-sm transition-colors">
                                     Edit
@@ -732,6 +737,30 @@
         });
 
         // Delete fanspage
+        async function triggerManualPost(pageId, pageName) {
+            if (!confirm(`Trigger manual post for ${pageName}? This will generate and post immediately.`)) return;
+            
+            try {
+                const res = await fetch('/api/trigger-post', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-PIN': localStorage.getItem('goldgen_pin')
+                    },
+                    body: JSON.stringify({ page_id: pageId })
+                });
+                
+                const data = await res.json();
+                if (data.success) {
+                    alert(`Post generation started for ${pageName}. This process takes about 30-60 seconds. Check 'Recent Posts' below or your Facebook page shortly.`);
+                } else {
+                    alert('Error: ' + (data.error || 'Failed to trigger post'));
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+        }
+
         async function deleteFanspage(pageId, name) {
             if (!confirm(`Are you sure you want to delete "${name}"?`)) {
                 return;

@@ -135,6 +135,28 @@ def check_auth():
     """Check if authenticated"""
     return jsonify({'authenticated': session.get('authenticated', False)})
 
+@bp.route('/api/trigger-post', methods=['POST'])
+@require_pin
+def trigger_post():
+    """Trigger an immediate manual post for a specific page"""
+    data = request.json
+    page_id = data.get('page_id')
+    if not page_id:
+        return jsonify({'success': False, 'error': 'Missing page_id'}), 400
+        
+    def run_poster():
+        try:
+            from auto_poster import AutoPoster
+            poster = AutoPoster()
+            poster.force_post(page_id)
+        except Exception as e:
+            print(f"Manual post trigger error: {e}")
+            
+    import threading
+    threading.Thread(target=run_poster, daemon=True).start()
+    
+    return jsonify({'success': True, 'message': 'Post generation started in background'})
+
 def health_check():
     """Health check endpoint for monitoring"""
     try:

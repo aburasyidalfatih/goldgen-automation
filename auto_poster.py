@@ -654,6 +654,66 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
         
         print(f"[{datetime.now()}] Process completed.\n")
     
+    def force_post(self, target_page_id):
+        """Force a post to a specific fanspage regardless of schedule or queue"""
+        print(f"[{datetime.now()}] Starting forced manual post for {target_page_id}...")
+        
+        target_fanspage = next((f for f in self.fanspages if f['page_id'] == target_page_id), None)
+        if not target_fanspage:
+            print(f"❌ Error: Fanspage with ID {target_page_id} not found in configuration.")
+            return False, "Fanspage not found"
+            
+        try:
+            print(f"📄 Processing Manual Post: {target_fanspage['name']}")
+            
+            print("   Validating Facebook token...")
+            valid, token_error = self.validate_token(target_fanspage)
+            if not valid:
+                error_msg = f"Token validation failed: {token_error}"
+                print(f"   ❌ {error_msg}")
+                self.log_post(target_fanspage, "[SKIPPED]", "", None, 'failed', error_msg)
+                return False, error_msg
+
+            if self.goldgen.state_file.exists():
+                with open(self.goldgen.state_file, 'r') as f:
+                    state = json.load(f)
+                    base_topic_index = state.get('current_topic_index', 0)
+            else:
+                base_topic_index = 0
+                
+            idx = self.fanspages.index(target_fanspage)
+
+            print("   Generating educational content...")
+            content, topic = self.generate_content_with_offset(idx)
+            
+            print("   Generating infographic...")
+            image_path = self.generate_poster_image(topic, fanspage_name=target_fanspage['name'])
+            
+            print("   Posting to Facebook...")
+            fb_post_id, error = self.post_to_facebook(target_fanspage, content, image_path)
+            
+            if fb_post_id:
+                print(f"   ✅ Success! Post ID: {fb_post_id}")
+                self.log_post(target_fanspage, content, image_path, fb_post_id, 'success', layout_name=topic.get('layout'))
+                self.update_last_post_time(target_fanspage['page_id'])
+                
+                next_index = (base_topic_index + 1) % len(self.goldgen.topics)
+                self.goldgen.state_file.parent.mkdir(parents=True, exist_ok=True)
+                with open(self.goldgen.state_file, 'w') as f:
+                    json.dump({'current_topic_index': next_index, 'last_updated': datetime.now().isoformat()}, f)
+                    
+                return True, fb_post_id
+            else:
+                print(f"   ❌ Failed: {error}")
+                self.log_post(target_fanspage, content, image_path, None, 'failed', error, layout_name=topic.get('layout'))
+                return False, error
+                
+        except Exception as e:
+            error_msg = str(e)
+            print(f"   ❌ Error: {error_msg}\n")
+            self.log_post(target_fanspage, "", "", None, 'error', error_msg)
+            return False, error_msg
+
     def process_queue(self):
         """Process queued posts from web app"""
         print("\n🔄 Checking post queue from web app...")
