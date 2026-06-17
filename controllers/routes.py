@@ -146,8 +146,8 @@ def trigger_post():
         
     def run_poster():
         try:
-            from auto_poster import AutoPoster
-            poster = AutoPoster()
+            from auto_poster import GoldGenAutoPoster
+            poster = GoldGenAutoPoster()
             poster.force_post(page_id)
         except Exception as e:
             print(f"Manual post trigger error: {e}")
