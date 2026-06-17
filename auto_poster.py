@@ -455,7 +455,7 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
     def log_post(self, fanspage, content, image_path, fb_post_id, status, error_message=None, layout_name=None):
         """Log post to database"""
         from datetime import timezone, timedelta
-        now_wib = datetime.now(timezone.utc) + timedelta(hours=7)
+        now_wib = datetime.now(timezone(timedelta(hours=7)))
         conn = get_db_connection()
         cursor = conn.cursor()
         # Add layout_name column if not exists
@@ -484,7 +484,7 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
     def should_post(self, fanspage):
         """Check if current hour matches fanspage schedule"""
         from datetime import timezone, timedelta
-        now_wib = datetime.now(timezone.utc) + timedelta(hours=7)
+        now_wib = datetime.now(timezone(timedelta(hours=7)))
         current_hour = now_wib.hour
         
         # Support both old interval_hours and new schedule_hours
@@ -528,7 +528,7 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
     def update_last_post_time(self, page_id):
         """Update last post time for a page"""
         from datetime import timezone, timedelta
-        now_wib = datetime.now(timezone.utc) + timedelta(hours=7)
+        now_wib = datetime.now(timezone(timedelta(hours=7)))
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute('''
