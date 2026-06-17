@@ -68,18 +68,18 @@ Karena bot ini menggunakan database SQLite (`data/posts.db`) dan menyimpan data 
 
 ## ⏰ Konfigurasi Cron Jobs di Dokploy
 
-Pada deployment server lama, automation berjalan menggunakan crontab OS. Di Dokploy, Anda dapat mengaturnya langsung dari panel GUI Dokploy agar tetap rapi di dalam container.
+Pada deployment server lama, automation berjalan menggunakan crontab OS. Di Dokploy, Anda wajib mengatur cron melalui fitur **Scheduled Jobs** di tingkat Server (bukan di dalam tab Compose, untuk menghindari error `No such file or directory` pada Docker).
 
-1. Buka service **goldgen-bot** di dashboard Dokploy Anda.
-2. Masuk ke tab **Cron** atau **Schedules**.
-3. Tambahkan 2 cron job baru dengan konfigurasi berikut:
+1. Kembali ke Dashboard utama Dokploy.
+2. Di menu sidebar kiri, pilih **Advanced** lalu klik **Scheduled Jobs**.
+3. Tambahkan 2 cron job baru dengan klik **Create Job**:
 
 ### Cron 1: Auto Posting (Setiap 15 Menit)
 * **Cron Expression**: `*/15 * * * *`
-* **Command**: `python3 auto_poster.py`
+* **Command**: `docker exec goldgen-bot python3 auto_poster.py`
 
 ### Cron 2: Auto Reply Comments (Setiap 10 Menit)
 * **Cron Expression**: `*/10 * * * *`
-* **Command**: `python3 auto_reply_comments.py`
+* **Command**: `docker exec goldgen-bot python3 auto_reply_comments.py`
 
 *Catatan: Anda tidak perlu masuk ke `venv` atau menggunakan wrapper `run.sh` lagi karena container Docker sudah terisolasi dan berjalan langsung menggunakan Python global di system container.*
