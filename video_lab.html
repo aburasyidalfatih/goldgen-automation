@@ -56,7 +56,7 @@
                 <div>
                     <div class="flex justify-between items-center mb-2">
                         <label class="block text-sm font-semibold">Video Prompt</label>
-                        <button onclick="fetchRandomPrompt()" class="text-xs bg-gray-700 hover:bg-gray-600 text-yellow-400 px-3 py-1 rounded transition-colors border border-gray-600">
+                        <button id="btnRandomPrompt" onclick="fetchRandomPrompt()" class="text-xs bg-gray-700 hover:bg-gray-600 text-yellow-400 px-3 py-1 rounded transition-colors border border-gray-600">
                             🎲 Generate Prompt Topik
                         </button>
                     </div>
@@ -100,7 +100,7 @@
 
         async function fetchRandomPrompt() {
             try {
-                const btn = document.querySelector('button[onclick="fetchRandomPrompt()"]');
+                const btn = document.getElementById('btnRandomPrompt');
                 btn.textContent = "🎲 Mengambil...";
                 const res = await fetch('/api/video-lab/random-prompt');
                 const text = await res.text();
@@ -116,8 +116,8 @@
             } catch (error) {
                 console.error("Gagal mengambil prompt acak:", error);
                 alert("Error: " + error.message);
-                const btn = document.querySelector('button[onclick="fetchRandomPrompt()"]');
-                btn.textContent = "🎲 Generate Prompt Topik";
+                const btn = document.getElementById('btnRandomPrompt');
+                if (btn) btn.textContent = "🎲 Generate Prompt Topik";
             }
         }
 
