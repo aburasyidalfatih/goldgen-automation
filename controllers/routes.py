@@ -87,10 +87,25 @@ def random_video_prompt():
         with open(topics_file, 'r', encoding='utf-8') as f:
             topics = json.load(f)
             topic = random.choice(topics)
-            prompt = f"A cinematic 4k drone shot illustrating '{topic['headline']}'. Scene details: {topic['subtitle']}. Focus on: {', '.join(topic['list_points'][:3])}. High quality, realistic lighting, documentary style."
-            return jsonify({'prompt': prompt})
+            
+            prompt_obj = {
+                "instruction": "Generate a high quality, realistic 4k cinematic video.",
+                "style": "Documentary style, realistic lighting, highly detailed",
+                "topic": topic['headline'],
+                "scene_context": topic['subtitle'],
+                "key_visual_elements": topic['list_points'][:3],
+                "camera_movement": "Slow cinematic drone shot or smooth panning"
+            }
+            
+            prompt_text = json.dumps(prompt_obj, indent=2)
+            return jsonify({'prompt': prompt_text})
     except Exception as e:
-        return jsonify({'prompt': 'A cinematic 4k documentary style shot of a gold miner panning in a clear mountain river at sunrise.'})
+        fallback_obj = {
+            "instruction": "Generate a high quality, realistic 4k cinematic video.",
+            "style": "Documentary style",
+            "scene": "A gold miner panning in a clear mountain river at sunrise."
+        }
+        return jsonify({'prompt': json.dumps(fallback_obj, indent=2)})
 
 @bp.route("/detail")
 def serve_detail():
