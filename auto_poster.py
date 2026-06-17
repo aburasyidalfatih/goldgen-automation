@@ -452,6 +452,8 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
     
     def log_post(self, fanspage, content, image_path, fb_post_id, status, error_message=None, layout_name=None):
         """Log post to database"""
+        from datetime import timezone, timedelta
+        now_wib = datetime.now(timezone.utc) + timedelta(hours=7)
         conn = get_db_connection()
         cursor = conn.cursor()
         # Add layout_name column if not exists
@@ -464,7 +466,7 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
             INSERT INTO posts (timestamp, page_id, page_name, content, image_path, fb_post_id, status, error_message, layout_name)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
-            datetime.now().isoformat(),
+            now_wib.isoformat(),
             fanspage['page_id'],
             fanspage['name'],
             content,
@@ -479,7 +481,9 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
     
     def should_post(self, fanspage):
         """Check if current hour matches fanspage schedule"""
-        current_hour = datetime.now().hour
+        from datetime import timezone, timedelta
+        now_wib = datetime.now(timezone.utc) + timedelta(hours=7)
+        current_hour = now_wib.hour
         
         # Support both old interval_hours and new schedule_hours
         if 'schedule_hours' in fanspage:
@@ -501,7 +505,7 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
             
             last_posted = datetime.fromisoformat(result[0])
             # Only post once per scheduled hour (different hour OR different day)
-            return last_posted.hour != current_hour or last_posted.date() != datetime.now().date()
+            return last_posted.hour != current_hour or last_posted.date() != now_wib.date()
         
         # Fallback to old interval-based logic
         else:
@@ -517,16 +521,18 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
             from datetime import timedelta
             last_posted = datetime.fromisoformat(result[0])
             interval = timedelta(hours=fanspage.get('interval_hours', 6))
-            return datetime.now() >= last_posted + interval
+            return now_wib >= last_posted + interval
     
     def update_last_post_time(self, page_id):
         """Update last post time for a page"""
+        from datetime import timezone, timedelta
+        now_wib = datetime.now(timezone.utc) + timedelta(hours=7)
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute('''
             INSERT OR REPLACE INTO last_post_time (page_id, timestamp)
             VALUES (?, ?)
-        ''', (page_id, datetime.now().isoformat()))
+        ''', (page_id, now_wib.isoformat()))
         conn.commit()
         conn.close()
     
