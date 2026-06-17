@@ -21,6 +21,18 @@
             <h2 class="text-xl font-bold mb-4 text-red-400">⚠️ Cookie Injection Settings</h2>
             <p class="text-sm text-gray-400 mb-4">Metode ini bersifat tidak resmi (unofficial) dan berpotensi gagal sewaktu-waktu. Anda harus mengekstrak cookie dari browser pribadi Anda.</p>
             
+            <details class="mb-6 bg-gray-900 border border-gray-700 rounded-lg">
+                <summary class="px-4 py-3 cursor-pointer font-semibold text-blue-400 hover:text-blue-300">📖 Cara Mendapatkan Cookie (Klik untuk Buka Panduan)</summary>
+                <div class="px-4 pb-4 pt-2 text-sm text-gray-300 space-y-3">
+                    <p><strong>Langkah 1:</strong> Buka situs <a href="https://gemini.google.com" target="_blank" class="text-blue-400 underline">gemini.google.com</a> di browser (Gunakan akun cadangan).</p>
+                    <p><strong>Langkah 2:</strong> Tekan <strong>F12</strong> (atau klik kanan -> Inspect/Inspeksi) untuk membuka <em>Developer Tools</em>.</p>
+                    <p><strong>Langkah 3:</strong> Pergi ke tab <strong>Application</strong> di bagian atas panel (jika tidak ada, klik panah <code>>></code>).</p>
+                    <p><strong>Langkah 4:</strong> Di menu sebelah kiri, buka <strong>Storage</strong> -> <strong>Cookies</strong> -> klik <code>https://gemini.google.com</code>.</p>
+                    <p><strong>Langkah 5:</strong> Di tabel sebelah kanan, temukan baris dengan nama <strong>__Secure-1PSID</strong>, klik dua kali pada kolom <em>Value</em>, dan <strong>Copy</strong> kodenya (berawalan <code>g.a000...</code>).</p>
+                    <p><strong>Langkah 6:</strong> <em>Paste</em> kode panjang tersebut ke kotak di bawah ini. Lakukan hal yang sama untuk <strong>__Secure-1PSIDTS</strong> dan <strong>__Secure-1PSIDCC</strong> jika ada.</p>
+                </div>
+            </details>
+            
             <div class="space-y-4">
                 <div>
                     <label class="block text-sm font-semibold mb-2">__Secure-1PSID</label>
