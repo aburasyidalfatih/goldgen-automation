@@ -54,7 +54,12 @@
             
             <div class="space-y-4">
                 <div>
-                    <label class="block text-sm font-semibold mb-2">Video Prompt</label>
+                    <div class="flex justify-between items-center mb-2">
+                        <label class="block text-sm font-semibold">Video Prompt</label>
+                        <button onclick="fetchRandomPrompt()" class="text-xs bg-gray-700 hover:bg-gray-600 text-yellow-400 px-3 py-1 rounded transition-colors border border-gray-600">
+                            🎲 Generate Prompt Topik
+                        </button>
+                    </div>
                     <textarea id="promptText" rows="4" class="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded focus:border-blue-500 focus:outline-none" placeholder="Contoh: A cinematic 4k drone shot over a winding river where gold panning takes place..."></textarea>
                 </div>
                 
@@ -92,6 +97,22 @@
                 console.error("Failed to load config", e);
             }
         });
+
+        async function fetchRandomPrompt() {
+            try {
+                const btn = document.querySelector('button[onclick="fetchRandomPrompt()"]');
+                btn.textContent = "🎲 Mengambil...";
+                const res = await fetch('/api/video-lab/random-prompt');
+                const data = await res.json();
+                if (data.prompt) {
+                    document.getElementById('promptText').value = data.prompt;
+                }
+                btn.textContent = "🎲 Generate Prompt Topik";
+            } catch (error) {
+                console.error("Gagal mengambil prompt acak:", error);
+                alert("Gagal mengambil prompt acak dari server.");
+            }
+        }
 
         async function generateVideo() {
             const btn = document.getElementById('generateBtn');

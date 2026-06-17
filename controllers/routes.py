@@ -77,6 +77,21 @@ def generate_video_lab():
     from flask import Response
     return Response(generate(), mimetype='text/plain')
 
+@bp.route('/api/video-lab/random-prompt', methods=['GET'])
+@require_pin
+def random_video_prompt():
+    import random
+    from core.config import DATA_DIR
+    topics_file = DATA_DIR / 'topics.json'
+    try:
+        with open(topics_file, 'r', encoding='utf-8') as f:
+            topics = json.load(f)
+            topic = random.choice(topics)
+            prompt = f"A cinematic 4k drone shot illustrating '{topic['headline']}'. Scene details: {topic['subtitle']}. Focus on: {', '.join(topic['list_points'][:3])}. High quality, realistic lighting, documentary style."
+            return jsonify({'prompt': prompt})
+    except Exception as e:
+        return jsonify({'prompt': 'A cinematic 4k documentary style shot of a gold miner panning in a clear mountain river at sunrise.'})
+
 @bp.route("/detail")
 def serve_detail():
     """Serve app detail page (public access)"""
