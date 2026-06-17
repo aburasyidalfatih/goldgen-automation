@@ -185,7 +185,7 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
 
             image_prompt = self.goldgen.generate_image_prompt(topic)
             if fanspage_name:
-                image_prompt += f"\n\nIMPORTANT INSTRUCTION: Add a clear watermark or text overlay that says '{fanspage_name}' prominently in the poster."
+                image_prompt += f"\n\nIMPORTANT INSTRUCTION: Add a subtle text watermark that says '{fanspage_name}' placed clearly in one of the corners of the image (e.g. bottom-right or bottom-left corner). Do NOT put the watermark in the center of the image."
             client = genai.Client(api_key=self.gemini_api_key)
 
             response = client.models.generate_content(
