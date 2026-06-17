@@ -176,7 +176,7 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
 
 #HargaEmas #InvestasiEmas #EmasHariIni #GoldPrice"""
     
-    def generate_poster_image(self, topic):
+    def generate_poster_image(self, topic, fanspage_name=None):
         """Generate educational infographic using Gemini image model"""
         try:
             from google.genai import types
@@ -184,6 +184,8 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
             print(f"   Generating image with {self.image_model}...")
 
             image_prompt = self.goldgen.generate_image_prompt(topic)
+            if fanspage_name:
+                image_prompt += f"\n\nIMPORTANT INSTRUCTION: Add a clear watermark or text overlay that says '{fanspage_name}' prominently in the poster."
             client = genai.Client(api_key=self.gemini_api_key)
 
             response = client.models.generate_content(
@@ -207,7 +209,7 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
                     return image_path
 
             print(f"   ⚠️  No image in response, using PIL fallback...")
-            return self._generate_fallback_image(topic)
+            return self._generate_fallback_image(topic, fanspage_name)
 
         except Exception as e:
             print(f"   ⚠️  Gemini error: {e}, retrying in 30s...")
@@ -236,9 +238,9 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
                         return image_path
             except Exception as e2:
                 print(f"   ⚠️  Gemini retry failed: {e2}, using PIL fallback...")
-            return self._generate_fallback_image(topic)
+            return self._generate_fallback_image(topic, fanspage_name)
     
-    def _generate_fallback_image(self, topic):
+    def _generate_fallback_image(self, topic, fanspage_name=None):
         """Generate professional infographic locally with PIL"""
         # Create image 1080x1920 (vertical format)
         width, height = 1080, 1920
@@ -596,7 +598,7 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
                 
                 # Generate poster image
                 print("   Generating infographic...")
-                image_path = self.generate_poster_image(topic)
+                image_path = self.generate_poster_image(topic, fanspage_name=fanspage['name'])
                 
                 # Post to Facebook
                 print("   Posting to Facebook...")
@@ -665,7 +667,7 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
                 SELECT id, page_id, content as caption, image_path
                 FROM post_queue
                 WHERE status = 'pending'
-                ORDER BY created_at ASC
+                ORDER BY scheduled_time ASC
                 LIMIT 10
             ''')
             
