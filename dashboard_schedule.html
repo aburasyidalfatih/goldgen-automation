@@ -457,9 +457,12 @@
                     tokenDot = `<span class="inline-block w-3 h-3 bg-green-500 rounded-full ml-2" title="Token Valid (${fp.days_until_expire}d left)"></span>`;
                     tokenStatusText = `<span class="ml-2 text-[10px] text-gray-500 font-medium">${fp.days_until_expire}d left</span>`;
                 }
+                const isEnabled = fp.enabled !== false; // default true
+                const toggleBtnText = isEnabled ? 'Pause' : 'Resume';
+                const toggleBtnColor = isEnabled ? 'bg-orange-600 hover:bg-orange-700' : 'bg-green-600 hover:bg-green-700';
                 
                 return `
-                    <div class="flex items-center justify-between p-4 rounded-lg ${isNow ? 'bg-green-500 bg-opacity-10 border border-green-500' : 'bg-gray-800 bg-opacity-30'}">
+                    <div class="flex items-center justify-between p-4 rounded-lg ${!isEnabled ? 'bg-gray-800 bg-opacity-30 opacity-75' : isNow ? 'bg-green-500 bg-opacity-10 border border-green-500' : 'bg-gray-800 bg-opacity-30'}">
                         <div class="flex-1">
                             <div class="font-bold text-lg mb-1 flex items-center">${fp.name}${tokenDot}${tokenStatusText}</div>
                             <div class="text-sm text-gray-400">
@@ -468,9 +471,12 @@
                         </div>
                         <div class="flex items-center gap-4">
                             <div class="text-right">
-                                ${isNow ? 
-                                    '<div class="text-green-400 font-bold">⏳ WAITING TO POST</div>' :
-                                    `<div class="text-yellow-400">Next: ${String(nextHour).padStart(2, '0')}:00</div>`
+                                ${!isEnabled ? 
+                                    '<div class="text-orange-400 font-bold">⏸️ PAUSED</div>' :
+                                    (isNow ? 
+                                        '<div class="text-green-400 font-bold">⏳ WAITING TO POST</div>' :
+                                        `<div class="text-yellow-400">Next: ${String(nextHour).padStart(2, '0')}:00</div>`
+                                    )
                                 }
                                 <div class="text-xs text-gray-500 mt-1">${scheduleHours.length} posts/day</div>
                             </div>
@@ -479,6 +485,10 @@
                                         class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm transition-colors font-semibold"
                                         title="Trigger post immediately">
                                     Post Now
+                                </button>
+                                <button onclick="toggleFanspageStatus('${fp.page_id}', ${!isEnabled})" 
+                                        class="px-3 py-1 ${toggleBtnColor} text-white rounded text-sm transition-colors">
+                                    ${toggleBtnText}
                                 </button>
                                 <button onclick="editFanspage('${fp.page_id}')" 
                                         class="px-3 py-1 bg-gray-600 hover:bg-gray-700 text-white rounded text-sm transition-colors">
@@ -764,24 +774,38 @@
         }
 
         async function deleteFanspage(pageId, name) {
-            if (!confirm(`Are you sure you want to delete "${name}"?`)) {
-                return;
-            }
-            
+            if (!confirm(`Are you sure you want to delete ${name}?`)) return;
+
             try {
                 const res = await fetch(`/api/fanspages/${pageId}`, {
                     method: 'DELETE'
                 });
-                
-                const data = await res.json();
-                
+
                 if (res.ok) {
-                    alert('Fanspage deleted successfully!');
                     await loadConfig();
-                    await renderFanspagesSchedule();
                     renderScheduleGrid();
                 } else {
+                    const data = await res.json();
                     alert('Error: ' + (data.error || 'Failed to delete fanspage'));
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+        }
+
+        async function toggleFanspageStatus(pageId, newStatus) {
+            try {
+                const res = await fetch(`/api/fanspages/${pageId}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ enabled: newStatus })
+                });
+
+                if (res.ok) {
+                    await loadConfig();
+                } else {
+                    const data = await res.json();
+                    alert('Error: ' + (data.error || 'Failed to update status'));
                 }
             } catch (e) {
                 alert('Error: ' + e.message);
