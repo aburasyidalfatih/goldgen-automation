@@ -254,6 +254,10 @@ Create an image that looks like a page from a field notebook. Feature highly det
             visual_instruction = """VISUAL EXECUTION:
 Create a 3D isometric block diagram showing a cutaway section of earth. Display surface features on top and underground layers in cross-section. Show how geological features connect from deep underground to the surface. Style: Clean, educational, three-dimensional technical illustration."""
 
+        elif "TOOLKIT" in layout_name or "FLATLAY" in layout_name:
+            visual_instruction = """VISUAL EXECUTION:
+Create a 'knolling' style top-down flatlay image. Show various tools, mineral samples, or equipment arranged meticulously in a neat grid or logical order on a textured surface (like old wood or canvas). The composition must be perfectly aligned, aesthetic, and highly detailed. Use rich, warm lighting. Style: Premium editorial photography, highly organized."""
+
         elif "MAP" in layout_name or "PROSPECTOR" in layout_name:
             visual_instruction = """VISUAL EXECUTION:
 Create a highly detailed, colorful topographic map illustration with strong contrast. Mark key features like rivers in vivid blue, and add bold red markers (X marks, circles) at important locations. Use clear, sharp, dark ink for contour lines. Style: Adventurous but professional treasure map with rich colors and sharp details. Avoid faint or blurry lines."""

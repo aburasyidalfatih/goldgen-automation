@@ -38,5 +38,9 @@
     {
         "name": "THE PROSPECTOR'S MAP",
         "composition": "Topographic map view from above. Contour lines showing elevation, blue lines for streams, X marks for sample locations. Legend box in corner. Looks like a technical treasure map with grid coordinates."
+    },
+    {
+        "name": "TOOLKIT FLATLAY",
+        "composition": "Top-down 'knolling' style flatlay of prospector equipment, rock samples, or tools arranged neatly on a textured surface. Every item is perfectly aligned."
     }
 ]
