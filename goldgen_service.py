@@ -268,6 +268,7 @@ Create a realistic educational illustration combining the topic's key visual ele
 
 MANDATORY REQUIREMENTS:
 - Format: Vertical 9:16 aspect ratio (story/poster format)
+- Background: MUST be textured like slightly weathered vintage parchment, an old geologist's map, or aged craft paper. DO NOT use plain white or solid color backgrounds.
 - Color Scheme: Earth tones (browns, grays, ochres) with metallic gold accents and rust oranges
 - Contrast: HIGH CONTRAST. Ensure all lines, diagrams, and features are sharp, bold, and clearly visible. NO FADED OR BLURRY ELEMENTS.
 - Texture: Realistic rock, soil, water, and mineral textures
