@@ -262,6 +262,22 @@ Create a 'knolling' style top-down flatlay image. Show various tools, mineral sa
             visual_instruction = """VISUAL EXECUTION:
 Create a highly detailed, colorful topographic map illustration with strong contrast. Mark key features like rivers in vivid blue, and add bold red markers (X marks, circles) at important locations. Use clear, sharp, dark ink for contour lines. Style: Adventurous but professional treasure map with rich colors and sharp details. Avoid faint or blurry lines."""
 
+        elif "VICTORIAN" in layout_name or "WOODCUT" in layout_name:
+            visual_instruction = """VISUAL EXECUTION:
+Create an image mimicking a 19th-century Victorian woodcut or engraving. Use high-contrast, dense black ink cross-hatching to form the shapes. The background should be a solid warm sepia or aged newspaper color. Style: Historical Gold Rush era, rugged, monochrome, very detailed ink work."""
+
+        elif "INDUSTRIAL" in layout_name or "MODERN" in layout_name:
+            visual_instruction = """VISUAL EXECUTION:
+Create a modern, industrial, high-resolution photographic style image. Focus on scale, heavy machinery, or engineering concepts. Use industrial colors like safety orange, metallic silver, and dark grays. Style: Professional mining industry magazine cover, clean and data-driven."""
+
+        elif "MAXIMALIST" in layout_name or "DARK" in layout_name:
+            visual_instruction = """VISUAL EXECUTION:
+Create a dark, moody neo-romantic image. Use a pitch-black or very dark background with ornate, classical framing. The gold or minerals should glow with brilliant metallic reflections (bronze, chrome, gold). Style: Mysterious treasure, maximalist detail, highly intricate and luxurious."""
+
+        elif "VECTOR" in layout_name or "FLAT" in layout_name:
+            visual_instruction = """VISUAL EXECUTION:
+Create a clean, minimalist flat vector graphic illustration. Use bright, solid contrasting colors without dirt or grunge textures. Incorporate bold, massive sans-serif typography elements (if text is needed). Style: Modern infographic poster, highly legible, Kurzgesagt-style simplicity."""
+
         else:
             # Default fallback
             visual_instruction = """VISUAL EXECUTION:
@@ -272,8 +288,7 @@ Create a realistic educational illustration combining the topic's key visual ele
 
 MANDATORY REQUIREMENTS:
 - Format: Vertical 9:16 aspect ratio (story/poster format)
-- Background: MUST be textured like slightly weathered vintage parchment, an old geologist's map, or aged craft paper. DO NOT use plain white or solid color backgrounds.
-- Color Scheme: Earth tones (browns, grays, ochres) with metallic gold accents and rust oranges
+- Background & Color: Strictly follow the VISUAL EXECUTION instructions for background color, texture, and color scheme. If no specific background is mentioned, default to a weathered vintage parchment texture with earth tones.
 - Contrast: HIGH CONTRAST. Ensure all lines, diagrams, and features are sharp, bold, and clearly visible. NO FADED OR BLURRY ELEMENTS.
 - Texture: Realistic rock, soil, water, and mineral textures
 - Atmosphere: Educational, scientific, professional

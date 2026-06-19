@@ -42,5 +42,21 @@
     {
         "name": "TOOLKIT FLATLAY",
         "composition": "Top-down 'knolling' style flatlay of prospector equipment, rock samples, or tools arranged neatly on a textured surface. Every item is perfectly aligned."
+    },
+    {
+        "name": "VICTORIAN WOODCUT",
+        "composition": "Vintage 19th-century engraving style. High-contrast black ink cross-hatching on a sepia background. Looks like an old newspaper print."
+    },
+    {
+        "name": "MODERN INDUSTRIAL",
+        "composition": "Clean, technical, high-resolution photography. Focus on heavy machinery, engineering blueprints, and industrial scale mining."
+    },
+    {
+        "name": "DARK MAXIMALIST",
+        "composition": "Moody, pitch-black background with ornate framing. Glowing metallic gold and bronze elements. Highly detailed and mysterious treasure aesthetic."
+    },
+    {
+        "name": "MODERN VECTOR",
+        "composition": "Clean, flat minimalist vector illustration. Bright, contrasting solid colors with bold sans-serif typography. No dirt textures, highly graphic."
     }
 ]
