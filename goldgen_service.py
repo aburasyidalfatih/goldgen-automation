@@ -248,7 +248,7 @@ Create a split landscape view showing the same location in two different states.
 
         elif "NOTEBOOK" in layout_name or "GEOLOGIST" in layout_name:
             visual_instruction = """VISUAL EXECUTION:
-Create an image that looks like a page from a field notebook. Feature hand-sketched but detailed drawings with handwritten-style annotations, arrows pointing to key features, and labels. Add authentic touches like coffee stains, dirt smudges, or pencil marks. Background: Aged paper texture."""
+Create an image that looks like a page from a field notebook. Feature highly detailed, high-contrast ink and watercolor illustrations. Use strong, bold lines and rich colors. The diagram must be extremely sharp and readable. Add authentic touches like compass, rock samples, or a pencil resting on the side. Background: Aged but clean paper. DO NOT generate blurry or faded pencil sketches. DO NOT generate walls of illegible text."""
 
         elif "3D" in layout_name or "BLOCK" in layout_name:
             visual_instruction = """VISUAL EXECUTION:
@@ -256,7 +256,7 @@ Create a 3D isometric block diagram showing a cutaway section of earth. Display 
 
         elif "MAP" in layout_name or "PROSPECTOR" in layout_name:
             visual_instruction = """VISUAL EXECUTION:
-Create a vintage-style topographic map with contour lines showing elevation. Mark key features like rivers in blue, and add hand-drawn markers (X marks, circles) in red ink at important locations. Style: Aged paper, rugged, adventurous with a treasure map aesthetic."""
+Create a highly detailed, colorful topographic map illustration with strong contrast. Mark key features like rivers in vivid blue, and add bold red markers (X marks, circles) at important locations. Use clear, sharp, dark ink for contour lines. Style: Adventurous but professional treasure map with rich colors and sharp details. Avoid faint or blurry lines."""
 
         else:
             # Default fallback
@@ -269,11 +269,12 @@ Create a realistic educational illustration combining the topic's key visual ele
 MANDATORY REQUIREMENTS:
 - Format: Vertical 9:16 aspect ratio (story/poster format)
 - Color Scheme: Earth tones (browns, grays, ochres) with metallic gold accents and rust oranges
+- Contrast: HIGH CONTRAST. Ensure all lines, diagrams, and features are sharp, bold, and clearly visible. NO FADED OR BLURRY ELEMENTS.
 - Texture: Realistic rock, soil, water, and mineral textures
 - Atmosphere: Educational, scientific, professional
-- Quality: High detail, sharp focus on key elements
+- Quality: High detail, sharp focus on key elements, photorealistic rendering where applicable.
 - NO ABSTRACT ART. NO CARTOONS. Must look like a professional reference guide.
-- Text elements should be minimal and integrated naturally into the design (if any)
+- TEXT WARNING: DO NOT generate paragraphs of illegible text or scribbles. If text is included, it must be minimal, bold, and highly legible.
 """
         
         return full_prompt
