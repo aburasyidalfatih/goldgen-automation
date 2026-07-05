@@ -432,7 +432,22 @@ def get_config():
                 'has_token': bool(page.get('access_token')),
                 'token_warning': token_warning,
                 'days_until_expire': days_until_expire,
-                'token_created_date': token_created
+                'token_created_date': token_created,
+                'instagram_config': page.get('instagram_config', {}),
+                'twitter_config': {
+                    'api_key': page.get('twitter_config', {}).get('api_key', ''),
+                    'api_secret': '********' if page.get('twitter_config', {}).get('api_secret') else '',
+                    'access_token': '********' if page.get('twitter_config', {}).get('access_token') else '',
+                    'token_secret': '********' if page.get('twitter_config', {}).get('token_secret') else ''
+                },
+                'pinterest_config': {
+                    'access_token': '********' if page.get('pinterest_config', {}).get('access_token') else '',
+                    'board_id': page.get('pinterest_config', {}).get('board_id', '')
+                },
+                'threads_config': {
+                    'access_token': '********' if page.get('threads_config', {}).get('access_token') else '',
+                    'user_id': page.get('threads_config', {}).get('user_id', '')
+                }
             })
         
         return jsonify({
@@ -441,11 +456,7 @@ def get_config():
             'image_model': config.get('image_model', 'gemini-3.1-flash-image'),
             'text_model': config.get('text_model', 'gemini-3.5-flash'),
             'fanspage_delay_minutes': config.get('fanspage_delay_minutes', 60),
-            'fanspages': fanspages,
-            'twitter_config': config.get('twitter_config', {}),
-            'pinterest_config': config.get('pinterest_config', {}),
-            'threads_config': config.get('threads_config', {}),
-            'instagram_config': config.get('instagram_config', {})
+            'fanspages': fanspages
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -467,11 +478,6 @@ def update_config():
         
         if 'fanspage_delay_minutes' in data:
             config['fanspage_delay_minutes'] = int(data['fanspage_delay_minutes'])
-
-        # Multi-Platform Integrations
-        for platform in ['twitter_config', 'pinterest_config', 'threads_config', 'instagram_config']:
-            if platform in data:
-                config[platform] = data[platform]
         
         if 'fanspages' in data:
             # Merge with existing fanspages to preserve tokens
@@ -535,6 +541,11 @@ def add_fanspage():
             new_fanspage['schedule_hours'] = data['schedule_hours']
         elif 'interval_hours' in data:
             new_fanspage['interval_hours'] = int(data['interval_hours'])
+            
+        # Per-fanspage multi-platform
+        for platform in ['twitter_config', 'pinterest_config', 'threads_config', 'instagram_config']:
+            if platform in data:
+                new_fanspage[platform] = data[platform]
         
         config['fanspages'].append(new_fanspage)
         
@@ -571,6 +582,11 @@ def update_fanspage(page_id):
                 if 'access_token' in data and data['access_token']:
                     page['access_token'] = data['access_token']
                     page['token_created_date'] = datetime.now().isoformat()
+                
+                # Per-fanspage multi-platform
+                for platform in ['twitter_config', 'pinterest_config', 'threads_config', 'instagram_config']:
+                    if platform in data:
+                        page[platform] = data[platform]
                 break
         
         with open(CONFIG_PATH, 'w') as f:
@@ -889,11 +905,6 @@ def update_settings():
             
         if 'text_model' in data:
             config['text_model'] = data['text_model']
-            
-        # Multi-Platform Integrations
-        for platform in ['twitter_config', 'pinterest_config', 'threads_config', 'instagram_config']:
-            if platform in data:
-                config[platform] = data[platform]
         
         with open(CONFIG_PATH, 'w') as f:
             json.dump(config, f, indent=2)
