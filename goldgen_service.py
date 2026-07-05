@@ -41,6 +41,21 @@ class GoldGenService:
         except Exception:
             return []
 
+    def _get_latest_insights(self):
+        """Ambil insight terdalam terbaru dari analisis komentar"""
+        try:
+            from core.database import get_db_connection
+            conn = get_db_connection()
+            row = conn.execute(
+                'SELECT raw_analysis FROM comment_insights ORDER BY analyzed_at DESC LIMIT 1'
+            ).fetchone()
+            conn.close()
+            if row and row['raw_analysis']:
+                return json.loads(row['raw_analysis'])
+            return {}
+        except Exception:
+            return {}
+
     def get_next_topic(self):
         """Get next topic in rotation, prioritize topics matching audience preferences"""
         if self.state_file.exists():
@@ -125,6 +140,18 @@ class GoldGenService:
         
         list_text = "\n".join([f"• {point}" for point in topic['list_points']])
         
+        insights = self._get_latest_insights()
+        avoid_patterns = insights.get('avoid_patterns', [])
+        prompt_suggestions = insights.get('prompt_improvement_suggestions', [])
+        
+        dynamic_avoid = ""
+        if avoid_patterns:
+            dynamic_avoid = "❌ AVOID THESE PATTERNS (Based on recent negative feedback):\n" + "\n".join([f"- {p}" for p in avoid_patterns]) + "\n"
+            
+        dynamic_suggestions = ""
+        if prompt_suggestions:
+            dynamic_suggestions = "✅ APPLY THESE RECENT AUDIENCE FEEDBACKS:\n" + "\n".join([f"- {p}" for p in prompt_suggestions]) + "\n"
+        
         prompt = f"""Create a VIRAL EDUCATIONAL CAPTION for a gold prospecting Facebook post.
 
 TOPIC: {topic['headline']}
@@ -162,6 +189,8 @@ CONTENT STRUCTURE:
 ✅ Field tips must be IMMEDIATELY actionable — something they can do on their next trip
 ✅ Length: 1000-1500 characters — detailed enough to feel valuable
 
+{dynamic_suggestions}
+{dynamic_avoid}
 ❌ AVOID: Pure academic/historical theory with no field application
 ❌ AVOID: Administrative topics (permits, regulations, selling)
 ❌ AVOID: Equipment selection guides without connecting to gold discovery
@@ -220,8 +249,13 @@ KEY INFORMATION TO VISUALIZE:
 
 LAYOUT STYLE: {layout_name}
 COMPOSITION GUIDE: {topic['composition']}
-
 """
+        
+        insights = self._get_latest_insights()
+        visual_styles = insights.get('preferred_visual_styles', [])
+        if visual_styles:
+            base_prompt += "\nAUDIENCE PREFERRED VISUAL STYLES (Incorporate these if possible):\n"
+            base_prompt += "\n".join([f"- {v}" for v in visual_styles]) + "\n\n"
         
         # Add specific visual instructions based on layout
         if "CROSS-SECTION" in layout_name:
