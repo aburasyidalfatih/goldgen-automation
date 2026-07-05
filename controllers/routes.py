@@ -48,64 +48,7 @@ def login_page():
 def serve_dashboard():
     return render_template("dashboard_schedule.html")
 
-@bp.route("/video-lab")
-@require_pin
-def serve_video_lab():
-    return render_template("video_lab.html")
 
-@bp.route('/api/video-lab/generate', methods=['POST'])
-@require_pin
-def generate_video_lab():
-    data = request.json
-    psid = data.get('psid')
-    psidts = data.get('psidts', '')
-    psidcc = data.get('psidcc', '')
-    prompt = data.get('prompt')
-
-    import sys
-    import os
-    # Add root to sys.path to import video_generator_lab
-    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    from video_generator_lab import GeminiVideoLab
-    
-    lab = GeminiVideoLab(psid, psidts, psidcc)
-
-    def generate():
-        for chunk in lab.generate_video(prompt):
-            yield chunk
-
-    from flask import Response
-    return Response(generate(), mimetype='text/plain')
-
-@bp.route('/api/video-lab/random-prompt', methods=['GET'])
-@require_pin
-def random_video_prompt():
-    import random
-    from core.config import DATA_DIR
-    topics_file = DATA_DIR / 'topics.json'
-    try:
-        with open(topics_file, 'r', encoding='utf-8') as f:
-            topics = json.load(f)
-            topic = random.choice(topics)
-            
-            prompt_obj = {
-                "instruction": "Generate a high quality, realistic 4k cinematic video.",
-                "style": "Documentary style, realistic lighting, highly detailed",
-                "topic": topic['headline'],
-                "scene_context": topic['subtitle'],
-                "key_visual_elements": topic['list_points'][:3],
-                "camera_movement": "Slow cinematic drone shot or smooth panning"
-            }
-            
-            prompt_text = json.dumps(prompt_obj, indent=2)
-            return jsonify({'prompt': prompt_text})
-    except Exception as e:
-        fallback_obj = {
-            "instruction": "Generate a high quality, realistic 4k cinematic video.",
-            "style": "Documentary style",
-            "scene": "A gold miner panning in a clear mountain river at sunrise."
-        }
-        return jsonify({'prompt': json.dumps(fallback_obj, indent=2)})
 
 @bp.route("/detail")
 def serve_detail():
