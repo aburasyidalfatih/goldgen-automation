@@ -81,6 +81,17 @@ class CommentAnalyzer:
             except Exception:
                 pass
 
+            # Get hook_type from DB
+            hook_type = "Unknown"
+            try:
+                conn = get_db_connection()
+                db_post = conn.execute("SELECT hook_type FROM posts WHERE fb_post_id = ?", (post['id'],)).fetchone()
+                if db_post and db_post['hook_type']:
+                    hook_type = db_post['hook_type']
+                conn.close()
+            except Exception:
+                pass
+
             # Get comments
             comments_url = f"https://graph.facebook.com/v18.0/{post['id']}/comments"
             try:
@@ -92,7 +103,7 @@ class CommentAnalyzer:
                 comments = r.json().get('data', [])
                 # Filter out page's own comments
                 filtered = [c for c in comments if c.get('from', {}).get('id') != page_id]
-                all_comments.extend([c['message'] for c in filtered if c.get('message')])
+                all_comments.extend([f"[HOOK: {hook_type}] {c['message']}" for c in filtered if c.get('message')])
             except Exception:
                 continue
 
@@ -113,13 +124,26 @@ class CommentAnalyzer:
         comments_text = '\n'.join([f"- {c}" for c in clean_comments])
 
         prompt = f"""Analyze these Facebook comments from a gold prospecting page "{page_name}".
+Some comments have a prefix like [HOOK: Fear] which indicates the psychological hook used in the post that generated this comment.
 Comments:
 {comments_text}
 
 Extract any preferred visual/image styles mentioned by the audience. Also suggest improvements for the AI prompt (for text or image generation) based on their complaints, questions, or engagement.
+Evaluate which HOOK generated the most engagement or best quality comments. Add the best performing hook to 'suggested_topics' as a meta-topic (e.g. "Hook: Fear").
 
-Reply ONLY with this JSON (no markdown, keep all strings simple ASCII):
-{{"top_keywords":["kw1","kw2"],"requested_topics":["topic1","topic2"],"sentiment":"positive","sentiment_reason":"brief reason","suggested_topics":[{{"topic":"topic1","reason":"reason1"}}],"preferred_visual_styles":["style1","style2"],"prompt_improvement_suggestions":["suggestion1","suggestion2"]}}"""
+REPLY ONLY WITH THIS EXACT JSON FORMAT:
+{{
+    "top_keywords": ["keyword1", "keyword2"],
+    "requested_topics": ["topic audience wants to learn"],
+    "sentiment": "positive/neutral/negative",
+    "suggested_topics": [
+        {{"topic": "Hook: Secret", "reason": "Generated high curiosity"}}
+    ],
+    "avoid_patterns": ["complaints or boring things"],
+    "preferred_visual_styles": ["realistic", "macro", "infographic"],
+    "prompt_improvement_suggestions": ["use more casual tone", "explain X better"]
+}}
+"""
 
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.text_model}:generateContent?key={self.gemini_api_key}"
         try:

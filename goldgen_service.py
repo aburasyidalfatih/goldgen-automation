@@ -66,6 +66,47 @@ class GoldGenService:
         except Exception:
             return {}
 
+    def _get_live_gold_price(self):
+        """Fetch real-time gold price via yfinance API"""
+        try:
+            import yfinance as yf
+            gold = yf.Ticker("GC=F")
+            current_price = gold.info.get('regularMarketPrice') or gold.fast_info.get('last_price')
+            if current_price:
+                return f"${current_price:.2f}/oz"
+        except Exception as e:
+            print(f"Warning: Could not fetch live gold price: {e}")
+        return None
+
+    def _editor_review(self, caption):
+        """AI Editor to review scroll-stopping power and extract hook type"""
+        try:
+            editor_prompt = f"""You are a cynical, highly-experienced Facebook Marketing Editor for a gold prospecting page.
+Review this drafted caption. Does the first line grab attention? Is it engaging? 
+Assign a SCORE from 1 to 10 for "Scroll-Stopping Power".
+Also identify the HOOK_TYPE used (e.g., Fear, Secret, Mythbuster, Challenge, Story, Fact).
+
+DRAFT CAPTION:
+{caption}
+
+REPLY ONLY WITH THIS EXACT JSON FORMAT:
+{{"score": 8, "feedback": "Needs a stronger opening line. Too academic.", "hook_type": "Fact"}}
+"""
+            response = self.client.models.generate_content(
+                model=self.model,
+                contents=editor_prompt
+            )
+            import json
+            import re
+            json_str = response.text
+            match = re.search(r'\{.*\}', json_str, re.DOTALL)
+            if match:
+                return json.loads(match.group(0))
+            return {"score": 10, "feedback": "Valid", "hook_type": "Unknown"}
+        except Exception as e:
+            print(f"Editor review failed: {e}")
+            return {"score": 10, "feedback": "Valid", "hook_type": "Unknown"}
+
     def get_next_topic(self, page_id=None):
         """Get next topic in rotation, prioritize topics matching audience preferences"""
         if self.state_file.exists():
@@ -162,11 +203,23 @@ class GoldGenService:
         if prompt_suggestions:
             dynamic_suggestions = "✅ APPLY THESE RECENT AUDIENCE FEEDBACKS:\n" + "\n".join([f"- {p}" for p in prompt_suggestions]) + "\n"
         
-        prompt = f"""Create a VIRAL EDUCATIONAL CAPTION for a gold prospecting Facebook post.
+        live_gold_price = self._get_live_gold_price()
+        price_injection = ""
+        if live_gold_price:
+            price_injection = f"CURRENT LIVE GOLD PRICE: {live_gold_price}\n(If relevant to the topic, weave this live price naturally into the hook or caption to create urgency and real-time relevance.)\n"
+        
+        layout_name = topic.get('layout', '')
+        quiz_instruction = ""
+        if "QUIZ" in layout_name or "GAMIFICATION" in layout_name:
+            quiz_instruction = "IMPORTANT: The image for this post is a 4-panel QUIZ (A, B, C, D). You MUST structure the caption as an interactive quiz. Ask the audience to guess which one is the real gold. DO NOT GIVE THE ANSWER IN THE CAPTION! Tell them you will reveal the answer in the comments later.\n"
+
+        base_prompt = f"""Create a VIRAL EDUCATIONAL CAPTION for a gold prospecting Facebook post.
 
 TOPIC: {topic['headline']}
 SUBTITLE: {topic['subtitle']}
 
+{price_injection}
+{quiz_instruction}
 KEY POINTS TO EXPLAIN:
 {list_text}
 
@@ -212,33 +265,40 @@ Requirements:
 - Tone: Expert educator sharing "expensive knowledge for free" — authoritative but accessible
 """
         
-        import time
-        max_retries = 3
-        for attempt in range(max_retries):
+        current_prompt = base_prompt
+        max_retries = 2
+        final_caption = ""
+        topic['hook_type'] = "Unknown"
+        
+        for attempt in range(max_retries + 1):
+            import time
             try:
                 response = self.client.models.generate_content(
                     model=self.model,
-                    contents=prompt
+                    contents=current_prompt
                 )
-                return response.text
-            except Exception as e:
-                print(f"   ⚠️  Gemini text error (Attempt {attempt+1}/{max_retries}): {e}")
-                if attempt < max_retries - 1:
-                    time.sleep(2 ** attempt * 2)  # 2s, 4s delay
+                caption = response.text.strip()
+                
+                # Editor review
+                review = self._editor_review(caption)
+                print(f"   🕵️  Editor Review (Attempt {attempt+1}): Score {review.get('score')}/10 - Hook: {review.get('hook_type')}")
+                topic['hook_type'] = review.get('hook_type', 'Unknown')
+                
+                if review.get('score', 0) >= 8 or attempt == max_retries:
+                    final_caption = caption
+                    break
                 else:
-                    # Fallback caption
-                    return f"""🪨 {topic['headline']}
-
-{topic['subtitle']}
-
-{topic['list_header']}:
-{list_text}
-
-Learn the signs. Find the gold.
-
-What's your experience with this? Share your findings.
-
-#GoldProspecting #PlacerGold #ProspectingTips #GoldPanning"""
+                    print(f"   ✏️  Editor demanded rewrite: {review.get('feedback')}")
+                    current_prompt = base_prompt + f"\n\nPREVIOUS ATTEMPT WAS REJECTED BY EDITOR. \nEDITOR FEEDBACK: {review.get('feedback')}\n\nPlease write a NEW version that fixes these issues and is much more engaging."
+                    time.sleep(2)
+            except Exception as e:
+                print(f"   ⚠️  Gemini text error: {e}")
+                if attempt < max_retries:
+                    time.sleep(4)
+                else:
+                    raise
+                    
+        return final_caption
     
     def generate_image_prompt(self, topic, page_id=None):
         """Generate image prompt for gold prospecting infographic"""
@@ -278,7 +338,11 @@ Create a split-screen comparison image with a clear vertical divider. Left side 
 
         elif "STEP-BY-STEP" in layout_name or "PROCESS" in layout_name:
             visual_instruction = """VISUAL EXECUTION:
-Create a vertical flow diagram showing sequential steps from top to bottom. Use numbered steps (1, 2, 3, 4) with arrows indicating progression and movement. Each step should show a clear stage of the process. Style: Illustrative and easy to follow with a rugged outdoor aesthetic. Use directional arrows to show flow."""
+Create a sequence of 3-4 distinct panels or a numbered flow showing a progression. First panel shows raw state/discovery, middle panels show the action/process, final panel shows the result/gold. Use arrows or numbers connecting the steps. Clear instructional style."""
+
+        elif "QUIZ" in layout_name or "GAMIFICATION" in layout_name:
+            visual_instruction = """VISUAL EXECUTION:
+Create a 2x2 grid containing 4 distinct rock/mineral samples labeled A, B, C, and D. Make them look very similar (e.g., all shiny metallic), but only ONE is real gold (smooth, buttery yellow, non-crystalline). The others should have cubic structures (Pyrite), flaky textures (Mica), or brassy colors (Chalcopyrite). This is for an interactive Facebook quiz."""
 
         elif "GRID" in layout_name:
             visual_instruction = """VISUAL EXECUTION:

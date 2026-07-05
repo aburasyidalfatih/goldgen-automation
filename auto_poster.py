@@ -91,11 +91,17 @@ class GoldGenAutoPoster:
                 page_name TEXT,
                 content TEXT NOT NULL,
                 image_path TEXT,
+                hook_type TEXT,
                 fb_post_id TEXT,
                 status TEXT DEFAULT 'success',
                 error_message TEXT
             )
         ''')
+        # Tambahkan kolom hook_type jika belum ada (untuk migrasi)
+        try:
+            cursor.execute("ALTER TABLE posts ADD COLUMN hook_type TEXT")
+        except:
+            pass
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS last_post_time (
                 page_id TEXT PRIMARY KEY,
@@ -452,7 +458,7 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
         
         return None, "Max retries exceeded"
     
-    def log_post(self, fanspage, content, image_path, fb_post_id, status, error_message=None, layout_name=None):
+    def log_post(self, fanspage, content, image_path, fb_post_id, status, error_message=None, layout_name=None, hook_type=None):
         """Log post to database"""
         from datetime import timezone, timedelta
         now_wib = datetime.now(timezone(timedelta(hours=7)))
@@ -464,9 +470,15 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
             conn.commit()
         except Exception:
             pass
+        # Add hook_type column if not exists
+        try:
+            cursor.execute("ALTER TABLE posts ADD COLUMN hook_type TEXT")
+            conn.commit()
+        except Exception:
+            pass
         cursor.execute('''
-            INSERT INTO posts (timestamp, page_id, page_name, content, image_path, fb_post_id, status, error_message, layout_name)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO posts (timestamp, page_id, page_name, content, image_path, fb_post_id, status, error_message, layout_name, hook_type)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             now_wib.isoformat(),
             fanspage['page_id'],
@@ -476,7 +488,8 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
             fb_post_id,
             status,
             error_message,
-            layout_name
+            layout_name,
+            hook_type
         ))
         conn.commit()
         conn.close()
@@ -609,11 +622,11 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
                 
                 if fb_post_id:
                     print(f"   ✅ Success! Post ID: {fb_post_id}")
-                    self.log_post(fanspage, content, image_path, fb_post_id, 'success', layout_name=topic.get('layout'))
+                    self.log_post(fanspage, content, image_path, fb_post_id, 'success', layout_name=topic.get('layout'), hook_type=topic.get('hook_type'))
                     posted_count += 1
                 else:
                     print(f"   ❌ Failed: {error}")
-                    self.log_post(fanspage, content, image_path, None, 'failed', error, layout_name=topic.get('layout'))
+                    self.log_post(fanspage, content, image_path, None, 'failed', error, layout_name=topic.get('layout'), hook_type=topic.get('hook_type'))
                 
                 print()
 
@@ -687,7 +700,7 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
             
             if fb_post_id:
                 print(f"   ✅ Success! Post ID: {fb_post_id}")
-                self.log_post(target_fanspage, content, image_path, fb_post_id, 'success', layout_name=topic.get('layout'))
+                self.log_post(target_fanspage, caption, image_path, fb_post_id, 'success', layout_name=topic.get('layout'), hook_type=topic.get('hook_type'))
                 self.update_last_post_time(target_fanspage['page_id'])
                 
                 next_index = (base_topic_index + 1) % len(self.goldgen.topics)
@@ -698,7 +711,7 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
                 return True, fb_post_id
             else:
                 print(f"   ❌ Failed: {error}")
-                self.log_post(target_fanspage, content, image_path, None, 'failed', error, layout_name=topic.get('layout'))
+                self.log_post(target_fanspage, caption, image_path, None, 'failed', error, layout_name=topic.get('layout'), hook_type=topic.get('hook_type'))
                 return False, error
                 
         except Exception as e:

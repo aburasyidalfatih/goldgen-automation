@@ -1,5 +1,9 @@
 [
     {
+        "name": "GAMIFICATION_QUIZ",
+        "composition": "A 2x2 grid showing 4 distinct rock or mineral samples. Label them clearly A, B, C, and D. Only one should look like real raw gold, the others should be fool's gold (pyrite), chalcopyrite, or mica. High resolution, macro photography style, engaging interactive quiz format."
+    },
+    {
         "name": "CROSS-SECTION CUTAWAY",
         "composition": "A realistic National Geographic style cross-section of a river bend. Show the water velocity slowing down on the inside curve, depositing gold flakes in the gravel layers. Bright daylight lighting, educational labels."
     },
