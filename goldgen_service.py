@@ -28,27 +28,37 @@ class GoldGenService:
             self.layouts = []
             self.topics = []
 
-    def _get_audience_preferences(self):
+    def _get_audience_preferences(self, page_id=None):
         """Ambil top topic preferences dari analisis komentar"""
         try:
             from core.database import get_db_connection
             conn = get_db_connection()
-            rows = conn.execute(
-                'SELECT topic_keyword, boost_score FROM topic_preferences ORDER BY boost_score DESC LIMIT 10'
-            ).fetchall()
+            if page_id:
+                rows = conn.execute(
+                    'SELECT topic_keyword, boost_score FROM topic_preferences WHERE page_id = ? ORDER BY boost_score DESC LIMIT 10', (page_id,)
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    'SELECT topic_keyword, boost_score FROM topic_preferences ORDER BY boost_score DESC LIMIT 10'
+                ).fetchall()
             conn.close()
             return [r[0] for r in rows]
         except Exception:
             return []
 
-    def _get_latest_insights(self):
+    def _get_latest_insights(self, page_id=None):
         """Ambil insight terdalam terbaru dari analisis komentar"""
         try:
             from core.database import get_db_connection
             conn = get_db_connection()
-            row = conn.execute(
-                'SELECT raw_analysis FROM comment_insights ORDER BY analyzed_at DESC LIMIT 1'
-            ).fetchone()
+            if page_id:
+                row = conn.execute(
+                    'SELECT raw_analysis FROM comment_insights WHERE page_id = ? ORDER BY analyzed_at DESC LIMIT 1', (page_id,)
+                ).fetchone()
+            else:
+                row = conn.execute(
+                    'SELECT raw_analysis FROM comment_insights ORDER BY analyzed_at DESC LIMIT 1'
+                ).fetchone()
             conn.close()
             if row and row['raw_analysis']:
                 return json.loads(row['raw_analysis'])
@@ -56,7 +66,7 @@ class GoldGenService:
         except Exception:
             return {}
 
-    def get_next_topic(self):
+    def get_next_topic(self, page_id=None):
         """Get next topic in rotation, prioritize topics matching audience preferences"""
         if self.state_file.exists():
             with open(self.state_file, 'r') as f:
@@ -66,7 +76,7 @@ class GoldGenService:
             current_index = 0
 
         # Cek audience preferences dari analisis komentar
-        preferences = self._get_audience_preferences()
+        preferences = self._get_audience_preferences(page_id)
 
         selected_index = current_index
         if preferences:
@@ -135,12 +145,12 @@ class GoldGenService:
         # Don't update state - will be updated by caller
         return topic
     
-    def generate_caption(self, topic):
+    def generate_caption(self, topic, page_id=None):
         """Generate educational caption for gold prospecting topic"""
         
         list_text = "\n".join([f"• {point}" for point in topic['list_points']])
         
-        insights = self._get_latest_insights()
+        insights = self._get_latest_insights(page_id)
         avoid_patterns = insights.get('avoid_patterns', [])
         prompt_suggestions = insights.get('prompt_improvement_suggestions', [])
         
@@ -230,7 +240,7 @@ What's your experience with this? Share your findings.
 
 #GoldProspecting #PlacerGold #ProspectingTips #GoldPanning"""
     
-    def generate_image_prompt(self, topic):
+    def generate_image_prompt(self, topic, page_id=None):
         """Generate image prompt for gold prospecting infographic"""
         
         list_text = "\n".join([f"- {point}" for point in topic['list_points']])
@@ -251,7 +261,7 @@ LAYOUT STYLE: {layout_name}
 COMPOSITION GUIDE: {topic['composition']}
 """
         
-        insights = self._get_latest_insights()
+        insights = self._get_latest_insights(page_id)
         visual_styles = insights.get('preferred_visual_styles', [])
         if visual_styles:
             base_prompt += "\nAUDIENCE PREFERRED VISUAL STYLES (Incorporate these if possible):\n"

@@ -136,11 +136,20 @@ async function loadInsights() {
           <ul>${ins.best_topics.map(p => `<li>${p}</li>`).join('')}</ul>
         </div>
         <div class="insight-card">
-          <h4>🎯 Gaya Hook Terbaik</h4>
+          <h4>🎯 Gaya Hook & CTA</h4>
           <ul><li>${ins.best_hook_style}</li></ul>
-          <h4 style="margin-top:12px">📣 Gaya CTA Terbaik</h4>
-          <ul><li>${ins.best_cta_style}</li></ul>
+          <ul style="margin-top:8px"><li>${ins.best_cta_style}</li></ul>
         </div>
+        ${ins.preferred_visual_styles && ins.preferred_visual_styles.length ? `
+        <div class="insight-card" style="border-top:3px solid #f39c12">
+          <h4>🎨 Rekomendasi Visual/Gambar</h4>
+          <ul>${ins.preferred_visual_styles.map(p => `<li>${p}</li>`).join('')}</ul>
+        </div>` : ''}
+        ${ins.prompt_improvement_suggestions && ins.prompt_improvement_suggestions.length ? `
+        <div class="insight-card" style="border-top:3px solid #3498db">
+          <h4>🛠️ Saran Perbaikan Prompt AI</h4>
+          <ul>${ins.prompt_improvement_suggestions.map(p => `<li>${p}</li>`).join('')}</ul>
+        </div>` : ''}
       </div>
     </div>`;
     document.getElementById('export-md-btn').style.display = 'inline-block';
@@ -186,6 +195,20 @@ async function analyzeComments() {
             ${r.suggested_topics.map(t => `<li><strong>${t.topic}</strong> — <span style="color:#888">${t.reason}</span></li>`).join('')}
           </ul>
         </div>
+        ${r.preferred_visual_styles && r.preferred_visual_styles.length ? `
+        <div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.1)">
+          <strong>🎨 Gaya Visual yang Disukai Audiens:</strong>
+          <ul style="margin:6px 0 0;padding-left:20px;color:#f39c12">
+            ${r.preferred_visual_styles.map(v => `<li>${v}</li>`).join('')}
+          </ul>
+        </div>` : ''}
+        ${r.prompt_improvement_suggestions && r.prompt_improvement_suggestions.length ? `
+        <div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.1)">
+          <strong>🛠️ Saran Perbaikan Prompt & Konten:</strong>
+          <ul style="margin:6px 0 0;padding-left:20px;color:#3498db">
+            ${r.prompt_improvement_suggestions.map(v => `<li>${v}</li>`).join('')}
+          </ul>
+        </div>` : ''}
       </div>`;
     });
 

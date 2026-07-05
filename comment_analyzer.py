@@ -45,10 +45,11 @@ class CommentAnalyzer:
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS topic_preferences (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                page_id TEXT,
                 topic_keyword TEXT NOT NULL,
                 boost_score INTEGER DEFAULT 1,  -- makin tinggi makin diprioritaskan
                 source TEXT DEFAULT 'comment_analysis',
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                last_updated DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         ''')
         conn.commit()
@@ -115,8 +116,10 @@ class CommentAnalyzer:
 Comments:
 {comments_text}
 
+Extract any preferred visual/image styles mentioned by the audience. Also suggest improvements for the AI prompt (for text or image generation) based on their complaints, questions, or engagement.
+
 Reply ONLY with this JSON (no markdown, keep all strings simple ASCII):
-{{"top_keywords":["kw1","kw2","kw3","kw4","kw5"],"requested_topics":["topic1","topic2","topic3"],"sentiment":"positive","sentiment_reason":"brief reason","suggested_topics":[{{"topic":"topic1","reason":"reason1"}},{{"topic":"topic2","reason":"reason2"}},{{"topic":"topic3","reason":"reason3"}},{{"topic":"topic4","reason":"reason4"}},{{"topic":"topic5","reason":"reason5"}}]}}"""
+{{"top_keywords":["kw1","kw2"],"requested_topics":["topic1","topic2"],"sentiment":"positive","sentiment_reason":"brief reason","suggested_topics":[{{"topic":"topic1","reason":"reason1"}}],"preferred_visual_styles":["style1","style2"],"prompt_improvement_suggestions":["suggestion1","suggestion2"]}}"""
 
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.text_model}:generateContent?key={self.gemini_api_key}"
         try:
@@ -169,30 +172,37 @@ Reply ONLY with this JSON (no markdown, keep all strings simple ASCII):
             if topic_kw:
                 # Cek apakah sudah ada, kalau ada boost score-nya
                 existing = cursor.execute(
-                    'SELECT id, boost_score FROM topic_preferences WHERE topic_keyword = ?', (topic_kw,)
+                    'SELECT id, boost_score FROM topic_preferences WHERE topic_keyword = ? AND page_id = ?', (topic_kw, page_id)
                 ).fetchone()
                 if existing:
                     cursor.execute(
-                        'UPDATE topic_preferences SET boost_score = boost_score + 1 WHERE id = ?',
+                        'UPDATE topic_preferences SET boost_score = boost_score + 1, last_updated = CURRENT_TIMESTAMP WHERE id = ?',
                         (existing[0],)
                     )
                 else:
                     cursor.execute(
-                        'INSERT INTO topic_preferences (topic_keyword, boost_score) VALUES (?, 1)',
-                        (topic_kw,)
+                        'INSERT INTO topic_preferences (page_id, topic_keyword, boost_score) VALUES (?, ?, 1)',
+                        (page_id, topic_kw)
                     )
 
         conn.commit()
         conn.close()
 
-    def get_top_preferences(self, limit=10):
+    def get_top_preferences(self, limit=10, page_id=None):
         """Ambil topik dengan boost score tertinggi untuk dipakai di content generation"""
         conn = get_db_connection()
         cursor = conn.cursor()
-        rows = cursor.execute(
-            'SELECT topic_keyword, boost_score FROM topic_preferences ORDER BY boost_score DESC LIMIT ?',
-            (limit,)
-        ).fetchall()
+        
+        if page_id:
+            rows = cursor.execute(
+                'SELECT topic_keyword, boost_score FROM topic_preferences WHERE page_id = ? ORDER BY boost_score DESC LIMIT ?',
+                (page_id, limit)
+            ).fetchall()
+        else:
+            rows = cursor.execute(
+                'SELECT topic_keyword, boost_score FROM topic_preferences ORDER BY boost_score DESC LIMIT ?',
+                (limit,)
+            ).fetchall()
         conn.close()
         return [{'keyword': r[0], 'score': r[1]} for r in rows]
 

@@ -998,8 +998,10 @@ Analisa pola konten dan berikan insight dalam format JSON berikut (HANYA output 
   "avoid_patterns": ["pola 1", "pola 2"],
   "best_topics": ["topik 1", "topik 2", "topik 3"],
   "best_hook_style": "deskripsi gaya pembuka yang paling efektif",
-  "best_cta_style": "deskripsi call-to-action yang paling efektif",
-  "summary": "ringkasan 2-3 kalimat tentang konten yang paling disukai audiens"
+  "best_cta_style": "deskripsi cta",
+  "summary": "1-2 kalimat ringkasan sentimen audiens",
+  "preferred_visual_styles": ["gaya visual/gambar yang cocok dengan topik viral", "gaya visual lain"],
+  "prompt_improvement_suggestions": ["saran perbaikan prompt untuk AI image generator", "saran perbaikan prompt text"]
 }}"""
 
         from google import genai as google_genai
@@ -1056,7 +1058,9 @@ def analyze_comments():
                 'total_comments': len(comments),
                 'sentiment': analysis.get('sentiment'),
                 'top_keywords': analysis.get('top_keywords', []),
-                'suggested_topics': analysis.get('suggested_topics', [])
+                'suggested_topics': analysis.get('suggested_topics', []),
+                'preferred_visual_styles': analysis.get('preferred_visual_styles', []),
+                'prompt_improvement_suggestions': analysis.get('prompt_improvement_suggestions', [])
             })
 
         # Ambil top preferences terbaru

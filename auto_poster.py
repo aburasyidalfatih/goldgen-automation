@@ -123,16 +123,16 @@ class GoldGenAutoPoster:
         self.goldgen = GoldGenService(self.gemini_api_key, model=self.text_model)
     
 
-    def generate_content(self):
+    def generate_content(self, page_id=None):
         """Generate educational content about gold prospecting"""
         try:
-            topic = self.goldgen.get_next_topic()
-            caption = self.goldgen.generate_caption(topic)
+            topic = self.goldgen.get_next_topic(page_id)
+            caption = self.goldgen.generate_caption(topic, page_id)
             return caption, topic
         except Exception as e:
             print(f"   ⚠️  GoldGen caption error: {e}, using fallback...")
             # Fallback to first topic with layout
-            topic = self.goldgen.get_next_topic()
+            topic = self.goldgen.get_next_topic(page_id)
             list_text = "\n".join([f"• {point}" for point in topic['list_points']])
             caption = f"""{topic['headline']}
 
@@ -144,11 +144,11 @@ class GoldGenAutoPoster:
 #GoldProspecting #PlacerGold #ProspectingTips"""
             return caption, topic
     
-    def generate_content_with_offset(self, offset=0):
+    def generate_content_with_offset(self, offset=0, page_id=None):
         """Generate content with topic offset (for multiple fanspages in one cycle)"""
         try:
             topic = self.goldgen.get_topic_with_offset(offset)
-            caption = self.goldgen.generate_caption(topic)
+            caption = self.goldgen.generate_caption(topic, page_id)
             return caption, topic
         except Exception as e:
             print(f"   ⚠️  GoldGen caption error: {e}, using fallback...")
@@ -176,14 +176,14 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
 
 #HargaEmas #InvestasiEmas #EmasHariIni #GoldPrice"""
     
-    def generate_poster_image(self, topic, fanspage_name=None):
+    def generate_image(self, topic, fanspage_name=None, page_id=None):
         """Generate educational infographic using Gemini image model"""
         try:
             from google.genai import types
 
             print(f"   Generating image with {self.image_model}...")
 
-            image_prompt = self.goldgen.generate_image_prompt(topic)
+            image_prompt = self.goldgen.generate_image_prompt(topic, page_id)
             if fanspage_name:
                 image_prompt += f"\n\nIMPORTANT INSTRUCTION: Add a subtle text watermark that says '{fanspage_name}' placed clearly in one of the corners of the image (e.g. bottom-right or bottom-left corner). Do NOT put the watermark in the center of the image."
             client = genai.Client(api_key=self.gemini_api_key)
@@ -595,13 +595,13 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
 
                 # Generate content with offset topic (different for each fanspage)
                 print("   Generating educational content...")
-                content, topic = self.generate_content_with_offset(idx)
+                content, topic = self.generate_content_with_offset(idx, page_id=fanspage['page_id'])
                 print(f"   Topic: {topic['headline']}")
                 print(f"   Layout: {topic['layout']}")
                 
                 # Generate poster image
                 print("   Generating infographic...")
-                image_path = self.generate_poster_image(topic, fanspage_name=fanspage['name'])
+                image_path = self.generate_image(topic, fanspage_name=fanspage['name'], page_id=fanspage['page_id'])
                 
                 # Post to Facebook
                 print("   Posting to Facebook...")
@@ -671,16 +671,19 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
             else:
                 base_topic_index = 0
                 
-            idx = self.fanspages.index(target_fanspage)
+            page_id = target_fanspage['page_id']
+            page_name = target_fanspage['name']
 
-            print("   Generating educational content...")
-            content, topic = self.generate_content_with_offset(idx)
+            # 3. Generate Content
+            print(f"   📝 Generating content with Gemini...")
+            caption, topic = self.generate_content(page_id=page_id)
             
-            print("   Generating infographic...")
-            image_path = self.generate_poster_image(topic, fanspage_name=target_fanspage['name'])
+            # 4. Generate Image
+            print(f"   🎨 Generating image...")
+            image_path = self.generate_image(topic, fanspage_name=page_name, page_id=page_id)
             
             print("   Posting to Facebook...")
-            fb_post_id, error = self.post_to_facebook(target_fanspage, content, image_path)
+            fb_post_id, error = self.post_to_facebook(target_fanspage, caption, image_path)
             
             if fb_post_id:
                 print(f"   ✅ Success! Post ID: {fb_post_id}")
