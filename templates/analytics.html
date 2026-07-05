@@ -95,6 +95,7 @@
     <button onclick="loadAnalytics()">🔄 Refresh</button>
     <button onclick="loadInsights()" id="insights-btn" style="background:#1e1e1e;border:1px solid #444;color:#e0e0e0">🤖 Analisa AI</button>
     <button onclick="analyzeComments()" id="comments-btn" style="background:#1e1e1e;border:1px solid #7c6aff;color:#a89fff">💬 Analisa Komentar</button>
+    <button onclick="exportMarkdown()" id="export-md-btn" style="background:#1e1e1e;border:1px solid #10b981;color:#34d399">⬇️ Export MD</button>
     <span id="status-text" style="font-size:13px;color:#666;margin-left:8px"></span>
   </div>
 
@@ -358,6 +359,10 @@ function renderAnalytics(data) {
       }
     }
   });
+}
+
+function exportMarkdown() {
+  window.location.href = '/api/export-insights-md';
 }
 
 loadAnalytics();

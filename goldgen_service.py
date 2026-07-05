@@ -173,16 +173,22 @@ Requirements:
 - Tone: Expert educator sharing "expensive knowledge for free" — authoritative but accessible
 """
         
-        try:
-            response = self.client.models.generate_content(
-                model=self.model,
-                contents=prompt
-            )
-            caption = response.text
-            return caption
-        except Exception as e:
-            # Fallback caption
-            return f"""🪨 {topic['headline']}
+        import time
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = self.client.models.generate_content(
+                    model=self.model,
+                    contents=prompt
+                )
+                return response.text
+            except Exception as e:
+                print(f"   ⚠️  Gemini text error (Attempt {attempt+1}/{max_retries}): {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(2 ** attempt * 2)  # 2s, 4s delay
+                else:
+                    # Fallback caption
+                    return f"""🪨 {topic['headline']}
 
 {topic['subtitle']}
 

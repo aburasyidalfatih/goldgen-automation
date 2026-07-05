@@ -1,14 +1,14 @@
 # GoldGen Auto Poster - Automated Facebook Posting
 
-Sistem automasi untuk generate poster harga emas dan posting ke Facebook setiap 3 jam.
+Sistem automasi untuk generate poster edukasi Gold Prospecting & Mining dan mem-posting ke Facebook setiap jadwal yang ditentukan.
 
 ## Features
 
-- ✅ Generate poster harga emas dengan AI (Gemini)
-- ✅ Auto-post ke Facebook Page setiap 3 jam
+- ✅ Generate poster edukasi dengan AI (Gemini)
+- ✅ Auto-post ke Facebook Page sesuai jadwal
 - ✅ Database tracking untuk semua posts
 - ✅ Error logging dan monitoring
-- ✅ Custom poster design dengan gradient gold theme
+- ✅ Custom poster design berdasarkan topik
 
 ## Setup
 
@@ -150,12 +150,8 @@ crontab -e
 ### Customize Poster Design
 Edit `auto_poster.py` → `generate_poster_image()` method
 
-### Add Real Gold Price API
-Edit `auto_poster.py` → `get_gold_price()` method
-Integrate with real API like:
-- https://www.goldapi.io/
-- https://metals-api.com/
-- Or local Indonesian gold price API
+### Add Custom Topics
+Edit `data/topics.json` untuk menambahkan materi edukasi baru. Bot akan memilih topik ini secara acak (atau berdasarkan sentimen komentar) dan membuat gambar instruksional yang menarik.
 
 ## Monitoring
 

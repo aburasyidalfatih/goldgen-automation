@@ -590,6 +590,9 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
                     self.log_post(fanspage, "[SKIPPED]", "", None, 'failed', f"Token validation failed before generation: {token_error}")
                     continue
 
+                # Lock this fanpage immediately to prevent race conditions with concurrent crons
+                self.update_last_post_time(fanspage['page_id'])
+
                 # Generate content with offset topic (different for each fanspage)
                 print("   Generating educational content...")
                 content, topic = self.generate_content_with_offset(idx)
@@ -607,26 +610,13 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
                 if fb_post_id:
                     print(f"   ✅ Success! Post ID: {fb_post_id}")
                     self.log_post(fanspage, content, image_path, fb_post_id, 'success', layout_name=topic.get('layout'))
-                    self.update_last_post_time(fanspage['page_id'])
                     posted_count += 1
                 else:
                     print(f"   ❌ Failed: {error}")
                     self.log_post(fanspage, content, image_path, None, 'failed', error, layout_name=topic.get('layout'))
                 
                 print()
-                
-                # Delay 1 hour between fanspages to avoid spam detection
-                if posted_count > 0 and idx < len(self.fanspages) - 1:
-                    # Check if there are more enabled pages to post
-                    has_more = any(
-                        p.get('enabled', True) and self.should_post(p) 
-                        for p in self.fanspages[idx+1:]
-                    )
-                    if has_more:
-                        delay_seconds = self.fanspage_delay_minutes * 60
-                        print(f"⏳ Waiting {self.fanspage_delay_minutes} minutes before next fanspage...")
-                        print(f"   Next post at: {(datetime.now() + timedelta(seconds=delay_seconds)).strftime('%H:%M:%S')}\n")
-                        time.sleep(delay_seconds)
+
                 
             except Exception as e:
                 error_msg = str(e)
@@ -793,5 +783,23 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
             print(f"   ❌ Queue processing error: {str(e)}\n")
 
 if __name__ == "__main__":
+    import sys
+    try:
+        import fcntl
+        lock_file = open('data/poster.lock', 'w')
+        try:
+            fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except IOError:
+            print("⏳ Another auto_poster instance is running. Exiting.")
+            sys.exit(0)
+    except ImportError:
+        import msvcrt
+        lock_file = open('data/poster.lock', 'w')
+        try:
+            msvcrt.locking(lock_file.fileno(), msvcrt.LK_NBLCK, 1)
+        except IOError:
+            print("⏳ Another auto_poster instance is running. Exiting.")
+            sys.exit(0)
+
     poster = GoldGenAutoPoster()
     poster.run()

@@ -4,7 +4,7 @@ Web Dashboard for GoldGen Auto Poster
 Simple Flask API to serve dashboard data
 """
 
-from flask import Flask, jsonify, send_from_directory, request, session, redirect, url_for
+from flask import Flask, jsonify, request, session, redirect, url_for, render_template
 from flask_cors import CORS
 import sqlite3
 from pathlib import Path
@@ -41,17 +41,17 @@ def index():
 @bp.route("/login")
 def login_page():
     """Serve login page"""
-    return send_from_directory(".", "login.html")
+    return render_template("login.html")
 
 @bp.route("/dashboard")
 @require_pin
 def serve_dashboard():
-    return send_from_directory(".", "dashboard_schedule.html")
+    return render_template("dashboard_schedule.html")
 
 @bp.route("/video-lab")
 @require_pin
 def serve_video_lab():
-    return send_from_directory(".", "video_lab.html")
+    return render_template("video_lab.html")
 
 @bp.route('/api/video-lab/generate', methods=['POST'])
 @require_pin
@@ -110,7 +110,7 @@ def random_video_prompt():
 @bp.route("/detail")
 def serve_detail():
     """Serve app detail page (public access)"""
-    return send_from_directory(".", "app_detail.html")
+    return render_template("app_detail.html")
 
 @bp.route('/api/auth/login', methods=['POST'])
 def login():
@@ -1023,7 +1023,7 @@ Analisa pola konten dan berikan insight dalam format JSON berikut (HANYA output 
 @bp.route('/analytics')
 @require_pin
 def serve_analytics():
-    return send_from_directory(".", "analytics.html")
+    return render_template("analytics.html")
 
 @bp.route('/api/analyze-comments', methods=['POST'])
 @require_pin
@@ -1083,6 +1083,68 @@ def get_comment_insights():
             'insights': [dict(r) for r in rows],
             'top_preferences': [{'keyword': r['topic_keyword'], 'score': r['boost_score']} for r in prefs]
         })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/api/export-insights-md')
+@require_pin
+def export_insights_md():
+    """Export insights as Markdown file"""
+    try:
+        conn = get_db()
+        rows = conn.execute(
+            'SELECT * FROM comment_insights ORDER BY analyzed_at DESC LIMIT 10'
+        ).fetchall()
+        prefs = conn.execute(
+            'SELECT topic_keyword, boost_score FROM topic_preferences ORDER BY boost_score DESC LIMIT 20'
+        ).fetchall()
+        conn.close()
+
+        from flask import make_response
+        import json
+
+        content = "# 📊 GoldGen AI Analytics Report\n\n"
+        content += f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+
+        content += "## 📈 Top Audience Preferences\n"
+        if not prefs:
+            content += "No preferences data yet.\n\n"
+        else:
+            for p in prefs:
+                content += f"- **{p['topic_keyword']}** (Score: {p['boost_score']})\n"
+            content += "\n"
+
+        content += "## 🤖 Recent AI Insights\n"
+        if not rows:
+            content += "No insights available yet.\n"
+        else:
+            for r in rows:
+                content += f"### Page: {r['page_name']}\n"
+                content += f"- **Analyzed At:** {r['analyzed_at']}\n"
+                content += f"- **Total Comments Analyzed:** {r['total_comments']}\n"
+                content += f"- **Sentiment:** {r['sentiment'] if 'sentiment' in r.keys() else 'N/A'}\n"
+                content += "- **Top Keywords:**\n"
+                try:
+                    kws = json.loads(r['top_keywords']) if r['top_keywords'] else []
+                    for k in kws:
+                        content += f"  - {k}\n"
+                except:
+                    content += f"  - {r['top_keywords']}\n"
+                
+                content += "- **Suggested Topics:**\n"
+                try:
+                    topics = json.loads(r['suggested_topics']) if r['suggested_topics'] else []
+                    for t in topics:
+                        content += f"  - {t}\n"
+                except:
+                    content += f"  - {r['suggested_topics']}\n"
+                content += "\n---\n\n"
+
+        response = make_response(content)
+        response.headers["Content-Disposition"] = "attachment; filename=goldgen_insights.md"
+        response.headers["Content-Type"] = "text/markdown; charset=utf-8"
+        return response
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

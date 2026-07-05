@@ -22,6 +22,10 @@ generated_images/*.png
 # Database
 data/posts.db
 data/posts_backup_*.db
+data/goldgen.db
+data/*.db-wal
+data/*.db-shm
+data/*.lock
 
 # IDE
 .vscode/

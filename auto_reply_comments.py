@@ -213,7 +213,7 @@ Langsung berikan balasan saja tanpa penjelasan tambahan."""
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute('''
-            INSERT INTO replied_comments (comment_id, post_id, user_name, comment_text, reply_text)
+            INSERT OR REPLACE INTO replied_comments (comment_id, post_id, user_name, comment_text, reply_text)
             VALUES (?, ?, ?, ?, ?)
         ''', (comment_id, post_id, user_name, comment_text, reply_text))
         conn.commit()
@@ -278,6 +278,12 @@ Langsung berikan balasan saja tanpa penjelasan tambahan."""
                     
                     print(f"\n   👤 {user_name}: {comment_text[:50]}...")
                     
+                    # Pre-lock the comment to prevent concurrent overlapping crons from replying to the same comment
+                    self.save_replied_comment(
+                        comment_id, post_id, user_name, 
+                        comment_text, "[PROCESSING...]"
+                    )
+                    
                     # Generate reply
                     reply_text = self.generate_reply(comment_text, post_message)
                     print(f"   🤖 Reply: {reply_text[:50]}...")
@@ -286,7 +292,7 @@ Langsung berikan balasan saja tanpa penjelasan tambahan."""
                     if self.post_reply(comment_id, reply_text, access_token):
                         print(f"   ✅ Replied successfully!")
                         
-                        # Save to database
+                        # Save actual reply to database
                         self.save_replied_comment(
                             comment_id, post_id, user_name, 
                             comment_text, reply_text
@@ -307,9 +313,24 @@ Langsung berikan balasan saja tanpa penjelasan tambahan."""
         
         return total_replied
 
-def main():
+if __name__ == "__main__":
+    import sys
+    try:
+        import fcntl
+        lock_file = open('data/replier.lock', 'w')
+        try:
+            fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except IOError:
+            print("⏳ Another auto_reply_comments instance is running. Exiting.")
+            sys.exit(0)
+    except ImportError:
+        import msvcrt
+        lock_file = open('data/replier.lock', 'w')
+        try:
+            msvcrt.locking(lock_file.fileno(), msvcrt.LK_NBLCK, 1)
+        except IOError:
+            print("⏳ Another auto_reply_comments instance is running. Exiting.")
+            sys.exit(0)
+
     replier = CommentReplier()
     replier.process_comments()
-
-if __name__ == '__main__':
-    main()
