@@ -441,7 +441,11 @@ def get_config():
             'image_model': config.get('image_model', 'gemini-3.1-flash-image'),
             'text_model': config.get('text_model', 'gemini-3.5-flash'),
             'fanspage_delay_minutes': config.get('fanspage_delay_minutes', 60),
-            'fanspages': fanspages
+            'fanspages': fanspages,
+            'twitter_config': config.get('twitter_config', {}),
+            'pinterest_config': config.get('pinterest_config', {}),
+            'threads_config': config.get('threads_config', {}),
+            'instagram_config': config.get('instagram_config', {})
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -463,6 +467,11 @@ def update_config():
         
         if 'fanspage_delay_minutes' in data:
             config['fanspage_delay_minutes'] = int(data['fanspage_delay_minutes'])
+
+        # Multi-Platform Integrations
+        for platform in ['twitter_config', 'pinterest_config', 'threads_config', 'instagram_config']:
+            if platform in data:
+                config[platform] = data[platform]
         
         if 'fanspages' in data:
             # Merge with existing fanspages to preserve tokens
@@ -880,6 +889,11 @@ def update_settings():
             
         if 'text_model' in data:
             config['text_model'] = data['text_model']
+            
+        # Multi-Platform Integrations
+        for platform in ['twitter_config', 'pinterest_config', 'threads_config', 'instagram_config']:
+            if platform in data:
+                config[platform] = data[platform]
         
         with open(CONFIG_PATH, 'w') as f:
             json.dump(config, f, indent=2)
