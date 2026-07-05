@@ -306,7 +306,8 @@ Requirements:
                     break
                 else:
                     print(f"   ✏️  Editor demanded rewrite: {review.get('feedback')}")
-                    current_prompt = base_prompt + f"\n\nPREVIOUS ATTEMPT WAS REJECTED BY EDITOR. \nEDITOR FEEDBACK: {review.get('feedback')}\n\nPlease write a NEW version that fixes these issues and is much more engaging."
+                    # Provide the rejected draft so Gemini knows what to fix
+                    current_prompt = base_prompt + f"\n\n[YOUR PREVIOUS DRAFT - REJECTED]:\n{caption}\n\nEDITOR FEEDBACK: {review.get('feedback')}\n\n🔥 CRITICAL INSTRUCTION: Write a COMPLETELY NEW version that directly fixes the editor's feedback above. Do not repeat the same mistakes."
                     time.sleep(2)
             except Exception as e:
                 print(f"   ⚠️  Gemini text error: {e}")
