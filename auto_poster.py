@@ -37,9 +37,9 @@ class GoldGenAutoPoster:
         self.load_config()
         self.init_database()
         self.setup_gemini()
-        self.cleanup_old_images()  # Cleanup on startup
+        self.cleanup_old_images(days=3)  # Keep for 3 days for Vision AI
     
-    def cleanup_old_images(self, days=1):
+    def cleanup_old_images(self, days=3):
         """Delete images older than N days to save disk space"""
         try:
             import time

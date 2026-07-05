@@ -164,7 +164,7 @@ class CommentAnalyzer:
                 "contents": [{
                     "parts": [
                         {"text": prompt},
-                        {"inlineData": {"mimeType": "image/jpeg", "data": encoded_image}}
+                        {"inlineData": {"mimeType": "image/png", "data": encoded_image}}
                     ]
                 }]
             }
