@@ -81,9 +81,11 @@ class GoldGenService:
     def _editor_review(self, caption):
         """AI Editor to review scroll-stopping power and extract hook type"""
         try:
-            editor_prompt = f"""You are a cynical, highly-experienced Facebook Marketing Editor for a gold prospecting page.
-Review this drafted caption. Does the first line grab attention? Is it engaging? 
-Assign a SCORE from 1 to 10 for "Scroll-Stopping Power".
+            editor_prompt = f"""You are a cynical, highly-experienced American Facebook Marketing Editor for a gold prospecting page based in the US.
+Review this drafted caption. 
+1. Does the first line grab attention? Is it engaging? 
+2. Does it sound like a rugged American veteran? (It MUST use Imperial units like oz/inches/feet, NOT metric).
+Assign a SCORE from 1 to 10 for "Scroll-Stopping Power". If it uses metric units, automatically deduct 5 points.
 Also identify the HOOK_TYPE used (e.g., Fear, Secret, Mythbuster, Challenge, Story, Fact).
 
 DRAFT CAPTION:
@@ -261,17 +263,23 @@ CONTENT STRUCTURE:
 ✅ Field tips must be IMMEDIATELY actionable — something they can do on their next trip
 ✅ Length: 1000-1500 characters — detailed enough to feel valuable
 
+=== 🇺🇸 AMERICAN AUDIENCE LOCALIZATION (MANDATORY) ===
+✅ USE IMPERIAL UNITS ONLY: ounces (oz), inches, feet, yards, miles, Fahrenheit. NEVER use metric (grams, meters, celsius).
+✅ USE AMERICAN SLANG & IDIOMS: "paydirt", "sniper", "crevicing", "sluice box", "claim jumper", "flour gold", "picker", "nugget", "black sand".
+✅ GEOGRAPHICAL NATIVE FEEL: Casually reference iconic US gold locations when giving examples (e.g., "Out in the Mother Lode...", "In the high streams of Colorado...", "Up in Alaska..."). Sound like a native American veteran prospector.
+
 {dynamic_suggestions}
 {dynamic_avoid}
 ❌ AVOID: Pure academic/historical theory with no field application
 ❌ AVOID: Administrative topics (permits, regulations, selling)
 ❌ AVOID: Equipment selection guides without connecting to gold discovery
 ❌ AVOID: Markdown symbols (**, ##, etc) — plain text only
+❌ AVOID: Metric system (meters, grams) - INSTANT REJECTION.
 
 Requirements:
-- Language: ENGLISH
+- Language: American English (US spelling)
 - Format: Clean plain text, no markdown
-- Tone: Expert educator sharing "expensive knowledge for free" — authoritative but accessible
+- Tone: Gritty American expert prospector sharing "expensive field knowledge" — authoritative, rugged, but accessible
 """
         
         current_prompt = base_prompt
