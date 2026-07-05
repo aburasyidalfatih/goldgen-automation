@@ -1121,7 +1121,7 @@ def export_insights_md():
             for r in rows:
                 content += f"### Page: {r['page_name']}\n"
                 content += f"- **Analyzed At:** {r['analyzed_at']}\n"
-                content += f"- **Total Comments Analyzed:** {r['total_comments']}\n"
+                content += f"- **Total Comments Analyzed:** {r['total_comments_analyzed']}\n"
                 content += f"- **Sentiment:** {r['sentiment'] if 'sentiment' in r.keys() else 'N/A'}\n"
                 content += "- **Top Keywords:**\n"
                 try:
