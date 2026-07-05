@@ -213,6 +213,14 @@ REPLY ONLY WITH THIS EXACT JSON FORMAT:
         if "QUIZ" in layout_name or "GAMIFICATION" in layout_name:
             quiz_instruction = "IMPORTANT: The image for this post is a 4-panel QUIZ (A, B, C, D). You MUST structure the caption as an interactive quiz. Ask the audience to guess which one is the real gold. DO NOT GIVE THE ANSWER IN THE CAPTION! Tell them you will reveal the answer in the comments later.\n"
 
+        # Check for winning hook in preferences
+        prefs = self._get_audience_preferences(page_id)
+        winning_hook_instruction = ""
+        winning_hooks = [p.replace("hook:", "").strip() for p in prefs if p.startswith("hook:")]
+        if winning_hooks:
+            best_hook = winning_hooks[0].upper()
+            winning_hook_instruction = f"\n🔥 CRITICAL INSTRUCTION: Based on A/B testing, the '{best_hook}' hook style performs best for this specific audience. You MUST use a '{best_hook}' style hook for this post! (e.g. if Fear, use a warning. If Secret, use insider knowledge).\n"
+
         base_prompt = f"""Create a VIRAL EDUCATIONAL CAPTION for a gold prospecting Facebook post.
 
 TOPIC: {topic['headline']}
@@ -220,6 +228,7 @@ SUBTITLE: {topic['subtitle']}
 
 {price_injection}
 {quiz_instruction}
+{winning_hook_instruction}
 KEY POINTS TO EXPLAIN:
 {list_text}
 
