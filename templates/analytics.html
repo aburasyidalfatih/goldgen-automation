@@ -95,7 +95,7 @@
     <button onclick="loadAnalytics()">🔄 Refresh</button>
     <button onclick="loadInsights()" id="insights-btn" style="background:#1e1e1e;border:1px solid #444;color:#e0e0e0">🤖 Analisa AI</button>
     <button onclick="analyzeComments()" id="comments-btn" style="background:#1e1e1e;border:1px solid #7c6aff;color:#a89fff">💬 Analisa Komentar</button>
-    <button onclick="exportMarkdown()" id="export-md-btn" style="background:#1e1e1e;border:1px solid #10b981;color:#34d399">⬇️ Export MD</button>
+    <button onclick="exportMarkdown()" id="export-md-btn" style="display:none;background:#1e1e1e;border:1px solid #10b981;color:#34d399">⬇️ Export MD</button>
     <span id="status-text" style="font-size:13px;color:#666;margin-left:8px"></span>
   </div>
 
@@ -143,6 +143,7 @@ async function loadInsights() {
         </div>
       </div>
     </div>`;
+    document.getElementById('export-md-btn').style.display = 'inline-block';
   } catch(e) {
     el.innerHTML = `<div class="insight-box"><div class="error">❌ ${e.message}</div></div>`;
   } finally {
@@ -199,6 +200,7 @@ async function analyzeComments() {
 
     html += `</div>`;
     el.innerHTML = html;
+    document.getElementById('export-md-btn').style.display = 'inline-block';
   } catch(e) {
     el.innerHTML = `<div class="insight-box"><div class="error">❌ ${e.message}</div></div>`;
   } finally {
@@ -362,7 +364,28 @@ function renderAnalytics(data) {
 }
 
 function exportMarkdown() {
-  window.location.href = '/api/export-insights-md';
+  let md = "# 📊 Analitik Engagement & AI Insights\n\n";
+  md += `Diekspor pada: ${new Date().toLocaleString()}\n\n`;
+
+  const aiSection = document.getElementById('insights-section').innerText;
+  if (aiSection) {
+    md += "## " + aiSection + "\n\n";
+  }
+
+  const commentSection = document.getElementById('comments-insights-section').innerText;
+  if (commentSection) {
+    md += "## " + commentSection + "\n\n";
+  }
+
+  const blob = new Blob([md], { type: 'text/markdown' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'goldgen_analytics_export.md';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 loadAnalytics();
