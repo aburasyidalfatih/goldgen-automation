@@ -105,9 +105,14 @@ class GoldGenAutoPoster:
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS last_post_time (
                 page_id TEXT PRIMARY KEY,
-                last_posted TEXT NOT NULL
+                last_posted TEXT NOT NULL,
+                cooldown_until TEXT
             )
         ''')
+        try:
+            cursor.execute("ALTER TABLE last_post_time ADD COLUMN cooldown_until TEXT")
+        except:
+            pass
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS post_queue (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -445,6 +450,9 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
                             print(f"   ⚠️  Retry {attempt + 1}/{max_retries} after {delay}s")
                             time.sleep(delay)
                         else:
+                            if '368' in error_msg or '17' in error_msg or 'limit' in error_msg.lower() or 'spam' in error_msg.lower():
+                                print(f"   🚨 FACEBOOK BAN/LIMIT DETECTED! Activating Self-Healing Cooldown for 24h...")
+                                self.set_cooldown(fanspage['page_id'], hours=24)
                             return None, error_msg
                         
             except Exception as e:
@@ -494,8 +502,46 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
         conn.commit()
         conn.close()
     
+    def set_cooldown(self, page_id, hours=24):
+        """Set a cooldown period for a page (e.g. after a rate limit or ban)"""
+        from datetime import timezone, timedelta
+        now_wib = datetime.now(timezone(timedelta(hours=7)))
+        cooldown_until = (now_wib + timedelta(hours=hours)).isoformat()
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        # Ensure row exists first
+        cursor.execute('INSERT OR IGNORE INTO last_post_time (page_id, last_posted) VALUES (?, ?)', (page_id, now_wib.isoformat()))
+        cursor.execute('UPDATE last_post_time SET cooldown_until = ? WHERE page_id = ?', (cooldown_until, page_id))
+        conn.commit()
+        conn.close()
+
+    def is_in_cooldown(self, page_id):
+        """Check if a page is currently in cooldown mode"""
+        from datetime import timezone, timedelta
+        now_wib = datetime.now(timezone(timedelta(hours=7)))
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT cooldown_until FROM last_post_time WHERE page_id = ?', (page_id,))
+        result = cursor.fetchone()
+        conn.close()
+        
+        if result and result['cooldown_until']:
+            try:
+                cooldown_time = datetime.fromisoformat(result['cooldown_until'])
+                if now_wib < cooldown_time:
+                    return True
+            except:
+                pass
+        return False
+
     def should_post(self, fanspage):
-        """Check if current hour matches fanspage schedule"""
+        """Check if current hour matches fanspage schedule and not in cooldown"""
+        if self.is_in_cooldown(fanspage['page_id']):
+            print(f"   🧊 {fanspage['name']} is in COOLDOWN mode. Skipping.")
+            return False
+
         from datetime import timezone, timedelta
         now_wib = datetime.now(timezone(timedelta(hours=7)))
         current_hour = now_wib.hour

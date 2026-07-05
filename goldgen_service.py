@@ -109,8 +109,45 @@ REPLY ONLY WITH THIS EXACT JSON FORMAT:
             print(f"Editor review failed: {e}")
             return {"score": 10, "feedback": "Valid", "hook_type": "Unknown"}
 
+    def _get_breaking_news(self):
+        """Use duckduckgo-search to find breaking news about gold prospecting in the US"""
+        try:
+            from duckduckgo_search import DDGS
+            with DDGS() as ddgs:
+                results = list(ddgs.news("gold prospecting OR gold rush OR gold nugget discovery USA", max_results=3))
+                if results:
+                    best_news = results[0]
+                    return {
+                        "headline": f"BREAKING NEWS: {best_news.get('title')}",
+                        "subtitle": f"Recent report from {best_news.get('source')}: {best_news.get('body')}",
+                        "list_points": [
+                            "What this means for local prospectors",
+                            "Where this took place and why it matters",
+                            "How you can learn from this discovery"
+                        ],
+                        "hook_type": "News"
+                    }
+        except Exception as e:
+            print(f"⚠️ News Espionage failed: {e}")
+        return None
+
     def get_next_topic(self, page_id=None):
-        """Get next topic in rotation, prioritize topics matching audience preferences"""
+        """Get the next topic, prioritizing breaking news if available"""
+        # News Espionage: 20% chance to check for breaking news to keep it organic
+        import random
+        if random.random() < 0.2:
+            print("   🕵️‍♂️ Running News Espionage...")
+            news_topic = self._get_breaking_news()
+            if news_topic:
+                print(f"   🚨 Found breaking news: {news_topic['headline']}")
+                # Assign a random layout
+                layout_index = random.randint(0, len(self.layouts) - 1)
+                layout = self.layouts[layout_index]
+                news_topic['layout'] = layout['name']
+                news_topic['composition'] = layout['composition']
+                return news_topic
+
+        # Fallback to normal topic rotation
         if self.state_file.exists():
             with open(self.state_file, 'r') as f:
                 state = json.load(f)

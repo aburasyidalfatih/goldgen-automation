@@ -196,6 +196,40 @@ Just provide the direct reply without any quotes or explanations."""
         except Exception:
             return False
 
+    def hide_comment(self, comment_id, access_token):
+        """Hide a malicious comment using Facebook Graph API"""
+        url = f"https://graph.facebook.com/v18.0/{comment_id}"
+        params = {
+            'access_token': access_token,
+            'is_hidden': 'true'
+        }
+        try:
+            response = requests.post(url, data=params, timeout=30)
+            return response.status_code == 200
+        except Exception:
+            return False
+
+    def check_spam(self, comment_text):
+        """Use Gemini to detect if a comment is spam, scam, crypto bot, or hate speech."""
+        prompt = f"""Analyze the following Facebook comment. Is it spam, a scam, phishing link, crypto promotion, or hate speech?
+Respond ONLY with this exact JSON format: {{"is_spam": true/false}}
+
+COMMENT: "{comment_text}"
+"""
+        try:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.text_model}:generateContent?key={self.gemini_api_key}"
+            payload = {"contents": [{"parts": [{"text": prompt}]}]}
+            response = requests.post(url, json=payload, timeout=30)
+            text = response.json()['candidates'][0]['content']['parts'][0]['text']
+            import re
+            match = re.search(r'\{.*\}', text, re.DOTALL)
+            if match:
+                res = json.loads(match.group(0))
+                return res.get('is_spam', False)
+            return False
+        except Exception:
+            return False
+
     def process_comments(self):
         """Main process to reply comments"""
         print("=" * 60)
@@ -250,6 +284,18 @@ Just provide the direct reply without any quotes or explanations."""
                         comment_id, post_id, user_name, 
                         comment_text, "[PROCESSING...]"
                     )
+                    
+                    # Bouncer AI: Check for spam
+                    print(f"   🛡️ Checking for spam...")
+                    is_spam = self.check_spam(comment_text)
+                    if is_spam:
+                        print(f"   🚨 SPAM DETECTED! Hiding comment from public...")
+                        if self.hide_comment(comment_id, access_token):
+                            print(f"   ✅ Comment hidden successfully.")
+                            self.save_replied_comment(comment_id, post_id, user_name, comment_text, "[HIDDEN SPAM]")
+                        else:
+                            print(f"   ❌ Failed to hide comment.")
+                        continue
                     
                     # Generate reply
                     reply_text = self.generate_reply(comment_text, post_message)

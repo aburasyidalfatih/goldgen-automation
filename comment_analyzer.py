@@ -109,6 +109,74 @@ class CommentAnalyzer:
 
         return all_comments
 
+    def get_most_engaged_image(self, page_id, access_token, days=3):
+        """Find the local image path of the most commented post in the last N days"""
+        url = f"https://graph.facebook.com/v18.0/{page_id}/posts"
+        try:
+            r = requests.get(url, params={'access_token': access_token, 'fields': 'id,created_time', 'limit': 20}, timeout=30)
+            posts = r.json().get('data', [])
+        except Exception:
+            return None
+            
+        cutoff = datetime.now() - timedelta(days=days)
+        best_post_id = None
+        max_comments = -1
+        
+        for post in posts:
+            try:
+                if datetime.strptime(post['created_time'], '%Y-%m-%dT%H:%M:%S+0000') < cutoff:
+                    continue
+                r_com = requests.get(f"https://graph.facebook.com/v18.0/{post['id']}/comments?summary=1&access_token={access_token}", timeout=30)
+                count = r_com.json().get('summary', {}).get('total_count', 0)
+                if count > max_comments:
+                    max_comments = count
+                    best_post_id = post['id']
+            except:
+                pass
+                
+        if best_post_id:
+            try:
+                conn = get_db_connection()
+                db_post = conn.execute("SELECT image_path FROM posts WHERE fb_post_id = ?", (best_post_id,)).fetchone()
+                conn.close()
+                if db_post and db_post['image_path']:
+                    return db_post['image_path']
+            except:
+                pass
+        return None
+
+    def analyze_vision_styles(self, image_path):
+        """Use Gemini Vision to extract winning visual aesthetics from the top image"""
+        import base64
+        import os
+        import re
+        if not image_path or not os.path.exists(image_path):
+            return []
+            
+        try:
+            with open(image_path, "rb") as f:
+                encoded_image = base64.b64encode(f.read()).decode("utf-8")
+                
+            prompt = "Analyze this top-performing gold prospecting image. What specific visual aesthetics make it highly engaging to an American audience? (e.g. muddy hands, extreme macro shot, sun glare, rugged realism). Reply ONLY with a JSON array of strings representing the 3-5 best visual keywords. Example: [\"macro photography\", \"muddy realism\"]"
+            
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={self.gemini_api_key}"
+            payload = {
+                "contents": [{
+                    "parts": [
+                        {"text": prompt},
+                        {"inlineData": {"mimeType": "image/jpeg", "data": encoded_image}}
+                    ]
+                }]
+            }
+            response = requests.post(url, json=payload, timeout=30)
+            text = response.json()['candidates'][0]['content']['parts'][0]['text']
+            match = re.search(r'\[.*\]', text, re.DOTALL)
+            if match:
+                return json.loads(match.group(0))
+        except Exception as e:
+            print(f"❌ Vision AI Error: {e}")
+        return []
+
     def analyze_with_gemini(self, comments, page_name):
         """Kirim komentar ke Gemini untuk dianalisis"""
         if not comments:

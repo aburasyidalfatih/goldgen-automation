@@ -35,12 +35,23 @@ def main():
             results.append({'page': page_name, 'status': 'skipped', 'reason': f'Only {len(comments)} comments'})
             continue
 
-        print(f"   💬 Ditemukan {len(comments)} komentar. Menganalisa dengan Gemini...")
+        print(f"   🤖 Menganalisa {len(comments)} komentar dengan Gemini...")
         analysis = analyzer.analyze_with_gemini(comments, page_name)
+        
         if not analysis:
             print(f"   ❌ Gagal menganalisa dengan Gemini")
             results.append({'page': page_name, 'status': 'error', 'reason': 'Gemini analysis failed'})
             continue
+
+        print(f"   👁️  Mencari postingan visual terbaik (Vision AI)...")
+        best_img = analyzer.get_most_engaged_image(page_id, access_token)
+        if best_img:
+            vision_styles = analyzer.analyze_vision_styles(best_img)
+            if vision_styles:
+                print(f"   ✅ Vision AI menemukan gaya visual pemenang: {vision_styles}")
+                analysis['preferred_visual_styles'] = vision_styles
+            else:
+                print(f"   ⚠️  Vision AI gagal mengekstrak gaya visual")
 
         analyzer.save_insight(page_id, page_name, len(comments), analysis)
         print(f"   ✅ Analisis berhasil disimpan (Sentimen: {analysis.get('sentiment')})")
