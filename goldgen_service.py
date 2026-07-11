@@ -147,9 +147,14 @@ REPLY ONLY WITH THIS EXACT JSON FORMAT:
                 news_topic['composition'] = layout['composition']
                 return news_topic
 
+        state_file = self.state_file
+        if page_id:
+            state_file = self.state_file.parent / f"topic_state_{page_id}.json"
+
         # Fallback to normal topic rotation
-        if self.state_file.exists():
-            with open(self.state_file, 'r') as f:
+        state = {}
+        if state_file.exists():
+            with open(state_file, 'r') as f:
                 state = json.load(f)
                 current_index = state.get('current_topic_index', 0)
         else:
@@ -161,19 +166,22 @@ REPLY ONLY WITH THIS EXACT JSON FORMAT:
         selected_index = current_index
         if preferences:
             # Cari topic yang paling match dengan preferences audience
-            best_match_index = None
+            best_matches = []
             best_score = 0
             for i, topic in enumerate(self.topics):
                 topic_text = f"{topic['headline']} {topic['subtitle']} {' '.join(topic.get('list_points', []))}".lower()
                 score = sum(1 for pref in preferences if pref.lower() in topic_text)
                 if score > best_score:
                     best_score = score
-                    best_match_index = i
+                    best_matches = [i]
+                elif score == best_score and score > 0:
+                    best_matches.append(i)
 
             # Pakai topic yang match jika score > 0 dan belum dipakai baru-baru ini
-            recently_used = state.get('recently_used', []) if self.state_file.exists() else []
-            if best_match_index is not None and best_score > 0 and best_match_index not in recently_used[-5:]:
-                selected_index = best_match_index
+            recently_used = state.get('recently_used', [])
+            valid_matches = [i for i in best_matches if i not in recently_used[-5:]]
+            if valid_matches:
+                selected_index = random.choice(valid_matches)
 
         # Get topic
         topic = self.topics[selected_index].copy()
@@ -186,13 +194,13 @@ REPLY ONLY WITH THIS EXACT JSON FORMAT:
 
         # Update state
         next_index = (current_index + 1) % len(self.topics)
-        recently_used = state.get('recently_used', []) if self.state_file.exists() else []
+        recently_used = state.get('recently_used', [])
         recently_used.append(selected_index)
         if len(recently_used) > 20:
             recently_used = recently_used[-20:]
 
-        self.state_file.parent.mkdir(parents=True, exist_ok=True)
-        with open(self.state_file, 'w') as f:
+        state_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(state_file, 'w') as f:
             json.dump({
                 'current_topic_index': next_index,
                 'last_updated': datetime.now().isoformat(),
@@ -201,30 +209,7 @@ REPLY ONLY WITH THIS EXACT JSON FORMAT:
 
         return topic
     
-    def get_topic_with_offset(self, offset=0):
-        """Get topic with offset (for multiple fanspages without updating state)"""
-        if self.state_file.exists():
-            with open(self.state_file, 'r') as f:
-                state = json.load(f)
-                base_index = state.get('current_topic_index', 0)
-        else:
-            base_index = 0
-        
-        # Calculate index with offset
-        current_index = (base_index + offset) % len(self.topics)
-        
-        # Get topic
-        topic = self.topics[current_index].copy()
-        
-        # Assign layout based on current index
-        layout_index = current_index % len(self.layouts)
-        layout = self.layouts[layout_index]
-        topic['layout'] = layout['name']
-        topic['composition'] = layout['composition']
-        
-        # Don't update state - will be updated by caller
-        return topic
-    
+
     def generate_caption(self, topic, page_id=None):
         """Generate educational caption for gold prospecting topic"""
         
@@ -270,6 +255,9 @@ SUBTITLE: {topic['subtitle']}
 {winning_hook_instruction}
 KEY POINTS TO EXPLAIN:
 {list_text}
+
+=== ANTI-BOREDOM & VARIETY INSTRUCTION ===
+CRITICAL: Do NOT write this in a generic, predictable way. Pick a UNIQUE angle for this specific post (e.g., A controversial take, a "secret society" tone, an urgent warning, or a deeply philosophical prospector tale). Change up the formatting. Surprise the audience so they never feel like they are reading the same template twice!
 
 === PROVEN VIRAL FORMULA (based on top-performing posts analysis) ===
 

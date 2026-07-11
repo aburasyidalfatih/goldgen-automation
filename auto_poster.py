@@ -155,25 +155,6 @@ class GoldGenAutoPoster:
 #GoldProspecting #PlacerGold #ProspectingTips"""
             return caption, topic
     
-    def generate_content_with_offset(self, offset=0, page_id=None):
-        """Generate content with topic offset (for multiple fanspages in one cycle)"""
-        try:
-            topic = self.goldgen.get_topic_with_offset(offset)
-            caption = self.goldgen.generate_caption(topic, page_id)
-            return caption, topic
-        except Exception as e:
-            print(f"   ⚠️  GoldGen caption error: {e}, using fallback...")
-            topic = self.goldgen.get_topic_with_offset(offset)
-            list_text = "\n".join([f"• {point}" for point in topic['list_points']])
-            caption = f"""{topic['headline']}
-
-{topic['subtitle']}
-
-{topic['list_header']}:
-{list_text}
-
-#GoldProspecting #PlacerGold #ProspectingTips"""
-            return caption, topic
     
     def _generate_fallback_caption(self, gold_data):
         """Fallback caption if GoldGen fails"""
@@ -653,8 +634,8 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
                 self.update_last_post_time(fanspage['page_id'])
 
                 # Generate content with offset topic (different for each fanspage)
-                print("   Generating educational content...")
-                content, topic = self.generate_content_with_offset(idx, page_id=fanspage['page_id'])
+                # Bikin caption & prompt pake GoldGen AI (sekarang sudah terisolasi per-page)
+                content, topic = self.generate_content(page_id=fanspage['page_id'])
                 print(f"   Topic: {topic['headline']}")
                 print(f"   Layout: {topic['layout']}")
                 
