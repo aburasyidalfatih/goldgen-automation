@@ -136,14 +136,16 @@ class GoldGenAutoPoster:
 
     def generate_content(self, page_id=None):
         """Generate educational content about gold prospecting"""
+        topic = None
         try:
             topic = self.goldgen.get_next_topic(page_id)
             caption = self.goldgen.generate_caption(topic, page_id)
             return caption, topic
         except Exception as e:
             print(f"   ⚠️  GoldGen caption error: {e}, using fallback...")
-            # Fallback to first topic with layout
-            topic = self.goldgen.get_next_topic(page_id)
+            # Fallback using the fetched topic, or default to first if get_next_topic failed
+            if not topic:
+                topic = self.goldgen.topics[0]
             list_text = "\n".join([f"• {point}" for point in topic['list_points']])
             caption = f"""{topic['headline']}
 
