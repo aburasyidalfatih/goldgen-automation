@@ -101,36 +101,71 @@ class CommentReplier:
         result = cursor.fetchone()
         conn.close()
         return result is not None
-    
-    def generate_reply(self, comment_text, post_context=""):
-        """Generate reply using Gemini AI with language detection"""
-        prompt = f"""You are a rugged, highly experienced American veteran gold prospector. You run an educational gold prospecting page.
-You are NOT selling anything. You just love sharing your knowledge about panning, sluicing, crevicing, and finding paydirt out in the wild.
 
-Someone commented on your Facebook post.
+    def get_user_history(self, user_name):
+        """Check how many times this user has interacted/been replied to"""
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT COUNT(*) FROM replied_comments WHERE user_name = ?', (user_name,))
+        count = cursor.fetchone()[0]
+        conn.close()
+        return count
+
+    def get_latest_insights(self, page_id):
+        """Get the latest audience ML insights for this page"""
+        try:
+            conn = get_db_connection()
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                'SELECT raw_analysis FROM comment_insights WHERE page_id = ? ORDER BY analyzed_at DESC LIMIT 1', (page_id,)
+            ).fetchone()
+            conn.close()
+            if row and row['raw_analysis']:
+                return json.loads(row['raw_analysis'])
+            return {}
+        except Exception:
+            return {}
+    
+    def generate_reply(self, comment_text, post_context="", user_name="User", interaction_count=0, ml_insights=None):
+        """Generate reply using Gemini AI with language detection and ML context"""
+        
+        # Inject ML context if available
+        ml_context = ""
+        if ml_insights and 'suggested_topics' in ml_insights:
+            topics = [t.get('topic', '') for t in ml_insights['suggested_topics']]
+            ml_context = f"\nML AUDIENCE INSIGHTS: The audience on this page is currently interested in: {', '.join(topics)}. If the user asks a question related to these, provide helpful information based on these insights."
+            
+        # Inject Memory context
+        memory_context = ""
+        if interaction_count > 0:
+            memory_context = f"\nUSER HISTORY: You have interacted with {user_name} before ({interaction_count} prior interactions). Acknowledge them warmly like a returning friend (e.g. 'Good to see you again!', 'Welcome back!')."
+            
+        prompt = f"""You are a highly experienced veteran gold prospector. You run an educational gold prospecting page.
+You are NOT selling anything, but you love helping people and sharing your knowledge about panning, sluicing, crevicing, and finding paydirt.
 
 POST CONTEXT: {post_context if post_context else "Educational gold prospecting content"}
+{ml_context}
+{memory_context}
 
-COMMENT: "{comment_text}"
+COMMENT FROM {user_name}: "{comment_text}"
 
 CRITICAL INSTRUCTIONS:
-1. ALWAYS reply in American English, regardless of the comment's language. Use US spelling (e.g., color, not colour) and American idioms. Sound like a rugged native from the American West or Alaska.
-2. Use Imperial units ONLY (oz, inches, feet, yards). Never use metric.
-3. Use prospector slang when appropriate (paydirt, sniper, sluice box, nuggets, flour gold, bedrock, claim).
-4. DO NOT mention buying gold bars, jewelry, or financial investments. We are PROSPECTORS, we dig for gold!
-5. Be friendly, rugged, and encouraging. 
-6. End with a question to keep the discussion going.
+1. MIRROR THE USER'S LANGUAGE: You MUST reply in the exact same language the user used in their comment. (e.g., if they comment in Indonesian, reply in Indonesian. If they comment in Turkish, reply in Turkish).
+2. RETAIN YOUR PERSONA: Even when translating, keep the rugged, friendly, and expert prospector tone. Use appropriate local idioms if possible, but keep the core message educational.
+3. If speaking English, use Imperial units ONLY (oz, inches, feet, yards). 
+4. DO NOT mention buying gold bars or financial investments. We are PROSPECTORS, we dig for gold! If they ask about buying mining equipment (and ML insights support it), be helpful but clarify you don't sell them directly.
+5. End with a friendly question to keep the discussion going.
 
 EXAMPLES OF GOOD REPLIES:
 
-Comment: "Is that real gold?"
+Comment (English): "Is that real gold?"
 Reply: "You bet! That's what a solid picker looks like when it comes out of the sluice box. Have you ever seen raw gold in the pan?"
 
-Comment: "Where can I find this?"
-Reply: "You gotta look for bedrock cracks and inside bends of rivers, like out in the Mother Lode or Colorado streams. What state are you prospecting in?"
+Comment (Indonesian): "Berapa harga alat ini bang?"
+Reply: "Wah, semangat sekali! Saya tidak menjual alatnya secara langsung, tapi alat dulang seperti ini biasanya bisa dicari di toko peralatan tambang atau online. Sudah pernah mencoba mendulang di sungai terdekat?"
 
-Comment: "Looks like fools gold to me"
-Reply: "I can see why you'd think that! But notice how it doesn't shatter when hit with a pick? Pyrite shatters, real gold bends. Ever been tricked by fools gold before?"
+Comment (Turkish): "Bu altınları nerede bulabilirim?"
+Reply: "Harika bir soru! Genellikle ana kayadaki çatlaklarda ve nehirlerin iç kıvrımlarında aramanız gerekir. Şu an hangi bölgede arama yapıyorsunuz?"
 
 Just provide the direct reply without any quotes or explanations."""
 
@@ -297,8 +332,20 @@ COMMENT: "{comment_text}"
                             print(f"   ❌ Failed to hide comment.")
                         continue
                     
+                    # Fetch ML Insights for this page
+                    ml_insights = self.get_latest_insights(page_id)
+                    
+                    # Fetch User History
+                    interaction_count = self.get_user_history(user_name)
+                    
                     # Generate reply
-                    reply_text = self.generate_reply(comment_text, post_message)
+                    reply_text = self.generate_reply(
+                        comment_text=comment_text, 
+                        post_context=post_message,
+                        user_name=user_name,
+                        interaction_count=interaction_count,
+                        ml_insights=ml_insights
+                    )
                     print(f"   🤖 Reply: {reply_text[:50]}...")
                     
                     # Post reply
