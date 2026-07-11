@@ -1010,11 +1010,13 @@ def analyze_comments():
             access_token = page['access_token']
 
             comments = analyzer.get_recent_comments(page_id, access_token, days=3)
-            if len(comments) < 3:
-                results.append({'page': page_name, 'status': 'skipped', 'reason': f'Only {len(comments)} comments'})
+            silent_metrics = analyzer.get_silent_engagement_metrics(page_id, access_token, days=3)
+            
+            if len(comments) < 3 and not silent_metrics:
+                results.append({'page': page_name, 'status': 'skipped', 'reason': f'Insufficient data'})
                 continue
 
-            analysis = analyzer.analyze_with_gemini(comments, page_name)
+            analysis = analyzer.analyze_with_gemini(comments, page_name, silent_metrics=silent_metrics)
             if not analysis:
                 results.append({'page': page_name, 'status': 'error', 'reason': 'Gemini analysis failed'})
                 continue

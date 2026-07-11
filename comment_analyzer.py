@@ -109,6 +109,52 @@ class CommentAnalyzer:
 
         return all_comments
 
+    def get_silent_engagement_metrics(self, page_id, access_token, days=3):
+        """Ambil metrik Like dan Share dari postingan untuk mendeteksi keviralan bisu"""
+        url = f"https://graph.facebook.com/v18.0/{page_id}/posts"
+        params = {
+            'access_token': access_token,
+            'fields': 'id,message,created_time,likes.summary(true),shares',
+            'limit': 20
+        }
+        try:
+            response = requests.get(url, params=params, timeout=30)
+            posts = response.json().get('data', [])
+        except Exception as e:
+            print(f"❌ Error getting metrics: {e}")
+            return []
+
+        cutoff = datetime.now() - timedelta(days=days)
+        metrics = []
+
+        for post in posts:
+            try:
+                post_time = datetime.strptime(post['created_time'], '%Y-%m-%dT%H:%M:%S+0000')
+                if post_time < cutoff:
+                    continue
+            except Exception:
+                continue
+
+            likes = post.get('likes', {}).get('summary', {}).get('total_count', 0)
+            shares = post.get('shares', {}).get('count', 0)
+            
+            # Hanya catat jika ada interaksi lumayan
+            if likes + shares >= 5:
+                # Get hook_type from DB
+                hook_type = "Unknown"
+                try:
+                    conn = get_db_connection()
+                    db_post = conn.execute("SELECT hook_type FROM posts WHERE fb_post_id = ?", (post['id'],)).fetchone()
+                    if db_post and db_post['hook_type']:
+                        hook_type = db_post['hook_type']
+                    conn.close()
+                except Exception:
+                    pass
+                
+                metrics.append(f"[HOOK: {hook_type}] Likes: {likes}, Shares: {shares}")
+
+        return metrics
+
     def get_most_engaged_image(self, page_id, access_token, days=3):
         """Find the local image path of the most commented post in the last N days"""
         url = f"https://graph.facebook.com/v18.0/{page_id}/posts"
@@ -177,23 +223,31 @@ class CommentAnalyzer:
             print(f"❌ Vision AI Error: {e}")
         return []
 
-    def analyze_with_gemini(self, comments, page_name):
-        """Kirim komentar ke Gemini untuk dianalisis"""
-        if not comments:
+    def analyze_with_gemini(self, comments, page_name, silent_metrics=None):
+        """Kirim komentar dan metrik ke Gemini untuk dianalisis"""
+        if not comments and not silent_metrics:
             return None
 
-        # Sanitize: hapus karakter yang bisa merusak JSON output Gemini
+        # Sanitize comments
         clean_comments = []
-        for c in comments[:100]:
-            c = c.replace('"', "'").replace('\\', '').replace('\n', ' ').strip()
-            if c:
-                clean_comments.append(c)
+        if comments:
+            for c in comments[:100]:
+                c = c.replace('"', "'").replace('\\', '').replace('\n', ' ').strip()
+                if c:
+                    clean_comments.append(c)
 
-        comments_text = '\n'.join([f"- {c}" for c in clean_comments])
+        comments_text = '\n'.join([f"- {c}" for c in clean_comments]) if clean_comments else "No text comments."
+        
+        metrics_text = ""
+        if silent_metrics:
+            metrics_text = "SILENT ENGAGEMENT METRICS (Likes & Shares per Hook type):\n" + "\n".join([f"- {m}" for m in silent_metrics])
 
-        prompt = f"""Analyze these Facebook comments from a gold prospecting page "{page_name}".
-Some comments have a prefix like [HOOK: Fear] which indicates the psychological hook used in the post that generated this comment.
-Comments:
+        prompt = f"""Analyze this Facebook engagement data from a gold prospecting page "{page_name}".
+Some data has a prefix like [HOOK: Fear] which indicates the psychological hook used in the post.
+
+{metrics_text}
+
+TEXT COMMENTS:
 {comments_text}
 
 Extract any preferred visual/image styles mentioned by the audience. Also suggest improvements for the AI prompt (for text or image generation) based on their complaints, questions, or engagement.
