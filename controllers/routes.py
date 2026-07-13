@@ -1021,7 +1021,8 @@ def analyze_comments():
                 results.append({'page': page_name, 'status': 'error', 'reason': 'Gemini analysis failed'})
                 continue
 
-            analyzer.save_insight(page_id, page_name, len(comments), analysis)
+            weight = 1 + int(len(comments) * 0.1) + int(len(silent_metrics or []) * 0.5)
+            analyzer.save_insight(page_id, page_name, len(comments), analysis, weight=weight)
             results.append({
                 'page': page_name,
                 'status': 'success',
@@ -1032,6 +1033,8 @@ def analyze_comments():
                 'preferred_visual_styles': analysis.get('preferred_visual_styles', []),
                 'prompt_improvement_suggestions': analysis.get('prompt_improvement_suggestions', [])
             })
+
+        analyzer.apply_time_decay()
 
         # Ambil top preferences terbaru
         top_prefs = analyzer.get_top_preferences(10)

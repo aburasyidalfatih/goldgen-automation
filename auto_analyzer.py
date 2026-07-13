@@ -59,13 +59,21 @@ def main():
             else:
                 print(f"   ⚠️  Vision AI gagal mengekstrak gaya visual")
 
-        analyzer.save_insight(page_id, page_name, len(comments), analysis)
-        print(f"   ✅ Analisis berhasil disimpan (Sentimen: {analysis.get('sentiment')})")
+        # Hitung Bobot Keviralan (Weighted Scoring)
+        # Dasar 1 poin. Tambah bobot jika komentar atau silent metrics (likes/shares) tinggi.
+        weight = 1 + int(len(comments) * 0.1) + int(len(silent_metrics or []) * 0.5)
+        
+        analyzer.save_insight(page_id, page_name, len(comments), analysis, weight=weight)
+        print(f"   ✅ Analisis berhasil disimpan (Sentimen: {analysis.get('sentiment')}) dengan Bobot/Weight: {weight}")
         results.append({
             'page': page_name,
             'status': 'success',
             'total_comments': len(comments)
         })
+    
+    # Eksekusi Time Decay agar topik lama meluruh
+    print("\n▶ Menerapkan efek peluruhan waktu (Time Decay) pada database...")
+    analyzer.apply_time_decay()
     
     print("\n" + "="*50)
     print("✅ Auto Analyzer Selesai")

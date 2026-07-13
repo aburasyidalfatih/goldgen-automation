@@ -295,7 +295,7 @@ REPLY ONLY WITH THIS EXACT JSON FORMAT:
             print(f"❌ Gemini analysis error: {e}")
             return None
 
-    def save_insight(self, page_id, page_name, total_comments, analysis):
+    def save_insight(self, page_id, page_name, total_comments, analysis, weight=1):
         """Simpan hasil analisis ke DB"""
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -322,17 +322,35 @@ REPLY ONLY WITH THIS EXACT JSON FORMAT:
                 ).fetchone()
                 if existing:
                     cursor.execute(
-                        'UPDATE topic_preferences SET boost_score = boost_score + 1, last_updated = CURRENT_TIMESTAMP WHERE id = ?',
-                        (existing[0],)
+                        'UPDATE topic_preferences SET boost_score = boost_score + ?, last_updated = CURRENT_TIMESTAMP WHERE id = ?',
+                        (weight, existing[0])
                     )
                 else:
                     cursor.execute(
-                        'INSERT INTO topic_preferences (page_id, topic_keyword, boost_score) VALUES (?, ?, 1)',
-                        (page_id, topic_kw)
+                        'INSERT INTO topic_preferences (page_id, topic_keyword, boost_score) VALUES (?, ?, ?)',
+                        (page_id, topic_kw, weight)
                     )
 
         conn.commit()
         conn.close()
+
+    def apply_time_decay(self):
+        """Diskon boost_score lama sebesar 10% untuk memprioritaskan tren terbaru (Time Decay)"""
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            # Kurangi score 10%, tapi tidak boleh kurang dari 1
+            cursor.execute('''
+                UPDATE topic_preferences 
+                SET boost_score = MAX(1, CAST(boost_score * 0.9 AS INTEGER))
+                WHERE boost_score > 1
+            ''')
+            conn.commit()
+            print("   ⏳ Time Decay applied to topic_preferences (10% discount on old scores).")
+        except Exception as e:
+            print(f"   ❌ Failed to apply time decay: {e}")
+        finally:
+            conn.close()
 
     def get_top_preferences(self, limit=10, page_id=None):
         """Ambil topik dengan boost score tertinggi untuk dipakai di content generation"""
