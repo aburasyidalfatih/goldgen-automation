@@ -1,5 +1,17 @@
 [
     {
+        "id": 999,
+        "headline": "MINI-GAME: SPOT THE GOLD",
+        "subtitle": "Test your prospector eyes! Can you spot the hidden nugget?",
+        "list_header": "HOW TO PLAY",
+        "list_points": [
+            "Look closely at the image",
+            "Find the hidden gold nugget",
+            "Circle it and post your screenshot in the comments",
+            "I'll confirm if you found the real paydirt!"
+        ]
+    },
+    {
         "id": 1,
         "headline": "READING THE RIVER",
         "subtitle": "Gold drops where water slows down.",

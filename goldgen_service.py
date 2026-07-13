@@ -236,6 +236,10 @@ REPLY ONLY WITH THIS EXACT JSON FORMAT:
         quiz_instruction = ""
         if "QUIZ" in layout_name or "GAMIFICATION" in layout_name:
             quiz_instruction = "IMPORTANT: The image for this post is a 4-panel QUIZ (A, B, C, D). You MUST structure the caption as an interactive quiz. Ask the audience to guess which one is the real gold. DO NOT GIVE THE ANSWER IN THE CAPTION! Tell them you will reveal the answer in the comments later.\n"
+        
+        minigame_instruction = ""
+        if "MINI-GAME" in topic['headline']:
+            minigame_instruction = "IMPORTANT GAMIFICATION INSTRUCTION: This is a 'Find the Hidden Gold' mini-game! You MUST write an exciting, challenging caption. Ask the audience to spot the hidden nugget in the picture, circle it, and post their screenshot in the comments. Promise them you will personally check their answers in the comments!\n"
 
         # Check for winning hook in preferences
         prefs = self._get_audience_preferences(page_id)
@@ -254,6 +258,7 @@ SUBTITLE: {topic['subtitle']}
 
 {price_injection}
 {quiz_instruction}
+{minigame_instruction}
 {winning_hook_instruction}
 KEY POINTS TO EXPLAIN:
 {list_text}
@@ -436,6 +441,10 @@ Create a dark, moody neo-romantic image. Use a pitch-black or very dark backgrou
         elif "VECTOR" in layout_name or "FLAT" in layout_name:
             visual_instruction = """VISUAL EXECUTION:
 Create a clean, minimalist flat vector graphic illustration. Use bright, solid contrasting colors without dirt or grunge textures. Incorporate bold, massive sans-serif typography elements (if text is needed). Style: Modern infographic poster, highly legible, Kurzgesagt-style simplicity."""
+
+        elif "MINI-GAME" in topic['headline']:
+            visual_instruction = """VISUAL EXECUTION:
+Create an insanely realistic, highly detailed wide-angle shot of a rocky riverbed, bedrock crevices, or a pile of muddy gravel. IN THE SCENE, hide ONE small, distinctly shaped shiny gold nugget. It must be slightly camouflaged but definitely visible to someone looking closely. Style: Hyper-realistic macro nature photography, sharp focus. No text!"""
 
         else:
             # Default fallback

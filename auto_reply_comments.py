@@ -104,10 +104,18 @@ class CommentReplier:
         return result is not None
 
     def get_user_history(self, user_name):
-        """Fetch the last 3 conversational interactions with this user to build social memory context"""
+        """Fetch total interactions and the last 3 conversational interactions with this user to build social memory context"""
         conn = get_db_connection()
         cursor = conn.cursor()
-        # Ensure we don't fetch "[PROCESSING...]" or "[HIDDEN SPAM]"
+        
+        # Get total count
+        cursor.execute('''
+            SELECT COUNT(*) FROM replied_comments 
+            WHERE user_name = ? AND reply_text NOT IN ('[PROCESSING...]', '[HIDDEN SPAM]')
+        ''', (user_name,))
+        total_count = cursor.fetchone()[0]
+        
+        # Get history
         cursor.execute('''
             SELECT comment_text, reply_text 
             FROM replied_comments 
@@ -116,7 +124,11 @@ class CommentReplier:
         ''', (user_name,))
         history = cursor.fetchall()
         conn.close()
-        return [{'comment': r[0], 'reply': r[1]} for r in history]
+        
+        return {
+            'total_count': total_count,
+            'interactions': [{'comment': r[0], 'reply': r[1]} for r in history]
+        }
 
     def get_latest_insights(self, page_id):
         """Get the latest audience ML insights for this page"""
@@ -143,7 +155,7 @@ class CommentReplier:
             print(f"   ❌ Failed to download attachment image: {e}")
             return None
     
-    def generate_reply(self, comment_text, post_context="", user_name="User", past_interactions=None, ml_insights=None, image_b64=None):
+    def generate_reply(self, comment_text, post_context="", user_name="User", user_history=None, ml_insights=None, image_b64=None):
         """Generate reply using Gemini AI with language detection and ML context"""
         
         # Inject ML context if available
@@ -152,15 +164,32 @@ class CommentReplier:
             topics = [t.get('topic', '') for t in ml_insights['suggested_topics']]
             ml_context = f"\nML AUDIENCE INSIGHTS: The audience on this page is currently interested in: {', '.join(topics)}. If the user asks a question related to these, provide helpful information based on these insights."
             
-        # Inject Memory context
+        # Inject Memory and Gamification context
         memory_context = ""
-        if past_interactions and len(past_interactions) > 0:
+        if user_history and user_history.get('total_count', 0) > 0:
+            past_interactions = user_history.get('interactions', [])
+            total_count = user_history.get('total_count', 0)
+            
+            # Loyalty Ranking Gamification
+            rank = "Greenhorn"
+            if total_count >= 10:
+                rank = "Gold Baron"
+            elif total_count >= 6:
+                rank = "Sluice Master"
+            elif total_count >= 3:
+                rank = "Prospector"
+                
             history_text = "\n".join([f"- User said: '{p['comment']}' | You replied: '{p['reply']}'" for p in past_interactions])
             memory_context = f"""
-USER HISTORY: You have interacted with {user_name} before ({len(past_interactions)} prior interactions). 
-Here is the transcript of your past conversations with them:
+USER HISTORY: You have interacted with {user_name} before (Total {total_count} prior interactions). 
+Based on their interactions, their official Prospector Rank is: '{rank}'. 
+Here is the transcript of your recent conversations with them:
 {history_text}
-CRITICAL MEMORY INSTRUCTION: Acknowledge them warmly like a returning friend (e.g. 'Good to see you again!', 'Welcome back, John!'). If their current comment relates to their past comments, YOU MUST reference the past context to show you remember them. This builds immense loyalty!"""
+
+CRITICAL MEMORY INSTRUCTION: 
+- Acknowledge them warmly like a returning friend (e.g. 'Good to see you again!'). 
+- You MUST address them by their official rank '{rank}' to gamify their experience and make them feel honored!
+- If their current comment relates to their past comments, YOU MUST reference the past context to show you remember them."""
             
         prompt = f"""You are a highly experienced veteran gold prospector. You run an educational gold prospecting page.
 You are NOT selling anything, but you love helping people and sharing your knowledge about panning, sluicing, crevicing, and finding paydirt.
@@ -383,14 +412,14 @@ COMMENT: "{comment_text}"
                     ml_insights = self.get_latest_insights(page_id)
                     
                     # Fetch User History
-                    past_interactions = self.get_user_history(user_name)
+                    user_history_data = self.get_user_history(user_name)
                     
                     # Generate reply
                     reply_text = self.generate_reply(
                         comment_text=comment_text, 
                         post_context=post_message,
                         user_name=user_name,
-                        past_interactions=past_interactions,
+                        user_history=user_history_data,
                         ml_insights=ml_insights,
                         image_b64=image_b64
                     )
