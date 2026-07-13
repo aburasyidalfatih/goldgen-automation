@@ -307,10 +307,6 @@ Do not include any other text, markdown blocks, or quotes. Just the raw JSON.
             best_hook = winning_hooks[0].upper()
             winning_hook_instruction = f"\n🔥 CRITICAL INSTRUCTION: Based on A/B testing, the '{best_hook}' hook style performs best for this specific audience. You MUST use a '{best_hook}' style hook for this post! (e.g. if Fear, use a warning. If Secret, use insider knowledge).\n"
 
-        cross_pollination_instruction = ""
-        if random.random() < 0.15:  # 15% chance to cross-pollinate
-            cross_pollination_instruction = "\n🕸️ CROSS-POLLINATION INSTRUCTION: At the very end of the caption, randomly mention your 'buddy' at another page. Example: 'P.S. If you guys love seeing massive raw nuggets, my buddy over at @[INSERT_PARTNER_PAGE_NAME] just posted a crazy 5-ouncer! Go check 'em out.'\n"
-
         base_prompt = f"""Create a VIRAL EDUCATIONAL CAPTION for a gold prospecting Facebook post.
 
 CRITICAL TONE INSTRUCTION: You MUST write in everyday, conversational, and rugged American English. Use American slang and phrasing typical of blue-collar workers or veteran outdoorsmen (e.g., "paydirt", "bustin' your back", "you bet", "ol' timer"). Do NOT sound like an AI, a textbook, or a corporate marketer. Sound like a gritty guy sitting by a campfire in Alaska or California sharing secrets.
@@ -322,7 +318,6 @@ SUBTITLE: {topic['subtitle']}
 {quiz_instruction}
 {minigame_instruction}
 {winning_hook_instruction}
-{cross_pollination_instruction}
 KEY POINTS TO EXPLAIN:
 {list_text}
 
