@@ -103,13 +103,19 @@ class CommentReplier:
         return result is not None
 
     def get_user_history(self, user_name):
-        """Check how many times this user has interacted/been replied to"""
+        """Fetch the last 3 conversational interactions with this user to build social memory context"""
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute('SELECT COUNT(*) FROM replied_comments WHERE user_name = ?', (user_name,))
-        count = cursor.fetchone()[0]
+        # Ensure we don't fetch "[PROCESSING...]" or "[HIDDEN SPAM]"
+        cursor.execute('''
+            SELECT comment_text, reply_text 
+            FROM replied_comments 
+            WHERE user_name = ? AND reply_text NOT IN ('[PROCESSING...]', '[HIDDEN SPAM]')
+            ORDER BY timestamp DESC LIMIT 3
+        ''', (user_name,))
+        history = cursor.fetchall()
         conn.close()
-        return count
+        return [{'comment': r[0], 'reply': r[1]} for r in history]
 
     def get_latest_insights(self, page_id):
         """Get the latest audience ML insights for this page"""
@@ -126,7 +132,7 @@ class CommentReplier:
         except Exception:
             return {}
     
-    def generate_reply(self, comment_text, post_context="", user_name="User", interaction_count=0, ml_insights=None):
+    def generate_reply(self, comment_text, post_context="", user_name="User", past_interactions=None, ml_insights=None):
         """Generate reply using Gemini AI with language detection and ML context"""
         
         # Inject ML context if available
@@ -137,8 +143,13 @@ class CommentReplier:
             
         # Inject Memory context
         memory_context = ""
-        if interaction_count > 0:
-            memory_context = f"\nUSER HISTORY: You have interacted with {user_name} before ({interaction_count} prior interactions). Acknowledge them warmly like a returning friend (e.g. 'Good to see you again!', 'Welcome back!')."
+        if past_interactions and len(past_interactions) > 0:
+            history_text = "\n".join([f"- User said: '{p['comment']}' | You replied: '{p['reply']}'" for p in past_interactions])
+            memory_context = f"""
+USER HISTORY: You have interacted with {user_name} before ({len(past_interactions)} prior interactions). 
+Here is the transcript of your past conversations with them:
+{history_text}
+CRITICAL MEMORY INSTRUCTION: Acknowledge them warmly like a returning friend (e.g. 'Good to see you again!', 'Welcome back, John!'). If their current comment relates to their past comments, YOU MUST reference the past context to show you remember them. This builds immense loyalty!"""
             
         prompt = f"""You are a highly experienced veteran gold prospector. You run an educational gold prospecting page.
 You are NOT selling anything, but you love helping people and sharing your knowledge about panning, sluicing, crevicing, and finding paydirt.
@@ -337,14 +348,14 @@ COMMENT: "{comment_text}"
                     ml_insights = self.get_latest_insights(page_id)
                     
                     # Fetch User History
-                    interaction_count = self.get_user_history(user_name)
+                    past_interactions = self.get_user_history(user_name)
                     
                     # Generate reply
                     reply_text = self.generate_reply(
                         comment_text=comment_text, 
                         post_context=post_message,
                         user_name=user_name,
-                        interaction_count=interaction_count,
+                        past_interactions=past_interactions,
                         ml_insights=ml_insights
                     )
                     print(f"   🤖 Reply: {reply_text[:50]}...")
