@@ -8,6 +8,7 @@ import json
 import requests
 import time
 import sqlite3
+import base64
 from datetime import datetime
 from core.database import get_db_connection
 from core.config import CONFIG_PATH
@@ -71,7 +72,7 @@ class CommentReplier:
         url = f"https://graph.facebook.com/v18.0/{post_id}/comments"
         params = {
             'access_token': access_token,
-            'fields': 'id,from,message,created_time',
+            'fields': 'id,from,message,created_time,attachment',
             'filter': 'stream',  # Get all comments
             'limit': 100
         }
@@ -131,8 +132,18 @@ class CommentReplier:
             return {}
         except Exception:
             return {}
+
+    def _download_image_as_base64(self, url):
+        """Download image from url and convert to base64 for Gemini Vision"""
+        try:
+            response = requests.get(url, timeout=15)
+            response.raise_for_status()
+            return base64.b64encode(response.content).decode('utf-8')
+        except Exception as e:
+            print(f"   ❌ Failed to download attachment image: {e}")
+            return None
     
-    def generate_reply(self, comment_text, post_context="", user_name="User", past_interactions=None, ml_insights=None):
+    def generate_reply(self, comment_text, post_context="", user_name="User", past_interactions=None, ml_insights=None, image_b64=None):
         """Generate reply using Gemini AI with language detection and ML context"""
         
         # Inject ML context if available
@@ -166,7 +177,12 @@ CRITICAL INSTRUCTIONS:
 3. If speaking English, use Imperial units ONLY (oz, inches, feet, yards). 
 4. DO NOT mention buying gold bars or financial investments. We are PROSPECTORS, we dig for gold! If they ask about buying mining equipment (and ML insights support it), be helpful but clarify you don't sell them directly.
 5. KEEP IT EXTREMELY SHORT: Facebook comments must be punchy. Your reply MUST NOT exceed 2 or 3 short sentences. Never write long paragraphs.
-6. End with a friendly question to keep the discussion going.
+6. End with a friendly question to keep the discussion going."""
+
+        if image_b64:
+            prompt += "\n\nCRITICAL VISION INSTRUCTION: The user has attached a photo to their comment. Look at the photo carefully. Give expert geological insight based on what you see. If they ask if it's real gold, tell them! If it looks like Pyrite (Fool's Gold) because of sharp, cubic edges, explain it to them gently. Act like a true veteran prospector analyzing their find!"
+
+        prompt += """
 
 EXAMPLES OF GOOD REPLIES:
 
@@ -183,9 +199,19 @@ Just provide the direct reply without any quotes or explanations."""
 
         try:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.text_model}:generateContent?key={self.gemini_api_key}"
+            
+            parts = [{"text": prompt}]
+            if image_b64:
+                parts.append({
+                    "inlineData": {
+                        "mimeType": "image/jpeg",
+                        "data": image_b64
+                    }
+                })
+
             payload = {
                 "contents": [{
-                    "parts": [{"text": prompt}]
+                    "parts": parts
                 }]
             }
             response = requests.post(url, json=payload, timeout=30)
@@ -320,6 +346,14 @@ COMMENT: "{comment_text}"
                     user_name = comment.get('from', {}).get('name', 'User')
                     comment_text = comment.get('message', '')
                     
+                    image_b64 = None
+                    attachment = comment.get('attachment')
+                    if attachment and attachment.get('type') == 'photo':
+                        img_url = attachment.get('media', {}).get('image', {}).get('src')
+                        if img_url:
+                            print(f"   📸 User attached an image. Downloading for Vision AI...")
+                            image_b64 = self._download_image_as_base64(img_url)
+                    
                     # Skip if already replied
                     if self.is_already_replied(comment_id):
                         continue
@@ -356,7 +390,8 @@ COMMENT: "{comment_text}"
                         post_context=post_message,
                         user_name=user_name,
                         past_interactions=past_interactions,
-                        ml_insights=ml_insights
+                        ml_insights=ml_insights,
+                        image_b64=image_b64
                     )
                     print(f"   🤖 Reply: {reply_text[:50]}...")
                     
