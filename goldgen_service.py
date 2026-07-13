@@ -6,6 +6,7 @@ GoldGen Service - Generate educational content about gold prospecting
 from google import genai
 import os
 import json
+import random
 from pathlib import Path
 from datetime import datetime
 
