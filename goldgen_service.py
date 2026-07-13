@@ -247,6 +247,8 @@ REPLY ONLY WITH THIS EXACT JSON FORMAT:
 
         base_prompt = f"""Create a VIRAL EDUCATIONAL CAPTION for a gold prospecting Facebook post.
 
+CRITICAL TONE INSTRUCTION: You MUST write in everyday, conversational, and rugged American English. Use American slang and phrasing typical of blue-collar workers or veteran outdoorsmen (e.g., "paydirt", "bustin' your back", "you bet", "ol' timer"). Do NOT sound like an AI, a textbook, or a corporate marketer. Sound like a gritty guy sitting by a campfire in Alaska or California sharing secrets.
+
 TOPIC: {topic['headline']}
 SUBTITLE: {topic['subtitle']}
 
