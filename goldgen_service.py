@@ -131,6 +131,48 @@ REPLY ONLY WITH THIS EXACT JSON FORMAT:
             print(f"⚠️ News Espionage failed: {e}")
         return None
 
+    def _generate_dynamic_topic(self, keyword):
+        """Generates a brand new topic structure dynamically based on audience keyword"""
+        try:
+            print(f"   🧠 Generating new dynamic topic for keyword: {keyword}")
+            prompt = f"""You are an expert gold prospecting content strategist.
+The audience is highly interested in the topic/keyword: "{keyword}"
+However, our current knowledge base does not have a topic specifically about this.
+
+Your task is to create a BRAND NEW educational topic structure about this keyword.
+Format the output EXACTLY as this JSON format, nothing else:
+{{
+    "headline": "CATCHY HEADLINE ABOUT THE TOPIC",
+    "subtitle": "A punchy, informative subtitle.",
+    "list_header": "KEY POINTS",
+    "list_points": [
+        "First specific actionable point",
+        "Second specific actionable point",
+        "Third specific actionable point",
+        "Fourth specific actionable point"
+    ]
+}}
+Do not include any other text, markdown blocks, or quotes. Just the raw JSON.
+"""
+            response = self.client.models.generate_content(
+                model=self.model,
+                contents=prompt
+            )
+            import json
+            import re
+            json_str = response.text
+            match = re.search(r'\{.*\}', json_str, re.DOTALL)
+            if match:
+                new_topic = json.loads(match.group(0))
+                # Generate unique ID
+                new_id = max([t.get('id', 0) for t in self.topics]) + 1 if self.topics else 1
+                new_topic['id'] = new_id
+                return new_topic
+            return None
+        except Exception as e:
+            print(f"⚠️ Dynamic Topic Generation failed: {e}")
+            return None
+
     def get_next_topic(self, page_id=None):
         """Get the next topic, prioritizing breaking news if available"""
         # News Espionage: 20% chance to check for breaking news to keep it organic
@@ -182,6 +224,21 @@ REPLY ONLY WITH THIS EXACT JSON FORMAT:
             valid_matches = [i for i in best_matches if i not in recently_used[-5:]]
             if valid_matches:
                 selected_index = random.choice(valid_matches)
+            elif preferences and len(preferences) > 0:
+                # Topik sangat diinginkan tapi tidak ada yang cocok di database (best_score == 0 atau semuanya recently used)
+                # Mari kita ciptakan topik baru!
+                top_keyword = preferences[0]
+                new_topic = self._generate_dynamic_topic(top_keyword)
+                if new_topic:
+                    self.topics.append(new_topic)
+                    selected_index = len(self.topics) - 1
+                    print(f"   🌟 Successfully generated and injected new topic: {new_topic['headline']}")
+                    # Save to topics.json permanently
+                    try:
+                        with open(Path(__file__).parent / 'data' / 'topics.json', 'w', encoding='utf-8') as f:
+                            json.dump(self.topics, f, indent=4)
+                    except Exception as e:
+                        print(f"   ⚠️ Failed to save new topic to topics.json: {e}")
 
         # Get topic
         topic = self.topics[selected_index].copy()
