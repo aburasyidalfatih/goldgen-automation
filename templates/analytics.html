@@ -156,25 +156,25 @@ function renderReport(reportData) {
             card.className = 'fanpage-card';
             
             // Header
-            let html = \`
+            let html = `
                 <div class="card-header">
                     <div>
-                        <h2>\${page.page_name}</h2>
-                        <div class="last-updated">⏱️ Update: \${formatDate(page.last_updated)}</div>
+                        <h2>${page.page_name}</h2>
+                        <div class="last-updated">⏱️ Update: ${formatDate(page.last_updated)}</div>
                     </div>
                 </div>
-            \`;
+            `;
             
             // Topics
             html += '<ul class="topic-list">';
             if (page.topics && page.topics.length > 0) {
                 page.topics.forEach(topic => {
-                    html += \`
+                    html += `
                         <li class="topic-item">
-                            <span class="topic-name">\${topic.topic_keyword}</span>
-                            <span class="boost-score">\${topic.boost_score}</span>
+                            <span class="topic-name">${topic.topic_keyword}</span>
+                            <span class="boost-score">${topic.boost_score}</span>
                         </li>
-                    \`;
+                    `;
                 });
             } else {
                 html += '<li class="empty-state">Belum ada data topik yang dipelajari.</li>';
