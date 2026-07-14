@@ -334,19 +334,28 @@ REPLY ONLY WITH THIS EXACT JSON FORMAT:
         conn.commit()
         conn.close()
 
-    def apply_time_decay(self):
+    def apply_time_decay(self, page_id=None):
         """Diskon boost_score lama sebesar 10% untuk memprioritaskan tren terbaru (Time Decay)"""
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
-            # Kurangi score 10%, tapi tidak boleh kurang dari 1
-            cursor.execute('''
-                UPDATE topic_preferences 
-                SET boost_score = MAX(1, CAST(boost_score * 0.9 AS INTEGER))
-                WHERE boost_score > 1
-            ''')
+            if page_id:
+                # Hanya decay untuk page ini (JIT Mode)
+                cursor.execute('''
+                    UPDATE topic_preferences 
+                    SET boost_score = MAX(1, CAST(boost_score * 0.9 AS INTEGER))
+                    WHERE boost_score > 1 AND page_id = ?
+                ''', (page_id,))
+                print(f"   ⏳ Time Decay applied to topic_preferences for page {page_id}.")
+            else:
+                # Decay untuk semua page (Legacy mode)
+                cursor.execute('''
+                    UPDATE topic_preferences 
+                    SET boost_score = MAX(1, CAST(boost_score * 0.9 AS INTEGER))
+                    WHERE boost_score > 1
+                ''')
+                print("   ⏳ Time Decay applied to topic_preferences globally.")
             conn.commit()
-            print("   ⏳ Time Decay applied to topic_preferences (10% discount on old scores).")
         except Exception as e:
             print(f"   ❌ Failed to apply time decay: {e}")
         finally:
@@ -449,8 +458,8 @@ REPLY ONLY WITH THIS EXACT JSON FORMAT:
         self.save_insight(page_id, page_name, len(comments), analysis, weight=weight)
         print(f"   ✅ Analisis JIT berhasil disimpan (Sentimen: {analysis.get('sentiment')}) dengan Bobot: {weight}")
         
-        # Terapkan peluruhan (Time Decay) setiap kali ada analisis baru
-        self.apply_time_decay()
+        # Terapkan peluruhan (Time Decay) HANYA untuk page ini setiap kali ada analisis baru
+        self.apply_time_decay(page_id=page_id)
         
         return True
 
