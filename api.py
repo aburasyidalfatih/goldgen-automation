@@ -18,5 +18,9 @@ app.register_blueprint(bp)
 # Initialize database tables
 init_db()
 
+# Start internal job worker (APScheduler)
+from core.worker import start_worker
+start_worker()
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=18794, debug=False)
