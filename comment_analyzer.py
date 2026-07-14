@@ -385,37 +385,18 @@ REPLY ONLY WITH THIS EXACT JSON FORMAT:
         return dict(zip(cols, row))
 
     def run(self):
-        """Main: analisis komentar semua page"""
+        """Main: analisis komentar semua page (Legacy)"""
         print("=" * 60)
         print("🔍 COMMENT ANALYZER - GOLDGEN")
         print(f"⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print("=" * 60)
 
         for page in self.fanspages:
-            page_name = page['name']
-            page_id = page['page_id']
-            access_token = page['access_token']
+            self.analyze_single_page(page)
 
-            print(f"\n📘 Analyzing: {page_name}")
-            comments = self.get_recent_comments(page_id, access_token, days=3)
-            print(f"   💬 {len(comments)} comments collected")
-
-            if len(comments) < 3:
-                print("   ⚠️  Not enough comments to analyze, skipping")
-                continue
-
-            analysis = self.analyze_with_gemini(comments, page_name)
-            if not analysis:
-                print("   ❌ Analysis failed")
-                continue
-
-            self.save_insight(page_id, page_name, len(comments), analysis)
-
-            print(f"   ✅ Insight saved")
-            print(f"   📊 Sentiment: {analysis.get('sentiment')}")
-            print(f"   🔑 Top keywords: {', '.join(analysis.get('top_keywords', [])[:3])}")
-            print(f"   💡 Suggested topics: {len(analysis.get('suggested_topics', []))}")
-
+        print("\n▶ Menerapkan efek peluruhan waktu (Time Decay) pada database...")
+        self.apply_time_decay()
+        
         # Tampilkan top preferences
         prefs = self.get_top_preferences(5)
         if prefs:
@@ -425,6 +406,53 @@ REPLY ONLY WITH THIS EXACT JSON FORMAT:
 
         print("\n✅ Analysis complete!")
 
+    def analyze_single_page(self, page_config):
+        """Menganalisa satu spesifik fanspage secara Just-In-Time"""
+        page_name = page_config['name']
+        page_id = page_config['page_id']
+        access_token = page_config['access_token']
+
+        print(f"\n▶ [JIT ML RESEARCH] Menganalisa halaman: {page_name}")
+        
+        # Ambil komentar dari 3 hari terakhir
+        comments = self.get_recent_comments(page_id, access_token, days=3)
+        
+        # Ambil metrik diam (Likes & Shares)
+        silent_metrics = self.get_silent_engagement_metrics(page_id, access_token, days=3)
+        if silent_metrics:
+            print(f"   📈 Menemukan {len(silent_metrics)} postingan dengan Silent Engagement tinggi")
+
+        if len(comments) < 3 and not silent_metrics:
+            print(f"   ⚠️ Hanya {len(comments)} komentar dan tidak ada keviralan bisu, riset dilewati")
+            return False
+
+        print(f"   🤖 Menganalisa {len(comments)} komentar dan {len(silent_metrics)} metrik dengan Gemini...")
+        analysis = self.analyze_with_gemini(comments, page_name, silent_metrics=silent_metrics)
+        
+        if not analysis:
+            print(f"   ❌ Gagal menganalisa dengan Gemini")
+            return False
+
+        print(f"   👁️  Mencari postingan visual terbaik (Vision AI)...")
+        best_img = self.get_most_engaged_image(page_id, access_token)
+        if best_img:
+            vision_styles = self.analyze_vision_styles(best_img)
+            if vision_styles:
+                print(f"   ✅ Vision AI menemukan gaya visual pemenang: {vision_styles}")
+                analysis['preferred_visual_styles'] = vision_styles
+            else:
+                print(f"   ⚠️  Vision AI gagal mengekstrak gaya visual")
+
+        # Hitung Bobot Keviralan (Weighted Scoring)
+        weight = 1 + int(len(comments) * 0.1) + int(len(silent_metrics or []) * 0.5)
+        
+        self.save_insight(page_id, page_name, len(comments), analysis, weight=weight)
+        print(f"   ✅ Analisis JIT berhasil disimpan (Sentimen: {analysis.get('sentiment')}) dengan Bobot: {weight}")
+        
+        # Terapkan peluruhan (Time Decay) setiap kali ada analisis baru
+        self.apply_time_decay()
+        
+        return True
 
 if __name__ == '__main__':
     analyzer = CommentAnalyzer()

@@ -26,6 +26,7 @@ except:
 
 from core.config import BASE_DIR, DATA_DIR, LOGS_DIR, IMAGES_DIR, DB_PATH, CONFIG_PATH
 from core.database import get_db_connection
+from comment_analyzer import CommentAnalyzer
 
 # Ensure directories exist
 DATA_DIR.mkdir(exist_ok=True)
@@ -634,6 +635,13 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
 
                 # Lock this fanpage immediately to prevent race conditions with concurrent crons
                 self.update_last_post_time(fanspage['page_id'])
+
+                # [JIT ML RESEARCH] - Lakukan riset tepat sebelum merancang konten
+                try:
+                    analyzer = CommentAnalyzer()
+                    analyzer.analyze_single_page(fanspage)
+                except Exception as e:
+                    print(f"   ⚠️  JIT ML Research failed (continuing to post): {e}")
 
                 # Generate content with offset topic (different for each fanspage)
                 # Bikin caption & prompt pake GoldGen AI (sekarang sudah terisolasi per-page)
