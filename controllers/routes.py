@@ -990,6 +990,49 @@ Analisa pola konten dan berikan insight dalam format JSON berikut (HANYA output 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@bp.route('/api/analytics/jit_report')
+@require_pin
+def get_jit_report():
+    try:
+        import json
+        with open('data/config.json', 'r') as f:
+            config = json.load(f)
+        fanspages = config.get('fanspages', [])
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        report = []
+        for fp in fanspages:
+            page_id = fp['page_id']
+            # Ambil top 5 topics
+            cursor.execute('''
+                SELECT topic_keyword, boost_score, created_at 
+                FROM topic_preferences 
+                WHERE page_id = ? 
+                ORDER BY boost_score DESC 
+                LIMIT 5
+            ''', (page_id,))
+            topics = [dict(row) for row in cursor.fetchall()]
+            
+            # Cari kapan terakhir diupdate
+            last_updated = None
+            if topics:
+                # Ambil tanggal paling baru dari list topic yang didapat
+                last_updated = max(t['created_at'] for t in topics)
+                
+            report.append({
+                'page_name': fp['name'],
+                'page_id': page_id,
+                'last_updated': last_updated,
+                'topics': topics
+            })
+            
+        conn.close()
+        return jsonify({'success': True, 'report': report})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @bp.route('/analytics')
 @require_pin
 def serve_analytics():

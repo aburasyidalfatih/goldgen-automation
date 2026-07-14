@@ -3,8 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Analitik Engagement — GoldGen</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<title>Laporan JIT ML (Otak Bot) — GoldGen</title>
 <!-- Google Fonts: Outfit -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -13,9 +12,9 @@
 <script src="https://cdn.tailwindcss.com"></script>
 
 <style>
-        /* Anti-FOUC */
-        body { visibility: hidden; opacity: 0; transition: opacity 0.5s ease; }
-        body.ready { visibility: visible; opacity: 1; }
+  /* Anti-FOUC */
+  body { visibility: hidden; opacity: 0; transition: opacity 0.5s ease; }
+  body.ready { visibility: visible; opacity: 1; }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { 
@@ -27,398 +26,169 @@
       -webkit-tap-highlight-color: transparent;
   }
   .topbar { background: rgba(24, 24, 27, 0.8); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(63, 63, 70, 0.6); padding: 16px 32px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 50; }
-  .topbar h1 { font-size: 20px; font-weight: 700; background: linear-gradient(to right, #FBBF24, #B8860B); -webkit-background-clip: text; color: transparent; }
+  .topbar h1 { font-size: 20px; font-weight: 700; background: linear-gradient(to right, #FBBF24, #B8860B); -webkit-background-clip: text; color: transparent; display: flex; align-items: center; gap: 8px;}
+  .topbar h1::before { content: '🧠'; font-size: 24px; }
   .topbar nav a { color: #a1a1aa; text-decoration: none; margin-left: 20px; font-size: 15px; font-weight: 500; transition: color 0.3s; }
   .topbar nav a:hover { color: #FBBF24; }
   .container { max-width: 1200px; margin: 0 auto; padding: 32px 20px; animation: fadeInUp 0.6s ease-out forwards; }
-  .filter-bar { display: flex; gap: 12px; margin-bottom: 32px; align-items: center; flex-wrap: wrap; background: rgba(24, 24, 27, 0.4); padding: 16px; border-radius: 12px; border: 1px solid rgba(63, 63, 70, 0.4); }
-  .filter-bar label { font-size: 14px; color: #a1a1aa; font-weight: 500; }
-  .filter-bar select, .filter-bar button { background: #18181b; border: 1px solid #3f3f46; color: #e4e4e7; padding: 10px 16px; border-radius: 8px; font-size: 14px; cursor: pointer; transition: all 0.3s; outline: none; }
-  .filter-bar select:focus { border-color: #D4A523; box-shadow: 0 0 0 1px rgba(212, 165, 35, 0.3); }
-  .filter-bar button { background: linear-gradient(to right, #D4A523, #B8860B); color: #09090b; font-weight: 700; border: none; }
-  .filter-bar button:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(212, 165, 35, 0.3); }
-  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; margin-bottom: 32px; }
-  .card { background: rgba(24, 24, 27, 0.6); backdrop-filter: blur(12px); border: 1px solid rgba(63, 63, 70, 0.5); border-radius: 16px; padding: 24px; transition: transform 0.3s, border-color 0.3s; }
-  .card:hover { transform: translateY(-4px); border-color: rgba(212, 165, 35, 0.3); box-shadow: 0 10px 30px -10px rgba(212, 165, 35, 0.1); }
-  .card .label { font-size: 13px; color: #a1a1aa; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; }
-  .card .value { font-size: 36px; font-weight: 800; color: #FBBF24; line-height: 1.2; }
-  .card .sub { font-size: 13px; color: #71717a; margin-top: 6px; font-weight: 500; }
-  .section { background: rgba(24, 24, 27, 0.6); backdrop-filter: blur(12px); border: 1px solid rgba(63, 63, 70, 0.5); border-radius: 16px; padding: 24px; margin-bottom: 32px; }
-  .section h2 { font-size: 18px; font-weight: 700; margin-bottom: 20px; color: #e4e4e7; display: flex; align-items: center; gap: 8px; }
-  .section h2::before { content: ''; display: block; width: 4px; height: 18px; background: #D4A523; border-radius: 4px; }
-  .chart-wrap { position: relative; height: 300px; }
-  table { width: 100%; border-collapse: collapse; font-size: 14px; }
-  th { text-align: left; padding: 14px 16px; color: #a1a1aa; font-weight: 600; border-bottom: 1px solid rgba(63, 63, 70, 0.8); text-transform: uppercase; font-size: 12px; letter-spacing: 0.5px; }
-  td { padding: 14px 16px; border-bottom: 1px solid rgba(63, 63, 70, 0.3); color: #d4d4d8; }
-  tr:hover td { background: rgba(39, 39, 42, 0.4); }
-  .badge { display: inline-block; padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 700; }
-  .badge-likes { background: rgba(251, 191, 36, 0.1); border: 1px solid rgba(251, 191, 36, 0.2); color: #FBBF24; }
-  .badge-comments { background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.2); color: #38bdf8; }
-  .insight-box { background: rgba(24, 24, 27, 0.6); backdrop-filter: blur(12px); border: 1px solid rgba(63, 63, 70, 0.5); border-radius: 16px; padding: 28px; margin-bottom: 32px; }
-  .insight-box h2 { font-size: 20px; font-weight: 700; margin-bottom: 20px; color: #FBBF24; display: flex; align-items: center; gap: 8px; }
-  .insight-box h2::before { content: '💡'; }
-  .insight-summary { background: rgba(24, 24, 27, 0.8); border-left: 4px solid #D4A523; padding: 16px 20px; border-radius: 0 8px 8px 0; font-size: 15px; line-height: 1.6; margin-bottom: 24px; color: #e4e4e7; font-weight: 500; }
-  .insight-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
-  .insight-card { background: rgba(24, 24, 27, 0.8); border: 1px solid rgba(63, 63, 70, 0.5); border-radius: 12px; padding: 20px; transition: transform 0.3s; }
-  .insight-card:hover { transform: translateY(-3px); border-color: rgba(212, 165, 35, 0.3); }
-  .insight-card h4 { font-size: 13px; color: #a1a1aa; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; font-weight: 700; }
-  .insight-card ul { list-style: none; padding: 0; }
-  .insight-card li { font-size: 14px; color: #d4d4d8; padding: 8px 0; border-bottom: 1px solid rgba(63, 63, 70, 0.3); line-height: 1.5; display: flex; gap: 8px; }
-  .insight-card li:last-child { border-bottom: none; }
-  .insight-card li::before { content: '→'; color: #D4A523; font-weight: bold; }
-  .error { text-align: center; padding: 40px; color: #f87171; background: rgba(248, 113, 113, 0.1); border-radius: 12px; border: 1px solid rgba(248, 113, 113, 0.2); font-weight: 500; }
-  .page-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 32px; }
-  .page-card { background: rgba(24, 24, 27, 0.6); backdrop-filter: blur(12px); border: 1px solid rgba(63, 63, 70, 0.5); border-radius: 12px; padding: 18px; transition: transform 0.3s; }
-  .page-card:hover { transform: translateY(-2px); border-color: rgba(212, 165, 35, 0.3); }
-  .page-card .name { font-weight: 700; font-size: 15px; margin-bottom: 12px; color: #FBBF24; }
-  .page-card .stats { display: flex; gap: 16px; font-size: 14px; color: #a1a1aa; font-weight: 500; }
-  .page-card .stats span { display: flex; align-items: center; gap: 6px; }
+  
+  .header-desc { color: #a1a1aa; font-size: 16px; margin-bottom: 32px; line-height: 1.6; }
+  .header-desc strong { color: #FBBF24; }
+
+  .grid-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; }
+  .fanpage-card { 
+      background: rgba(24, 24, 27, 0.6); 
+      backdrop-filter: blur(12px); 
+      border: 1px solid rgba(63, 63, 70, 0.5); 
+      border-radius: 16px; 
+      padding: 24px; 
+      transition: transform 0.3s, border-color 0.3s, box-shadow 0.3s; 
+      display: flex; flex-direction: column;
+  }
+  .fanpage-card:hover { transform: translateY(-4px); border-color: rgba(212, 165, 35, 0.4); box-shadow: 0 10px 30px -10px rgba(212, 165, 35, 0.15); }
+  .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; border-bottom: 1px solid rgba(63, 63, 70, 0.5); padding-bottom: 16px; }
+  .card-header h2 { font-size: 22px; font-weight: 700; color: #FBBF24; }
+  .last-updated { font-size: 12px; color: #71717a; display: flex; align-items: center; gap: 4px; margin-top: 6px; }
+  
+  .topic-list { list-style: none; flex-grow: 1; }
+  .topic-item { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px dashed rgba(63, 63, 70, 0.3); }
+  .topic-item:last-child { border-bottom: none; }
+  .topic-name { font-size: 15px; color: #e4e4e7; font-weight: 500; display: flex; align-items: center; gap: 8px; }
+  .topic-name::before { content: '🎯'; font-size: 14px; }
+  .boost-score { background: rgba(251, 191, 36, 0.1); border: 1px solid rgba(251, 191, 36, 0.3); color: #FBBF24; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 4px;}
+  .boost-score::before { content: '🔥'; }
+  
+  .empty-state { text-align: center; padding: 30px 10px; color: #71717a; font-style: italic; font-size: 14px; }
+  .loading-state { text-align: center; padding: 60px; color: #FBBF24; font-size: 18px; font-weight: 600; animation: pulse 1.5s infinite; }
+
+  @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+  }
+  @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+  }
 </style>
 </head>
 <body class="selection:bg-amber-500/30">
 <div class="topbar">
-  <h1>📊 Analitik Engagement</h1>
+  <h1>Laporan Otak Bot (JIT ML)</h1>
   <nav>
-    <a href="/dashboard">← Dashboard</a>
+    <button onclick="loadJITReport()" style="background:transparent; border:1px solid #D4A523; color:#D4A523; padding:6px 16px; border-radius:8px; cursor:pointer; font-weight:600; transition:all 0.3s;" onmouseover="this.style.background='rgba(212,165,35,0.1)'" onmouseout="this.style.background='transparent'">🔄 Segarkan Data</button>
+    <a href="/dashboard">← Kembali ke Dashboard</a>
   </nav>
 </div>
 
 <div class="container">
-  <div class="filter-bar">
-    <label>Periode:</label>
-    <select id="days-select">
-      <option value="3">3 Hari</option>
-      <option value="7" selected>7 Hari</option>
-      <option value="14">14 Hari</option>
-      <option value="30">30 Hari</option>
-    </select>
-    <button onclick="loadAnalytics()">🔄 Refresh</button>
-    <button onclick="loadInsights()" id="insights-btn" style="background:#1e1e1e;border:1px solid #444;color:#e0e0e0">🤖 Analisa AI</button>
-    <button onclick="analyzeComments()" id="comments-btn" style="background:#1e1e1e;border:1px solid #7c6aff;color:#a89fff">💬 Analisa Komentar</button>
-    <button onclick="exportMarkdown()" id="export-md-btn" style="display:none;background:#1e1e1e;border:1px solid #10b981;color:#34d399">⬇️ Export MD</button>
-    <span id="status-text" style="font-size:13px;color:#666;margin-left:8px"></span>
-  </div>
+    <p class="header-desc">
+        Halaman ini menampilkan isi memori pembelajaran <strong>Machine Learning (JIT Research)</strong> dari masing-masing Fanspage. 
+        Bot mengumpulkan topik-topik ini secara otomatis sebelum mem-posting konten baru. Semakin tinggi <strong>Boost Score (🔥)</strong>, semakin topik tersebut disukai oleh audiens.
+    </p>
 
-  <div id="comments-insights-section"></div>
-  <div id="insights-section"></div>
-<div id="main-content"><div class="loading">⏳ Memuat data engagement dari Facebook...</div></div>
+    <div id="loading" class="loading-state">
+        Membaca memori bot... 🧠
+    </div>
+
+    <div id="report-grid" class="grid-container" style="display: none;">
+        <!-- Cards will be injected here via JS -->
+    </div>
 </div>
 
 <script>
-async function loadInsights() {
-  const days = document.getElementById('days-select').value;
-  const btn = document.getElementById('insights-btn');
-  const el = document.getElementById('insights-section');
-  btn.disabled = true;
-  btn.textContent = '⏳ Menganalisa...';
-  el.innerHTML = '<div class="insight-box"><div class="loading">🤖 Gemini sedang menganalisa pola konten...</div></div>';
+document.addEventListener("DOMContentLoaded", () => {
+    document.body.classList.add('ready');
+    loadJITReport();
+});
 
-  try {
-    const res = await fetch('/api/analytics/insights?days=' + days, { credentials: 'include' });
-    const data = await res.json();
-    if (!data.success) { el.innerHTML = `<div class="insight-box"><div class="error">❌ ${data.error}</div></div>`; return; }
-
-    const ins = data.insights;
-    el.innerHTML = `<div class="insight-box">
-      <h2>🤖 Analisa AI — Pola Konten Terbaik (${data.analyzed} postingan)</h2>
-      <div class="insight-summary">${ins.summary}</div>
-      <div class="insight-grid">
-        <div class="insight-card">
-          <h4>✅ Pola yang Berhasil</h4>
-          <ul>${ins.top_patterns.map(p => `<li>${p}</li>`).join('')}</ul>
-        </div>
-        <div class="insight-card">
-          <h4>❌ Pola yang Perlu Dihindari</h4>
-          <ul>${ins.avoid_patterns.map(p => `<li>${p}</li>`).join('')}</ul>
-        </div>
-        <div class="insight-card">
-          <h4>🏆 Topik Terpopuler</h4>
-          <ul>${ins.best_topics.map(p => `<li>${p}</li>`).join('')}</ul>
-        </div>
-        <div class="insight-card">
-          <h4>🎯 Gaya Hook & CTA</h4>
-          <ul><li>${ins.best_hook_style}</li></ul>
-          <ul style="margin-top:8px"><li>${ins.best_cta_style}</li></ul>
-        </div>
-        ${ins.preferred_visual_styles && ins.preferred_visual_styles.length ? `
-        <div class="insight-card" style="border-top:3px solid #f39c12">
-          <h4>🎨 Rekomendasi Visual/Gambar</h4>
-          <ul>${ins.preferred_visual_styles.map(p => `<li>${p}</li>`).join('')}</ul>
-        </div>` : ''}
-        ${ins.prompt_improvement_suggestions && ins.prompt_improvement_suggestions.length ? `
-        <div class="insight-card" style="border-top:3px solid #3498db">
-          <h4>🛠️ Saran Perbaikan Prompt AI</h4>
-          <ul>${ins.prompt_improvement_suggestions.map(p => `<li>${p}</li>`).join('')}</ul>
-        </div>` : ''}
-      </div>
-    </div>`;
-    document.getElementById('export-md-btn').style.display = 'inline-block';
-  } catch(e) {
-    el.innerHTML = `<div class="insight-box"><div class="error">❌ ${e.message}</div></div>`;
-  } finally {
-    btn.disabled = false;
-    btn.textContent = '🤖 Analisa AI';
-  }
+function getPin() {
+    return localStorage.getItem('goldgen_pin') || '';
 }
 
-async function analyzeComments() {
-  const btn = document.getElementById('comments-btn');
-  const el = document.getElementById('comments-insights-section');
-  btn.disabled = true;
-  btn.textContent = '⏳ Menganalisa komentar...';
-  el.innerHTML = '<div class="insight-box"><div class="loading">💬 Mengambil komentar dari Facebook dan menganalisa dengan AI...</div></div>';
-
-  try {
-    const res = await fetch('/api/analyze-comments', { method: 'POST', credentials: 'include' });
-    const data = await res.json();
-    if (!data.success) { el.innerHTML = `<div class="insight-box"><div class="error">❌ ${data.error}</div></div>`; return; }
-
-    const prefs = data.top_preferences || [];
-    let html = `<div class="insight-box">
-      <h2>💬 Analisa Komentar Audience</h2>`;
-
-    data.results.forEach(r => {
-      if (r.status === 'skipped') {
-        html += `<p style="color:#666">⚠️ ${r.page}: ${r.reason}</p>`;
-        return;
-      }
-      if (r.status === 'error') {
-        html += `<p style="color:#e74c3c">❌ ${r.page}: ${r.reason}</p>`;
-        return;
-      }
-      const sentimentColor = r.sentiment === 'positive' ? '#2ecc71' : r.sentiment === 'negative' ? '#e74c3c' : '#f39c12';
-      html += `<div style="margin-bottom:20px;padding:16px;background:#1a1a2e;border-radius:8px;border-left:3px solid ${sentimentColor}">
-        <h3 style="margin:0 0 8px">📘 ${r.page} <span style="font-size:12px;color:${sentimentColor};font-weight:normal">${r.sentiment} · ${r.total_comments} komentar</span></h3>
-        <div style="margin-bottom:8px"><strong>🔑 Keywords:</strong> ${r.top_keywords.join(', ')}</div>
-        <div><strong>💡 Topik yang disarankan:</strong>
-          <ul style="margin:6px 0 0;padding-left:20px">
-            ${r.suggested_topics.map(t => `<li><strong>${t.topic}</strong> — <span style="color:#888">${t.reason}</span></li>`).join('')}
-          </ul>
-        </div>
-        ${r.preferred_visual_styles && r.preferred_visual_styles.length ? `
-        <div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.1)">
-          <strong>🎨 Gaya Visual yang Disukai Audiens:</strong>
-          <ul style="margin:6px 0 0;padding-left:20px;color:#f39c12">
-            ${r.preferred_visual_styles.map(v => `<li>${v}</li>`).join('')}
-          </ul>
-        </div>` : ''}
-        ${r.prompt_improvement_suggestions && r.prompt_improvement_suggestions.length ? `
-        <div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.1)">
-          <strong>🛠️ Saran Perbaikan Prompt & Konten:</strong>
-          <ul style="margin:6px 0 0;padding-left:20px;color:#3498db">
-            ${r.prompt_improvement_suggestions.map(v => `<li>${v}</li>`).join('')}
-          </ul>
-        </div>` : ''}
-      </div>`;
-    });
-
-    if (prefs.length > 0) {
-      html += `<div style="margin-top:16px;padding:16px;background:#1a1a2e;border-radius:8px">
-        <h3 style="margin:0 0 12px">🎯 Akumulasi Preferensi Audience</h3>
-        <div style="display:flex;flex-wrap:wrap;gap:8px">
-          ${prefs.map(p => `<span style="background:rgba(124,106,255,0.15);border:1px solid rgba(124,106,255,0.3);padding:4px 12px;border-radius:20px;font-size:13px;color:#a89fff">${p.keyword} <strong>(${p.score}x)</strong></span>`).join('')}
-        </div>
-      </div>`;
-    }
-
-    html += `</div>`;
-    el.innerHTML = html;
-    document.getElementById('export-md-btn').style.display = 'inline-block';
-  } catch(e) {
-    el.innerHTML = `<div class="insight-box"><div class="error">❌ ${e.message}</div></div>`;
-  } finally {
-    btn.disabled = false;
-    btn.textContent = '💬 Analisa Komentar';
-  }
+function formatDate(isoString) {
+    if (!isoString) return 'Belum ada data';
+    const date = new Date(isoString + 'Z');
+    return date.toLocaleString('id-ID', { 
+        day: 'numeric', month: 'short', year: 'numeric', 
+        hour: '2-digit', minute: '2-digit' 
+    }) + ' WIB';
 }
 
-async function loadAnalytics() {
-  const days = document.getElementById('days-select').value;
-  const el = document.getElementById('main-content');
-  const st = document.getElementById('status-text');
-  el.innerHTML = '<div class="loading">⏳ Mengambil data dari Facebook API...</div>';
-  st.textContent = '';
+async function loadJITReport() {
+    const grid = document.getElementById('report-grid');
+    const loading = document.getElementById('loading');
+    
+    grid.style.display = 'none';
+    loading.style.display = 'block';
 
-  try {
-    const res = await fetch('/api/analytics?days=' + days, { credentials: 'include' });
-    const data = await res.json();
-    if (data.error) { el.innerHTML = `<div class="error">❌ ${data.error}</div>`; return; }
-
-    st.textContent = `${data.total_fetched} postingan • ${data.from_cache} dari cache`;
-    renderAnalytics(data);
-  } catch(e) {
-    el.innerHTML = `<div class="error">❌ Gagal memuat: ${e.message}</div>`;
-  }
-}
-
-function renderAnalytics(data) {
-  const { posts, summary, days } = data;
-
-  const totalLikes = posts.reduce((s, p) => s + p.likes, 0);
-  const totalComments = posts.reduce((s, p) => s + p.comments, 0);
-  const avgEng = posts.length ? ((totalLikes + totalComments) / posts.length).toFixed(1) : 0;
-  const topPost = posts.reduce((a, b) => b.total_engagement > (a?.total_engagement || 0) ? b : a, null);
-
-  // Summary cards
-  let html = `<div class="cards">
-    <div class="card"><div class="label">Total Postingan</div><div class="value">${posts.length}</div><div class="sub">dalam ${days} hari</div></div>
-    <div class="card"><div class="label">Total Likes</div><div class="value">${totalLikes.toLocaleString()}</div></div>
-    <div class="card"><div class="label">Total Komentar</div><div class="value">${totalComments.toLocaleString()}</div></div>
-    <div class="card"><div class="label">Avg Engagement/Post</div><div class="value">${avgEng}</div></div>
-  </div>`;
-
-  // Per-page summary
-  html += `<div class="page-summary">`;
-  for (const s of summary) {
-    html += `<div class="page-card">
-      <div class="name">${s.page_name}</div>
-      <div class="stats">
-        <span>📝 ${s.post_count} post</span>
-        <span>❤️ ${s.total_likes}</span>
-        <span>💬 ${s.total_comments}</span>
-        <span>⚡ avg ${s.avg_engagement}</span>
-      </div>
-    </div>`;
-  }
-  html += `</div>`;
-
-  // Layout summary (only if data exists)
-  const layoutsWithData = (data.layout_summary || []).filter(l => l.layout_name !== 'Unknown');
-  if (layoutsWithData.length > 0) {
-    html += `<div class="section"><h2>🎨 Performa per Layout</h2>
-      <table>
-        <thead><tr><th>Layout</th><th>Jumlah Post</th><th>Total Likes</th><th>Total Komentar</th><th>Avg Engagement</th></tr></thead>
-        <tbody>`;
-    for (const l of layoutsWithData) {
-      html += `<tr>
-        <td><strong>${l.layout_name}</strong></td>
-        <td>${l.post_count}</td>
-        <td><span class="badge badge-likes">❤️ ${l.total_likes}</span></td>
-        <td><span class="badge badge-comments">💬 ${l.total_comments}</span></td>
-        <td><strong>${l.avg_engagement}</strong></td>
-      </tr>`;
-    }
-    html += `</tbody></table>
-      <p style="font-size:12px;color:#555;margin-top:10px">⚠️ Data layout hanya tersedia untuk postingan setelah fitur tracking diaktifkan.</p>
-    </div>`;
-  } else {
-    html += `<div class="section"><h2>🎨 Performa per Layout</h2>
-      <p style="color:#555;font-size:13px">⏳ Data layout belum tersedia. Akan muncul setelah postingan berikutnya dibuat.</p>
-    </div>`;
-  }
-
-  // Chart section
-  html += `<div class="section"><h2>📈 Engagement per Hari</h2><div class="chart-wrap"><canvas id="chart-daily"></canvas></div></div>`;
-
-  // Per-page bar chart
-  html += `<div class="section"><h2>🏆 Perbandingan Fanspage</h2><div class="chart-wrap"><canvas id="chart-pages"></canvas></div></div>`;
-
-  // Table
-  html += `<div class="section"><h2>📋 Detail Postingan</h2>
-    <table>
-      <thead><tr><th>Waktu</th><th>Fanspage</th><th>Likes</th><th>Komentar</th><th>Total</th><th>Link</th></tr></thead>
-      <tbody>`;
-  for (const p of posts) {
-    const ts = new Date(p.timestamp).toLocaleString('id-ID', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
-    const link = `https://www.facebook.com/${p.fb_post_id}`;
-    html += `<tr>
-      <td>${ts}</td>
-      <td>${p.page_name}</td>
-      <td><span class="badge badge-likes">❤️ ${p.likes}</span></td>
-      <td><span class="badge badge-comments">💬 ${p.comments}</span></td>
-      <td><strong>${p.total_engagement}</strong></td>
-      <td><a href="${link}" target="_blank" style="color:#f5c842;font-size:12px">Lihat ↗</a></td>
-    </tr>`;
-  }
-  html += `</tbody></table></div>`;
-
-  document.getElementById('main-content').innerHTML = html;
-
-  // Build daily chart data
-  const dailyMap = {};
-  for (const p of posts) {
-    const day = p.timestamp.substring(0, 10);
-    if (!dailyMap[day]) dailyMap[day] = { likes: 0, comments: 0 };
-    dailyMap[day].likes += p.likes;
-    dailyMap[day].comments += p.comments;
-  }
-  const labels = Object.keys(dailyMap).sort();
-  const likesData = labels.map(d => dailyMap[d].likes);
-  const commentsData = labels.map(d => dailyMap[d].comments);
-
-  new Chart(document.getElementById('chart-daily'), {
-    type: 'bar',
-    data: {
-      labels,
-      datasets: [
-        { label: 'Likes', data: likesData, backgroundColor: '#f5c842cc' },
-        { label: 'Komentar', data: commentsData, backgroundColor: '#42c8f5cc' }
-      ]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { labels: { color: '#aaa' } } },
-      scales: {
-        x: { ticks: { color: '#888' }, grid: { color: '#222' } },
-        y: { ticks: { color: '#888' }, grid: { color: '#222' } }
-      }
-    }
-  });
-
-  // Per-page chart
-  new Chart(document.getElementById('chart-pages'), {
-    type: 'bar',
-    data: {
-      labels: summary.map(s => s.page_name),
-      datasets: [
-        { label: 'Total Likes', data: summary.map(s => s.total_likes), backgroundColor: '#f5c842cc' },
-        { label: 'Total Komentar', data: summary.map(s => s.total_comments), backgroundColor: '#42c8f5cc' }
-      ]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { labels: { color: '#aaa' } } },
-      scales: {
-        x: { ticks: { color: '#888' }, grid: { color: '#222' } },
-        y: { ticks: { color: '#888' }, grid: { color: '#222' } }
-      }
-    }
-  });
-}
-
-function exportMarkdown() {
-  let md = "# 📊 Analitik Engagement & AI Insights\n\n";
-  md += `Diekspor pada: ${new Date().toLocaleString()}\n\n`;
-
-  const aiSection = document.getElementById('insights-section').innerText;
-  if (aiSection) {
-    md += "## " + aiSection + "\n\n";
-  }
-
-  const commentSection = document.getElementById('comments-insights-section').innerText;
-  if (commentSection) {
-    md += "## " + commentSection + "\n\n";
-  }
-
-  const blob = new Blob([md], { type: 'text/markdown' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'goldgen_analytics_export.md';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-
-loadAnalytics();
-</script>
-
-    <script>
-        // Reveal body smoothly after Tailwind CDN generates the styles
-        window.addEventListener('load', () => {
-            setTimeout(() => { document.body.classList.add('ready'); }, 100);
+    try {
+        const response = await fetch('/api/analytics/jit_report', {
+            headers: { 'X-PIN': getPin() }
         });
-    </script>
+
+        if (response.status === 401) {
+            window.location.href = '/login';
+            return;
+        }
+
+        const data = await response.json();
+        if (!data.success) throw new Error(data.error);
+
+        renderReport(data.report);
+
+    } catch (error) {
+        console.error('Error fetching JIT report:', error);
+        loading.innerHTML = `⚠️ Gagal memuat laporan: ${error.message}`;
+    }
+}
+
+function renderReport(reportData) {
+    const grid = document.getElementById('report-grid');
+    const loading = document.getElementById('loading');
+    
+    grid.innerHTML = ''; // Clear existing
+    
+    if (reportData.length === 0) {
+        grid.innerHTML = '<div class="empty-state">Belum ada Fanspage yang dikonfigurasi.</div>';
+    } else {
+        reportData.forEach(page => {
+            const card = document.createElement('div');
+            card.className = 'fanpage-card';
+            
+            // Header
+            let html = \`
+                <div class="card-header">
+                    <div>
+                        <h2>\${page.page_name}</h2>
+                        <div class="last-updated">⏱️ Update: \${formatDate(page.last_updated)}</div>
+                    </div>
+                </div>
+            \`;
+            
+            // Topics
+            html += '<ul class="topic-list">';
+            if (page.topics && page.topics.length > 0) {
+                page.topics.forEach(topic => {
+                    html += \`
+                        <li class="topic-item">
+                            <span class="topic-name">\${topic.topic_keyword}</span>
+                            <span class="boost-score">\${topic.boost_score}</span>
+                        </li>
+                    \`;
+                });
+            } else {
+                html += '<li class="empty-state">Belum ada data topik yang dipelajari.</li>';
+            }
+            html += '</ul>';
+            
+            card.innerHTML = html;
+            grid.appendChild(card);
+        });
+    }
+
+    loading.style.display = 'none';
+    grid.style.display = 'grid';
+}
+</script>
 </body>
 </html>
