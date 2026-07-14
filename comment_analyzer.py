@@ -56,12 +56,12 @@ class CommentAnalyzer:
         conn.close()
 
     def get_recent_comments(self, page_id, access_token, days=3):
-        """Ambil semua komentar dari post 3 hari terakhir"""
+        """Ambil komentar yang dibuat dalam N hari terakhir, dari 30 postingan terakhir"""
         url = f"https://graph.facebook.com/v18.0/{page_id}/posts"
         params = {
             'access_token': access_token,
             'fields': 'id,message,created_time',
-            'limit': 20
+            'limit': 30
         }
         try:
             response = requests.get(url, params=params, timeout=30)
@@ -74,13 +74,6 @@ class CommentAnalyzer:
         all_comments = []
 
         for post in posts:
-            try:
-                post_time = datetime.strptime(post['created_time'], '%Y-%m-%dT%H:%M:%S+0000')
-                if post_time < cutoff:
-                    continue
-            except Exception:
-                pass
-
             # Get hook_type from DB
             hook_type = "Unknown"
             try:
@@ -97,13 +90,30 @@ class CommentAnalyzer:
             try:
                 r = requests.get(comments_url, params={
                     'access_token': access_token,
-                    'fields': 'id,message,from',
+                    'fields': 'id,message,from,created_time',
                     'limit': 50
                 }, timeout=30)
                 comments = r.json().get('data', [])
-                # Filter out page's own comments
-                filtered = [c for c in comments if c.get('from', {}).get('id') != page_id]
-                all_comments.extend([f"[HOOK: {hook_type}] {c['message']}" for c in filtered if c.get('message')])
+                
+                filtered = []
+                for c in comments:
+                    if c.get('from', {}).get('id') == page_id:
+                        continue
+                    if not c.get('message'):
+                        continue
+                        
+                    # Filter komentar berdasarkan tanggal pembuatannya
+                    if 'created_time' in c:
+                        try:
+                            comment_time = datetime.strptime(c['created_time'], '%Y-%m-%dT%H:%M:%S+0000')
+                            if comment_time < cutoff:
+                                continue
+                        except Exception:
+                            pass
+                            
+                    filtered.append(c)
+                    
+                all_comments.extend([f"[HOOK: {hook_type}] {c['message']}" for c in filtered])
             except Exception:
                 continue
 
@@ -115,7 +125,7 @@ class CommentAnalyzer:
         params = {
             'access_token': access_token,
             'fields': 'id,message,created_time,likes.summary(true),shares',
-            'limit': 20
+            'limit': 30
         }
         try:
             response = requests.get(url, params=params, timeout=30)
@@ -124,13 +134,14 @@ class CommentAnalyzer:
             print(f"❌ Error getting metrics: {e}")
             return []
 
-        cutoff = datetime.now() - timedelta(days=days)
+        # Perluas jangkauan keviralan bisu menjadi 14 hari ke belakang
+        silent_cutoff = datetime.now() - timedelta(days=14)
         metrics = []
 
         for post in posts:
             try:
                 post_time = datetime.strptime(post['created_time'], '%Y-%m-%dT%H:%M:%S+0000')
-                if post_time < cutoff:
+                if post_time < silent_cutoff:
                     continue
             except Exception:
                 continue
