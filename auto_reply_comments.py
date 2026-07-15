@@ -289,6 +289,17 @@ Just provide the direct reply without any quotes or explanations."""
         ''', (comment_id, post_id, user_name, comment_text, reply_text))
         conn.commit()
         conn.close()
+
+    def remove_replied_comment(self, comment_id):
+        """Remove a comment from database (e.g., if processing fails)"""
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM replied_comments WHERE comment_id = ?", (comment_id,))
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            print(f"   ❌ Failed to remove lock for comment {comment_id}: {e}")
     
     def validate_token(self, page_id, access_token):
         """Validate Facebook token before processing"""
@@ -358,8 +369,8 @@ COMMENT: "{comment_text}"
                 print("⚠️  Skipping this fanspage to save Gemini API tokens.")
                 continue
             
-            # Get recent posts (10 posts to balance coverage and speed)
-            posts = self.get_recent_posts(page_id, access_token, limit=10)
+            # Get recent posts (30 posts to cover delayed virality)
+            posts = self.get_recent_posts(page_id, access_token, limit=30)
             print(f"📊 Found {len(posts)} recent posts\n")
             
             for post in posts:
@@ -397,51 +408,56 @@ COMMENT: "{comment_text}"
                         comment_text, "[PROCESSING...]"
                     )
                     
-                    # Bouncer AI: Check for spam
-                    print(f"   🛡️ Checking for spam...")
-                    is_spam = self.check_spam(comment_text)
-                    if is_spam:
-                        print(f"   🚨 SPAM DETECTED! Hiding comment from public...")
-                        if self.hide_comment(comment_id, access_token):
-                            print(f"   ✅ Comment hidden successfully.")
-                            self.save_replied_comment(comment_id, post_id, user_name, comment_text, "[HIDDEN SPAM]")
-                        else:
-                            print(f"   ❌ Failed to hide comment.")
-                        continue
-                    
-                    # Fetch ML Insights for this page
-                    ml_insights = self.get_latest_insights(page_id)
-                    
-                    # Fetch User History
-                    user_history_data = self.get_user_history(user_name)
-                    
-                    # Generate reply
-                    reply_text = self.generate_reply(
-                        comment_text=comment_text, 
-                        post_context=post_message,
-                        user_name=user_name,
-                        user_history=user_history_data,
-                        ml_insights=ml_insights,
-                        image_b64=image_b64
-                    )
-                    print(f"   🤖 Reply: {reply_text[:50]}...")
-                    
-                    # Post reply
-                    if self.post_reply(comment_id, reply_text, access_token):
-                        print(f"   ✅ Replied successfully!")
+                    try:
+                        # Bouncer AI: Check for spam
+                        print(f"   🛡️ Checking for spam...")
+                        is_spam = self.check_spam(comment_text)
+                        if is_spam:
+                            print(f"   🚨 SPAM DETECTED! Hiding comment from public...")
+                            if self.hide_comment(comment_id, access_token):
+                                print(f"   ✅ Comment hidden successfully.")
+                                self.save_replied_comment(comment_id, post_id, user_name, comment_text, "[HIDDEN SPAM]")
+                            else:
+                                print(f"   ❌ Failed to hide comment.")
+                            continue
                         
-                        # Save actual reply to database
-                        self.save_replied_comment(
-                            comment_id, post_id, user_name, 
-                            comment_text, reply_text
+                        # Fetch ML Insights for this page
+                        ml_insights = self.get_latest_insights(page_id)
+                        
+                        # Fetch User History
+                        user_history_data = self.get_user_history(user_name)
+                        
+                        # Generate reply
+                        reply_text = self.generate_reply(
+                            comment_text=comment_text, 
+                            post_context=post_message,
+                            user_name=user_name,
+                            user_history=user_history_data,
+                            ml_insights=ml_insights,
+                            image_b64=image_b64
                         )
+                        print(f"   🤖 Reply: {reply_text[:50]}...")
                         
-                        total_replied += 1
-                        
-                        # Rate limiting
-                        time.sleep(2)
-                    else:
-                        print(f"   ❌ Failed to reply")
+                        # Post reply
+                        if self.post_reply(comment_id, reply_text, access_token):
+                            print(f"   ✅ Replied successfully!")
+                            
+                            # Save actual reply to database
+                            self.save_replied_comment(
+                                comment_id, post_id, user_name, 
+                                comment_text, reply_text
+                            )
+                            
+                            total_replied += 1
+                            
+                            # Rate limiting
+                            time.sleep(2)
+                        else:
+                            print(f"   ❌ Failed to reply. Removing lock...")
+                            self.remove_replied_comment(comment_id)
+                    except Exception as e:
+                        print(f"   ❌ Error processing reply: {e}")
+                        self.remove_replied_comment(comment_id)
                 
                 print()
         
