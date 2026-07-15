@@ -120,11 +120,11 @@ class CommentAnalyzer:
         return all_comments
 
     def get_silent_engagement_metrics(self, page_id, access_token, days=3):
-        """Ambil metrik Like dan Share dari postingan untuk mendeteksi keviralan bisu"""
+        """Ambil metrik Like, Share, dan Reactions dari postingan untuk mendeteksi emosi audiens"""
         url = f"https://graph.facebook.com/v18.0/{page_id}/posts"
         params = {
             'access_token': access_token,
-            'fields': 'id,message,created_time,likes.summary(true),shares',
+            'fields': 'id,message,created_time,likes.summary(true),shares,reactions.type(LOVE).limit(0).summary(total_count).as(love),reactions.type(HAHA).limit(0).summary(total_count).as(haha),reactions.type(WOW).limit(0).summary(total_count).as(wow)',
             'limit': 30
         }
         try:
@@ -148,9 +148,12 @@ class CommentAnalyzer:
 
             likes = post.get('likes', {}).get('summary', {}).get('total_count', 0)
             shares = post.get('shares', {}).get('count', 0)
+            love = post.get('love', {}).get('summary', {}).get('total_count', 0)
+            haha = post.get('haha', {}).get('summary', {}).get('total_count', 0)
+            wow = post.get('wow', {}).get('summary', {}).get('total_count', 0)
             
             # Hanya catat jika ada interaksi lumayan
-            if likes + shares >= 5:
+            if likes + shares + love + haha + wow >= 5:
                 # Get hook_type from DB
                 hook_type = "Unknown"
                 try:
@@ -162,7 +165,7 @@ class CommentAnalyzer:
                 except Exception:
                     pass
                 
-                metrics.append(f"[HOOK: {hook_type}] Likes: {likes}, Shares: {shares}")
+                metrics.append(f"[HOOK: {hook_type}] Likes: {likes}, Shares: {shares}, Love: {love}, Haha: {haha}, Wow: {wow}")
 
         return metrics
 
@@ -251,7 +254,7 @@ class CommentAnalyzer:
         
         metrics_text = ""
         if silent_metrics:
-            metrics_text = "SILENT ENGAGEMENT METRICS (Likes & Shares per Hook type):\n" + "\n".join([f"- {m}" for m in silent_metrics])
+            metrics_text = "SILENT ENGAGEMENT METRICS (Likes, Shares, & Reactions per Hook type):\n" + "\n".join([f"- {m}" for m in silent_metrics])
 
         prompt = f"""Analyze this Facebook engagement data from a gold prospecting page "{page_name}".
 Some data has a prefix like [HOOK: Fear] which indicates the psychological hook used in the post.
@@ -263,6 +266,11 @@ TEXT COMMENTS:
 
 Extract any preferred visual/image styles mentioned by the audience. Also suggest improvements for the AI prompt (for text or image generation) based on their complaints, questions, or engagement.
 Evaluate which HOOK generated the most engagement or best quality comments. Add the best performing hook to 'suggested_topics' as a meta-topic (e.g. "Hook: Fear").
+
+IMPORTANT INSTRUCTION FOR EMOTIONAL REACTIONS:
+- If a hook receives high 'Haha' reactions, it means the audience loves humor/memes. Suggest visual styles that are funny or absurd.
+- If a hook receives high 'Wow' reactions, they want to see rare, majestic, or shocking gold nuggets. Suggest "rare/majestic" visual styles.
+- If a hook receives high 'Love' reactions, the aesthetic is perfect. Strongly reinforce those visual styles in your suggestions.
 
 REPLY ONLY WITH THIS EXACT JSON FORMAT:
 {{
