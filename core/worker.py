@@ -69,14 +69,17 @@ def start_worker():
     """Memulai Internal Job Worker (Background Scheduler)"""
     scheduler = BackgroundScheduler(timezone=pytz.timezone('Asia/Jakarta'))
     
-    # 1. Auto Poster (Setiap 15 Menit: 0, 15, 30, 45)
-    scheduler.add_job(job_auto_poster, 'cron', minute='*/15', id='auto_poster_job')
+    # Jitter acak agar job tidak selalu berjalan tepat di menit yang sama (pola robotik mudah terdeteksi Meta).
+    # APScheduler 'jitter' menggeser waktu eksekusi ±N detik secara acak setiap run.
     
-    # 2. Auto Reply (Setiap 10 Menit: 0, 10, 20, 30, 40, 50)
-    scheduler.add_job(job_auto_replier, 'cron', minute='*/10', id='auto_reply_job')
+    # 1. Auto Poster (Setiap 15 Menit + jitter hingga ±4 menit)
+    scheduler.add_job(job_auto_poster, 'cron', minute='*/15', id='auto_poster_job', jitter=240)
+    
+    # 2. Auto Reply (Setiap 10 Menit + jitter hingga ±3 menit)
+    scheduler.add_job(job_auto_replier, 'cron', minute='*/10', id='auto_reply_job', jitter=180)
     
     scheduler.start()
-    logger.info("✅ [WORKER] Internal Job Worker (APScheduler) berhasil dinyalakan!")
+    logger.info("✅ [WORKER] Internal Job Worker (APScheduler) berhasil dinyalakan! (dengan human-like jitter)")
 
 if __name__ == '__main__':
     # Uji coba langsung dari command line (berguna untuk testing lokal)

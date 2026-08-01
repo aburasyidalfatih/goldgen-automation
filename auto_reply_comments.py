@@ -9,6 +9,7 @@ import requests
 import time
 import sqlite3
 import base64
+import random
 from datetime import datetime
 from core.database import get_db_connection
 from core.config import CONFIG_PATH
@@ -94,6 +95,35 @@ class CommentReplier:
             print(f"❌ Error getting comments: {e}")
             return []
     
+    # === Human-like behavior configuration ===
+    # Membuat pola balasan tidak robotik agar tidak terdeteksi sebagai bot oleh Meta
+    MAX_REPLIES_PER_RUN = 7       # Batas balasan per siklus (manusia tidak membalas puluhan sekaligus)
+    REPLY_DELAY_MIN = 20          # Delay minimum antar balasan (detik)
+    REPLY_DELAY_MAX = 95          # Delay maksimum antar balasan (detik)
+    REPLY_SKIP_PROBABILITY = 0.15 # 15% komentar non-pertanyaan sengaja dilewati (dibiarkan untuk siklus berikutnya)
+
+    def _should_skip_comment_naturally(self, comment_text):
+        """
+        Simulasi perilaku manusia: tidak semua komentar dibalas.
+        Pertanyaan & komentar dengan foto SELALU dibalas (engagement berkualitas).
+        Sisanya, 15% dilewati secara acak agar tidak 100% response rate yang robotik.
+        """
+        text = comment_text.lower().strip()
+        is_question = '?' in comment_text or any(
+            w in text for w in ['what', 'how', 'where', 'when', 'why', 'which', 'is it', 'is that', 'can i', 'should i']
+        )
+        if is_question:
+            return False
+        return random.random() < self.REPLY_SKIP_PROBABILITY
+
+    def _human_delay(self, first=False):
+        """Delay acak ala manusia antar balasan komentar"""
+        if first:
+            return
+        delay = random.uniform(self.REPLY_DELAY_MIN, self.REPLY_DELAY_MAX)
+        print(f"   ⏳ Human-like pause: {delay:.0f}s before next reply...")
+        time.sleep(delay)
+
     def is_already_replied(self, comment_id):
         """Check if comment already replied"""
         conn = get_db_connection()
@@ -207,7 +237,13 @@ CRITICAL INSTRUCTIONS:
 4. MONETIZATION (SILENT AFFILIATE): DO NOT push sales aggressively. BUT, if the user EXPLICITLY asks where to buy tools, equipment, pans, or metal detectors, you MUST casually recommend a high-quality brand (like Garrett or Minelab) and append this exact affiliate link placeholder: [INSERT_AFFILIATE_LINK_HERE]. Example: 'We don't sell 'em, but veterans swear by this Garrett Pan: [INSERT_AFFILIATE_LINK_HERE].'
 5. KEEP IT EXTREMELY SHORT: Facebook comments must be punchy. Your reply MUST NOT exceed 2 or 3 short sentences. Never write long paragraphs.
 6. HANDLE JOKES & EMOJIS: If the user just posts an emoji (like 🤨, 😂, 👍) or makes a joke, lean into it! Reply with a witty, playful prospector joke or banter. Don't be stiff.
-7. End with a friendly question to keep the discussion going."""
+7. VARY YOUR ENDINGS (CRITICAL): Do NOT end every reply with a question — that is a robotic pattern. Rotate naturally between these ending styles:
+   - A friendly follow-up question (only ~40% of the time)
+   - A short statement of encouragement (e.g., "Keep at it, the gold is out there.")
+   - A brief piece of hard-earned wisdom (e.g., "Black sand is your best friend out there.")
+   - A simple acknowledgment with an emoji (e.g., "That's the spirit! ⛏️")
+   - An invitation to share their own story
+   Never use the same ending style twice in a row."""
 
         if image_b64:
             prompt += "\n\nCRITICAL VISION INSTRUCTION: The user has attached a photo to their comment. Look at the photo carefully. Give expert geological insight based on what you see. If they ask if it's real gold, tell them! If it looks like Pyrite (Fool's Gold) because of sharp, cubic edges, explain it to them gently. Act like a true veteran prospector analyzing their find!"
@@ -256,11 +292,22 @@ Just provide the direct reply without any quotes or explanations."""
             return reply
         except Exception as e:
             print(f"❌ Error generating reply: {e}")
-            # Fallback reply - educational focus
+            # Fallback pool - variasi agar tidak identik jika API error berulang
+            question_fallbacks = [
+                "That's a great question! There's always more to learn when you're out digging in the dirt. Are you panning in rivers or dry washing?",
+                "Good question, friend! Every creek has its own secrets. What kind of ground are you working these days?",
+                "Now that's the right question to ask! The devil is always in the details out in the field. Where are you prospecting?"
+            ]
+            general_fallbacks = [
+                "Appreciate you dropping by! Keep your pan wet and your eyes open for that yellow metal!",
+                "Love seeing folks excited about the hunt! Tight lines and heavy pans to you. ⛏️",
+                "That's the spirit! The gold doesn't find itself — keep swinging!",
+                "Right on! Every day in the field teaches you something new."
+            ]
             if any(char in comment_text.lower() for char in ['what', 'how', 'where']):
-                return "That's a great question! There's always more to learn when you're out digging in the dirt. Are you panning in rivers or dry washing?"
+                return random.choice(question_fallbacks)
             else:
-                return "Appreciate you dropping by! Keep your pan wet and your eyes open for that yellow metal!"
+                return random.choice(general_fallbacks)
     
     def post_reply(self, comment_id, reply_text, access_token):
         """Post reply to a comment"""
@@ -353,9 +400,15 @@ COMMENT: "{comment_text}"
         print(f"⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
         
         total_replied = 0
+        # Batas acak per siklus agar tidak selalu angka bulat yang sama (lebih manusiawi)
+        max_replies_this_run = random.randint(5, self.MAX_REPLIES_PER_RUN)
+        print(f"🎯 Reply quota for this run: {max_replies_this_run}")
         
         # Process each fanspage
         for fanspage in self.fanspages:
+            if total_replied >= max_replies_this_run:
+                print(f"\n🛑 Reply quota reached ({total_replied}/{max_replies_this_run}). Remaining comments will be handled next cycle.")
+                break
             page_name = fanspage['name']
             page_id = fanspage['page_id']
             access_token = fanspage['access_token']
@@ -374,6 +427,8 @@ COMMENT: "{comment_text}"
             print(f"📊 Found {len(posts)} recent posts\n")
             
             for post in posts:
+                if total_replied >= max_replies_this_run:
+                    break
                 post_id = post['id']
                 post_message = post.get('message', '')[:100]
                 
@@ -384,6 +439,8 @@ COMMENT: "{comment_text}"
                 print(f"   💬 {len(comments)} comments (excluding page's own)")
                 
                 for comment in comments:
+                    if total_replied >= max_replies_this_run:
+                        break
                     comment_id = comment['id']
                     user_name = comment.get('from', {}).get('name', 'User')
                     comment_text = comment.get('message', '')
@@ -398,6 +455,12 @@ COMMENT: "{comment_text}"
                     
                     # Skip if already replied
                     if self.is_already_replied(comment_id):
+                        continue
+                    
+                    # Human-like skip: ~15% komentar non-pertanyaan dilewati (dicoba lagi siklus berikutnya)
+                    # Komentar dengan foto tidak pernah dilewati (UGC berharga)
+                    if image_b64 is None and self._should_skip_comment_naturally(comment_text):
+                        print(f"   ⏭️  Skipping naturally (will retry next cycle): {comment_text[:40]}...")
                         continue
                     
                     print(f"\n   👤 {user_name}: {comment_text[:50]}...")
@@ -450,8 +513,8 @@ COMMENT: "{comment_text}"
                             
                             total_replied += 1
                             
-                            # Rate limiting
-                            time.sleep(2)
+                            # Human-like randomized pause antar balasan (bukan delay tetap yang robotik)
+                            self._human_delay()
                         else:
                             print(f"   ❌ Failed to reply. Removing lock...")
                             self.remove_replied_comment(comment_id)
