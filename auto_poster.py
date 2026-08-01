@@ -639,9 +639,13 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
                 # [JIT ML RESEARCH] - Lakukan riset tepat sebelum merancang konten
                 try:
                     analyzer = CommentAnalyzer()
-                    analyzer.analyze_single_page(fanspage)
+                    jit_result = analyzer.analyze_single_page(fanspage)
+                    if jit_result:
+                        print(f"   🧠 JIT ML Research sukses untuk {fanspage['name']}")
+                    else:
+                        print(f"   ℹ️  JIT ML Research: data belum cukup untuk {fanspage['name']} (konten pakai rotasi biasa)")
                 except Exception as e:
-                    print(f"   ⚠️  JIT ML Research failed (continuing to post): {e}")
+                    print(f"   ⚠️  JIT ML Research failed for {fanspage.get('name')}: {type(e).__name__}: {e} (continuing to post)")
 
                 # Generate content with offset topic (different for each fanspage)
                 # Bikin caption & prompt pake GoldGen AI (sekarang sudah terisolasi per-page)

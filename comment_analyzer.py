@@ -120,11 +120,11 @@ class CommentAnalyzer:
         return all_comments
 
     def get_silent_engagement_metrics(self, page_id, access_token, days=3):
-        """Ambil metrik Like, Share, dan Reactions dari postingan untuk mendeteksi emosi audiens"""
+        """Ambil metrik Like, Share, dan Reactions dari postingan untuk mendeteksi emosi audiens (positif & negatif)"""
         url = f"https://graph.facebook.com/v18.0/{page_id}/posts"
         params = {
             'access_token': access_token,
-            'fields': 'id,message,created_time,likes.summary(true),shares,reactions.type(LOVE).limit(0).summary(total_count).as(love),reactions.type(HAHA).limit(0).summary(total_count).as(haha),reactions.type(WOW).limit(0).summary(total_count).as(wow)',
+            'fields': 'id,message,created_time,likes.summary(true),shares,reactions.type(LOVE).limit(0).summary(total_count).as(love),reactions.type(HAHA).limit(0).summary(total_count).as(haha),reactions.type(WOW).limit(0).summary(total_count).as(wow),reactions.type(ANGRY).limit(0).summary(total_count).as(angry),reactions.type(SAD).limit(0).summary(total_count).as(sad)',
             'limit': 30
         }
         try:
@@ -137,6 +137,7 @@ class CommentAnalyzer:
         # Perluas jangkauan keviralan bisu menjadi 14 hari ke belakang
         silent_cutoff = datetime.now() - timedelta(days=14)
         metrics = []
+        engagement_samples = []  # untuk update baseline
 
         for post in posts:
             try:
@@ -151,21 +152,68 @@ class CommentAnalyzer:
             love = post.get('love', {}).get('summary', {}).get('total_count', 0)
             haha = post.get('haha', {}).get('summary', {}).get('total_count', 0)
             wow = post.get('wow', {}).get('summary', {}).get('total_count', 0)
-            
+            angry = post.get('angry', {}).get('summary', {}).get('total_count', 0)
+            sad = post.get('sad', {}).get('summary', {}).get('total_count', 0)
+
+            total = likes + shares + love + haha + wow + angry + sad
+            engagement_samples.append(total)
+
             # Hanya catat jika ada interaksi lumayan
-            if likes + shares + love + haha + wow >= 5:
-                # Get hook_type from DB
+            if total >= 5:
+                # Get hook_type from DB, fallback ke deteksi keyword dari caption jika Unknown
                 hook_type = "Unknown"
+                message = post.get('message') or ''
                 try:
                     conn = get_db_connection()
                     db_post = conn.execute("SELECT hook_type FROM posts WHERE fb_post_id = ?", (post['id'],)).fetchone()
-                    if db_post and db_post['hook_type']:
+                    if db_post and db_post['hook_type'] and db_post['hook_type'] != 'Unknown':
                         hook_type = db_post['hook_type']
                     conn.close()
                 except Exception:
                     pass
-                
-                metrics.append(f"[HOOK: {hook_type}] Likes: {likes}, Shares: {shares}, Love: {love}, Haha: {haha}, Wow: {wow}")
+
+                # Fallback: deteksi hook dari pola caption (keyword-based heuristics)
+                if hook_type == "Unknown" and message:
+                    msg_lower = message.lower()
+                    if any(k in msg_lower for k in ['warning', 'danger', 'mistake', 'stop ', 'never ', 'avoid']):
+                        hook_type = "Fear (inferred)"
+                    elif any(k in msg_lower for k in ['secret', 'nobody talks', 'insider', "don't know", 'hidden']):
+                        hook_type = "Secret (inferred)"
+                    elif any(k in msg_lower for k in ['myth', 'wrong', 'truth', 'actually']):
+                        hook_type = "Mythbuster (inferred)"
+                    elif any(k in msg_lower for k in ['story', 'i remember', 'years ago', 'back in']):
+                        hook_type = "Story (inferred)"
+                    elif any(k in msg_lower for k in ['can you', 'quiz', 'guess', 'spot the']):
+                        hook_type = "Challenge (inferred)"
+                    elif any(k in msg_lower for k in ['did you know', 'fact', 'science', 'because']):
+                        hook_type = "Fact (inferred)"
+
+                metrics.append({
+                    'hook_type': hook_type,
+                    'likes': likes, 'shares': shares,
+                    'love': love, 'haha': haha, 'wow': wow,
+                    'angry': angry, 'sad': sad,
+                    'total': total,
+                    'message_preview': message[:120]
+                })
+
+        # Update baseline engagement untuk normalisasi (Tahap 4)
+        if engagement_samples:
+            try:
+                avg = sum(engagement_samples) / len(engagement_samples)
+                conn = get_db_connection()
+                conn.execute('''
+                    INSERT INTO engagement_baseline (page_id, avg_engagement, sample_count, last_updated)
+                    VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                    ON CONFLICT(page_id) DO UPDATE SET
+                        avg_engagement = (avg_engagement * sample_count + ? * ?) / (sample_count + ?),
+                        sample_count = sample_count + ?,
+                        last_updated = CURRENT_TIMESTAMP
+                ''', (page_id, avg, len(engagement_samples), avg, len(engagement_samples), len(engagement_samples), len(engagement_samples)))
+                conn.commit()
+                conn.close()
+            except Exception as e:
+                print(f"   ⚠️ Failed to update engagement baseline: {e}")
 
         return metrics
 
@@ -237,7 +285,7 @@ class CommentAnalyzer:
             print(f"❌ Vision AI Error: {e}")
         return []
 
-    def analyze_with_gemini(self, comments, page_name, silent_metrics=None):
+    def analyze_with_gemini(self, comments, page_name, silent_metrics=None, page_id=None):
         """Kirim komentar dan metrik ke Gemini untuk dianalisis"""
         if not comments and not silent_metrics:
             return None
@@ -254,7 +302,37 @@ class CommentAnalyzer:
         
         metrics_text = ""
         if silent_metrics:
-            metrics_text = "SILENT ENGAGEMENT METRICS (Likes, Shares, & Reactions per Hook type):\n" + "\n".join([f"- {m}" for m in silent_metrics])
+            # Ambil baseline untuk normalisasi (post di atas rata-rata = outperforming)
+            baseline = 0
+            try:
+                conn = get_db_connection()
+                row = conn.execute('SELECT avg_engagement FROM engagement_baseline WHERE page_id = ?', (page_id,)).fetchone()
+                if row:
+                    baseline = row['avg_engagement'] or 0
+                conn.close()
+            except Exception:
+                pass
+
+            lines = []
+            for m in silent_metrics:
+                if isinstance(m, dict):
+                    vs_avg = ""
+                    if baseline > 0:
+                        ratio = m['total'] / baseline
+                        vs_avg = f" ({ratio:.1f}x page average)" if ratio >= 1.2 else (f" (BELOW average: {ratio:.1f}x)" if ratio <= 0.8 else "")
+                    neg = ""
+                    if m.get('angry', 0) + m.get('sad', 0) >= 3:
+                        neg = f" ⚠️ NEGATIVE REACTIONS (Angry: {m.get('angry',0)}, Sad: {m.get('sad',0)})"
+                    lines.append(
+                        f"- [HOOK: {m['hook_type']}] Likes: {m['likes']}, Shares: {m['shares']}, "
+                        f"Love: {m['love']}, Haha: {m['haha']}, Wow: {m['wow']}{vs_avg}{neg} | Post: \"{m['message_preview']}\""
+                    )
+                else:
+                    # Backward compatibility jika masih string
+                    lines.append(f"- {m}")
+            metrics_text = (
+                f"SILENT ENGAGEMENT METRICS (page average engagement: {baseline:.0f}):\n" + "\n".join(lines)
+            )
 
         prompt = f"""Analyze this Facebook engagement data from a gold prospecting page "{page_name}".
 Some data has a prefix like [HOOK: Fear] which indicates the psychological hook used in the post.
@@ -271,6 +349,9 @@ IMPORTANT INSTRUCTION FOR EMOTIONAL REACTIONS:
 - If a hook receives high 'Haha' reactions, it means the audience loves humor/memes. Suggest visual styles that are funny or absurd.
 - If a hook receives high 'Wow' reactions, they want to see rare, majestic, or shocking gold nuggets. Suggest "rare/majestic" visual styles.
 - If a hook receives high 'Love' reactions, the aesthetic is perfect. Strongly reinforce those visual styles in your suggestions.
+- Posts marked with "⚠️ NEGATIVE REACTIONS" (Angry/Sad) are content the audience DISLIKES or finds offensive/misleading. Identify the pattern (topic, hook, or style) and add it to 'avoid_patterns' so we never repeat it.
+- Posts performing "BELOW average" should be treated as weak content — identify what made them boring and add to 'avoid_patterns'.
+- Prioritize hooks/topics from posts performing ABOVE the page average (marked with e.g. "2.5x page average") — those are the real winners for THIS audience size, not just raw big numbers.
 
 REPLY ONLY WITH THIS EXACT JSON FORMAT:
 {{
@@ -280,7 +361,7 @@ REPLY ONLY WITH THIS EXACT JSON FORMAT:
     "suggested_topics": [
         {{"topic": "Hook: Secret", "reason": "Generated high curiosity"}}
     ],
-    "avoid_patterns": ["complaints or boring things"],
+    "avoid_patterns": ["complaints, boring things, or patterns that triggered Angry/Sad reactions"],
     "preferred_visual_styles": ["realistic", "macro", "infographic"],
     "prompt_improvement_suggestions": ["use more casual tone", "explain X better"]
 }}
@@ -455,7 +536,7 @@ REPLY ONLY WITH THIS EXACT JSON FORMAT:
             return False
 
         print(f"   🤖 Menganalisa {len(comments)} komentar dan {len(silent_metrics)} metrik dengan Gemini...")
-        analysis = self.analyze_with_gemini(comments, page_name, silent_metrics=silent_metrics)
+        analysis = self.analyze_with_gemini(comments, page_name, silent_metrics=silent_metrics, page_id=page_id)
         
         if not analysis:
             print(f"   ❌ Gagal menganalisa dengan Gemini")

@@ -1007,7 +1007,7 @@ def get_jit_report():
             page_id = fp['page_id']
             # Ambil top 5 topics
             cursor.execute('''
-                SELECT topic_keyword, boost_score, created_at 
+                SELECT topic_keyword, boost_score, last_updated 
                 FROM topic_preferences 
                 WHERE page_id = ? 
                 ORDER BY boost_score DESC 
@@ -1019,7 +1019,7 @@ def get_jit_report():
             last_updated = None
             if topics:
                 # Ambil tanggal paling baru dari list topic yang didapat
-                last_updated = max(t['created_at'] for t in topics)
+                last_updated = max(t['last_updated'] for t in topics)
                 
             report.append({
                 'page_name': fp['name'],
@@ -1059,7 +1059,7 @@ def analyze_comments():
                 results.append({'page': page_name, 'status': 'skipped', 'reason': f'Insufficient data'})
                 continue
 
-            analysis = analyzer.analyze_with_gemini(comments, page_name, silent_metrics=silent_metrics)
+            analysis = analyzer.analyze_with_gemini(comments, page_name, silent_metrics=silent_metrics, page_id=page_id)
             if not analysis:
                 results.append({'page': page_name, 'status': 'error', 'reason': 'Gemini analysis failed'})
                 continue

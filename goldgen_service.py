@@ -110,6 +110,57 @@ REPLY ONLY WITH THIS EXACT JSON FORMAT:
             print(f"Editor review failed: {e}")
             return {"score": 10, "feedback": "Valid", "hook_type": "Unknown"}
 
+    def _tokenize(self, text):
+        """Tokenisasi + stemming sederhana untuk similarity matching"""
+        import re
+        # Stopwords yang tidak informatif untuk matching topik
+        stopwords = {'the', 'a', 'an', 'of', 'in', 'on', 'for', 'to', 'and', 'or', 'with', 'your', 'how', 'what', 'why', 'is', 'are', 'hook'}
+        tokens = re.findall(r'[a-z]+', text.lower())
+        result = set()
+        for t in tokens:
+            if t in stopwords or len(t) < 3:
+                continue
+            # Stemming sederhana: hapus akhiran jamak/verb umum
+            for suffix in ('ing', 'ers', 'ies', 'es', 's'):
+                if t.endswith(suffix) and len(t) - len(suffix) >= 3:
+                    t = t[:-len(suffix)]
+                    if suffix == 'ies':
+                        t += 'y'
+                    break
+            result.add(t)
+        return result
+
+    def _topic_match_score(self, preference, topic_text):
+        """
+        Hitung skor kecocokan antara keyword preferensi dan teks topik.
+        Menggunakan token overlap (Jaccard-like) + bonus substring frasa penuh.
+        Return float 0.0 - 2.0
+        """
+        pref_tokens = self._tokenize(preference)
+        if not pref_tokens:
+            return 0.0
+        topic_tokens = self._tokenize(topic_text)
+        if not topic_tokens:
+            return 0.0
+
+        overlap = pref_tokens & topic_tokens
+        if not overlap:
+            # Fallback: substring frasa penuh (untuk frasa multi-kata persis)
+            if preference.lower() in topic_text.lower():
+                return 1.0
+            return 0.0
+
+        # Jaccard-like: proporsi token preferensi yang muncul di topik
+        coverage = len(overlap) / len(pref_tokens)
+        score = coverage
+        # Bonus jika frasa lengkap juga muncul sebagai substring
+        if preference.lower() in topic_text.lower():
+            score += 0.5
+        # Hanya anggap match jika coverage bermakna (>= 40% token preferensi)
+        if coverage < 0.4:
+            return 0.0
+        return score
+
     def _get_breaking_news(self):
         """Use duckduckgo-search to find breaking news about gold prospecting in the US"""
         try:
@@ -207,13 +258,26 @@ Do not include any other text, markdown blocks, or quotes. Just the raw JSON.
         preferences = self._get_audience_preferences(page_id)
 
         selected_index = current_index
+        explore_mode = False
         if preferences:
-            # Cari topic yang paling match dengan preferences audience
+            # Exploration slot: 10% kemungkinan abaikan preferensi untuk mencegah feedback loop
+            if random.random() < 0.10:
+                explore_mode = True
+                candidates = [i for i in range(len(self.topics)) if i not in state.get('recently_used', [])[-10:]]
+                if candidates:
+                    selected_index = random.choice(candidates)
+                    print(f"   🎲 EXPLORATION MODE: mencoba topik acak di luar preferensi audience (index {selected_index})")
+                else:
+                    explore_mode = False
+
+        if preferences and not explore_mode:
+            # Cari topic yang paling match dengan preferences audience (token-based similarity)
             best_matches = []
-            best_score = 0
+            best_score = 0.0
             for i, topic in enumerate(self.topics):
-                topic_text = f"{topic['headline']} {topic['subtitle']} {' '.join(topic.get('list_points', []))}".lower()
-                score = sum(1 for pref in preferences if pref.lower() in topic_text)
+                topic_text = f"{topic['headline']} {topic['subtitle']} {' '.join(topic.get('list_points', []))}"
+                # Skor tertinggi dari semua preference untuk topik ini
+                score = max((self._topic_match_score(pref, topic_text) for pref in preferences), default=0.0)
                 if score > best_score:
                     best_score = score
                     best_matches = [i]
@@ -243,6 +307,8 @@ Do not include any other text, markdown blocks, or quotes. Just the raw JSON.
 
         # Get topic
         topic = self.topics[selected_index].copy()
+        if explore_mode:
+            topic['explore_mode'] = True
 
         # Assign layout
         layout_index = selected_index % len(self.layouts)
@@ -267,6 +333,21 @@ Do not include any other text, markdown blocks, or quotes. Just the raw JSON.
 
         return topic
     
+
+    def _enforce_hashtag_limit(self, caption, max_tags=4):
+        """Safety net: trim hashtags so the caption never exceeds max_tags"""
+        import re
+        pattern = re.compile(r'#\w+')
+        matches = list(pattern.finditer(caption))
+        if len(matches) <= max_tags:
+            return caption
+        # Remove the excess hashtags (the last ones, keeping the first max_tags)
+        for m in reversed(matches[max_tags:]):
+            caption = caption[:m.start()] + caption[m.end():]
+        # Clean up leftover double spaces / blank lines caused by removal
+        caption = re.sub(r'[ \t]{2,}', ' ', caption)
+        caption = re.sub(r'\n{3,}', '\n\n', caption)
+        return caption.strip()
 
     def generate_caption(self, topic, page_id=None):
         """Generate educational caption for gold prospecting topic"""
@@ -343,7 +424,7 @@ CONTENT STRUCTURE:
    - "What's your experience with [specific indicator] in your local area?"
    - "Have you encountered [specific sign] in the field? Tag a fellow prospector who needs to see this."
    - "That [specific rock/mineral] you almost tossed might be worth a second look."
-7. Hashtags (6-8, mix of: #GoldProspecting #[TopicSpecific] #ProspectingTips #GoldMining #Geology #FindGold)
+7. Hashtags (STRICTLY MAXIMUM 4, mix of: #GoldProspecting #[TopicSpecific] #ProspectingTips #GoldMining #Geology #FindGold). Do NOT use more than 4 hashtags total — pick only the 4 most relevant ones.
 
 === WHAT MAKES POSTS GO VIRAL (apply these) ===
 ✅ Focus on VISUAL indicators they can see with their eyes (color, texture, smell, weight)
@@ -364,6 +445,7 @@ CONTENT STRUCTURE:
 ❌ AVOID: Administrative topics (permits, regulations, selling)
 ❌ AVOID: Equipment selection guides without connecting to gold discovery
 ❌ AVOID: Markdown symbols (**, ##, etc) — plain text only
+❌ AVOID: More than 4 hashtags — STRICT LIMIT of 4 hashtags maximum
 ❌ AVOID: Metric system (meters, grams) - INSTANT REJECTION.
 
 Requirements:
@@ -405,7 +487,9 @@ Requirements:
                     time.sleep(4)
                 else:
                     raise
-                    
+
+        # Safety net: enforce max 4 hashtags before returning
+        final_caption = self._enforce_hashtag_limit(final_caption, max_tags=4)
         return final_caption
     
     def generate_image_prompt(self, topic, page_id=None):

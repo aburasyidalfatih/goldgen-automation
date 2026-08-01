@@ -42,7 +42,7 @@ def main():
             continue
 
         print(f"   🤖 Menganalisa {len(comments)} komentar dan {len(silent_metrics)} metrik dengan Gemini...")
-        analysis = analyzer.analyze_with_gemini(comments, page_name, silent_metrics=silent_metrics)
+        analysis = analyzer.analyze_with_gemini(comments, page_name, silent_metrics=silent_metrics, page_id=page_id)
         
         if not analysis:
             print(f"   ❌ Gagal menganalisa dengan Gemini")

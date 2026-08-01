@@ -41,6 +41,53 @@ def init_db():
             status TEXT DEFAULT 'pending'
         )
     ''')
+    # === Learning / ML Research tables ===
+    # Tabel insight dari analisis komentar & engagement
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS comment_insights (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            analyzed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            page_id TEXT,
+            page_name TEXT,
+            total_comments_analyzed INTEGER,
+            top_keywords TEXT,
+            requested_topics TEXT,
+            sentiment TEXT,
+            suggested_topics TEXT,
+            raw_analysis TEXT
+        )
+    ''')
+    # Preferensi topik audience (boost_score makin tinggi makin diprioritaskan)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS topic_preferences (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            page_id TEXT,
+            topic_keyword TEXT NOT NULL,
+            boost_score INTEGER DEFAULT 1,
+            source TEXT DEFAULT 'comment_analysis',
+            last_updated DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    # Tracking komentar yang sudah dibalas
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS replied_comments (
+            comment_id TEXT PRIMARY KEY,
+            post_id TEXT,
+            user_name TEXT,
+            comment_text TEXT,
+            reply_text TEXT,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    # Baseline engagement historis per page (untuk normalisasi skor)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS engagement_baseline (
+            page_id TEXT PRIMARY KEY,
+            avg_engagement REAL DEFAULT 0,
+            sample_count INTEGER DEFAULT 0,
+            last_updated DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
     conn.commit()
     conn.close()
 
