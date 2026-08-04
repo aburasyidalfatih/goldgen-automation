@@ -417,22 +417,17 @@ HOOK STYLE (MUST USE ONE):
 CONTENT STRUCTURE:
 1. HEADLINE — Bombastic, provocative, promises exclusive insider knowledge
 2. Opening hook (2 sentences) — Create urgency, highlight beginner mistake vs pro knowledge
-3. Core explanation (3-4 paragraphs) — Each paragraph explains ONE visual/physical indicator they can use IN THE FIELD TODAY. Connect mineral indicators to gold presence with clear cause-effect logic.
-4. FIELD TIP — Start with "Field Tip:" — Give ONE specific, actionable technique they can use immediately
-5. Closing — Short motivational line about ugly/broken rocks hiding the best gold
-6. CTA — Ask about their personal field experience with this specific indicator. Examples:
+3. The Cliffhanger — Tell them the exact secret or answer is hidden INSIDE the attached image/infographic (e.g. "Check out the picture below to see exactly what to look for!"). Make them intensely curious to study the picture closely.
+4. CTA — Ask about their personal field experience with this specific indicator. Examples:
    - "What's your experience with [specific indicator] in your local area?"
    - "Have you encountered [specific sign] in the field? Tag a fellow prospector who needs to see this."
-   - "That [specific rock/mineral] you almost tossed might be worth a second look."
-7. Hashtags (STRICTLY MAXIMUM 4, mix of: #GoldProspecting #[TopicSpecific] #ProspectingTips #GoldMining #Geology #FindGold). Do NOT use more than 4 hashtags total — pick only the 4 most relevant ones.
+5. Hashtags (STRICTLY MAXIMUM 4, mix of: #GoldProspecting #[TopicSpecific] #ProspectingTips #GoldMining #Geology #FindGold). Do NOT use more than 4 hashtags total — pick only the 4 most relevant ones.
 
 === WHAT MAKES POSTS GO VIRAL (apply these) ===
-✅ Focus on VISUAL indicators they can see with their eyes (color, texture, smell, weight)
+✅ Focus on building intense CURIOSITY so the reader stops scrolling and studies the attached image
 ✅ Use "Pro vs Beginner" framing — makes reader feel like they're getting insider secrets
-✅ Mention specific minerals by name (Magnetite, Garnet, Arsenopyrite, Pyrite) — builds authority
-✅ Include the PHYSICS/SCIENCE behind why it works — not just "look for X" but "X happens because Y"
-✅ Field tips must be IMMEDIATELY actionable — something they can do on their next trip
-✅ Length: 1000-1500 characters — detailed enough to feel valuable
+✅ Mention specific minerals by name (Magnetite, Garnet, Arsenopyrite) to build authority
+✅ Length: SHORT AND PUNCHY (300-600 characters) — Do NOT write a long essay. Just tease the immense value that is inside the picture!
 
 === 🇺🇸 AMERICAN AUDIENCE LOCALIZATION (MANDATORY) ===
 ✅ USE IMPERIAL UNITS ONLY: ounces (oz), inches, feet, yards, miles, Fahrenheit. NEVER use metric (grams, meters, celsius).
