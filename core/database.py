@@ -9,7 +9,7 @@ def get_db_connection():
     return conn
 
 def init_db():
-    """Initialize the database tables if they do not exist"""
+    """Initialize the database tables if they do not exist, and auto-migrate missing columns"""
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('''
@@ -22,7 +22,9 @@ def init_db():
             image_path TEXT,
             fb_post_id TEXT,
             status TEXT,
-            error_message TEXT
+            error_message TEXT,
+            layout_name TEXT,
+            hook_type TEXT
         )
     ''')
     cursor.execute('''
@@ -88,6 +90,25 @@ def init_db():
             last_updated DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+
+    # === Auto Migration: Cek & Tambahkan Kolom yang Belum Ada ===
+    migrations = [
+        ('topic_preferences', 'last_updated', 'DATETIME'),
+        ('posts', 'layout_name', 'TEXT'),
+        ('posts', 'hook_type', 'TEXT'),
+        ('engagement_baseline', 'last_updated', 'DATETIME'),
+    ]
+    for table, col, col_type in migrations:
+        try:
+            cursor.execute(f"PRAGMA table_info({table})")
+            columns = [c['name'] for c in cursor.fetchall()]
+            if col not in columns:
+                cursor.execute(f"ALTER TABLE {table} ADD COLUMN {col} {col_type}")
+                cursor.execute(f"UPDATE {table} SET {col} = CURRENT_TIMESTAMP WHERE {col} IS NULL")
+                print(f"✅ DB Auto-Migration: Added column '{col}' to table '{table}'")
+        except Exception as e:
+            print(f"⚠️ DB Migration check for {table}.{col}: {e}")
+
     conn.commit()
     conn.close()
 

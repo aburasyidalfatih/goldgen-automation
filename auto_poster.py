@@ -326,20 +326,37 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
         print(f"   ✅ Infographic generated successfully")
         return image_path
     
-    def validate_token(self, fanspage):
-        """Validate Facebook token before posting"""
-        try:
-            url = f"https://graph.facebook.com/v18.0/{fanspage['page_id']}"
-            params = {'access_token': fanspage['access_token'], 'fields': 'name'}
-            response = requests.get(url, params=params, timeout=10)
-            
-            if response.status_code == 200:
-                return True, None
-            else:
-                error = response.json().get('error', {})
-                return False, error.get('message', 'Unknown error')
-        except Exception as e:
-            return False, str(e)
+    def validate_token(self, fanspage, max_retries=3):
+        """Validate Facebook token before posting with network retry"""
+        url = f"https://graph.facebook.com/v18.0/{fanspage['page_id']}"
+        params = {'access_token': fanspage['access_token'], 'fields': 'name'}
+        
+        for attempt in range(max_retries):
+            try:
+                response = requests.get(url, params=params, timeout=15)
+                
+                if response.status_code == 200:
+                    return True, None
+                else:
+                    error = response.json().get('error', {})
+                    error_msg = error.get('message', 'Unknown error')
+                    error_code = error.get('code')
+                    
+                    # Token expired or OAuth error -> no need to retry network, notify admin
+                    if error_code in [190, 102] or 'expired' in error_msg.lower() or 'oauth' in error_msg.lower():
+                        send_notification(f"🚨 <b>Token Facebook Expired!</b>\n\n📄 Page: {fanspage.get('name')}\n⚠️ Error: {error_msg[:150]}\n👉 Harap update token di Dashboard.")
+                        return False, f"TOKEN_EXPIRED: {error_msg}"
+                    
+                    return False, error_msg
+            except (requests.exceptions.RequestException, Exception) as e:
+                if attempt < max_retries - 1:
+                    delay = 3 * (attempt + 1)
+                    print(f"   ⚠️  Network/DNS glitch validating token for {fanspage.get('name')}: {e}. Retrying in {delay}s ({attempt + 1}/{max_retries})...")
+                    time.sleep(delay)
+                else:
+                    return False, f"Network error after {max_retries} attempts: {str(e)}"
+        
+        return False, "Token validation failed: Max retries exceeded"
     
     def post_to_facebook(self, fanspage, content, image_path):
         """Post content and image to Facebook page with retry"""
