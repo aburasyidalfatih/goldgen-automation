@@ -81,21 +81,11 @@ def main():
 
 if __name__ == "__main__":
     # Locking mechanism to prevent concurrent execution
-    try:
-        import fcntl
-        lock_file = open('data/analyzer.lock', 'w')
-        try:
-            fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except IOError:
+    from core.locks import ProcessLock
+
+    with ProcessLock('analyzer') as lock:
+        if not lock.acquired:
             print("⏳ Another auto_analyzer instance is running. Exiting.")
             sys.exit(0)
-    except ImportError:
-        import msvcrt
-        lock_file = open('data/analyzer.lock', 'w')
-        try:
-            msvcrt.locking(lock_file.fileno(), msvcrt.LK_NBLCK, 1)
-        except IOError:
-            print("⏳ Another auto_analyzer instance is running. Exiting.")
-            sys.exit(0)
-            
-    main()
+
+        main()

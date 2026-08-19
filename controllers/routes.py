@@ -4,7 +4,10 @@ Web Dashboard for GoldGen Auto Poster
 Simple Flask API to serve dashboard data
 """
 
-from flask import Flask, jsonify, request, session, redirect, url_for, render_template
+from flask import (
+    Flask, jsonify, request, session, redirect, url_for,
+    render_template, send_from_directory
+)
 from flask_cors import CORS
 import sqlite3
 from pathlib import Path
@@ -99,45 +102,6 @@ def trigger_post():
     threading.Thread(target=run_poster, daemon=True).start()
     
     return jsonify({'success': True, 'message': 'Post generation started in background'})
-
-def health_check():
-    """Health check endpoint for monitoring"""
-    try:
-        conn = get_db()
-        cursor = conn.cursor()
-        
-        # Check database
-        cursor.execute("SELECT COUNT(*) as total FROM posts")
-        total_posts = cursor.fetchone()['total']
-        
-        # Check last post
-        cursor.execute("SELECT timestamp, page_name, status FROM posts ORDER BY id DESC LIMIT 1")
-        last_post = cursor.fetchone()
-        
-        # Check disk space
-        import shutil
-        total, used, free = shutil.disk_usage('/')
-        free_gb = free // (2**30)
-        
-        conn.close()
-        
-        return jsonify({
-            'status': 'healthy',
-            'timestamp': datetime.now().isoformat(),
-            'total_posts': total_posts,
-            'last_post': {
-                'timestamp': last_post['timestamp'] if last_post else None,
-                'fanspage': last_post['page_name'] if last_post else None,
-                'status': last_post['status'] if last_post else None
-            },
-            'disk_space_gb': free_gb
-        })
-    except Exception as e:
-        return jsonify({
-            'status': 'unhealthy',
-            'error': str(e),
-            'timestamp': datetime.now().isoformat()
-        }), 500
 
 @bp.route('/api/stats')
 @require_pin
@@ -390,6 +354,7 @@ def get_image(filename):
     return send_from_directory(IMAGES_DIR, filename)
 
 @bp.route('/api/config', methods=['GET'])
+@require_pin
 def get_config():
     """Get current configuration (without sensitive data)"""
     try:
@@ -462,6 +427,7 @@ def get_config():
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/api/config', methods=['POST'])
+@require_pin
 def update_config():
     """Update configuration"""
     try:
@@ -511,6 +477,7 @@ def update_config():
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/api/fanspages', methods=['POST'])
+@require_pin
 def add_fanspage():
     """Add new fanspage"""
     try:
@@ -557,6 +524,7 @@ def add_fanspage():
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/api/fanspages/<page_id>', methods=['PUT'])
+@require_pin
 def update_fanspage(page_id):
     """Update fanspage"""
     try:
@@ -597,6 +565,7 @@ def update_fanspage(page_id):
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/api/fanspages/<page_id>', methods=['DELETE'])
+@require_pin
 def delete_fanspage(page_id):
     """Delete fanspage"""
     try:
@@ -615,6 +584,7 @@ def delete_fanspage(page_id):
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/api/queue-post', methods=['POST'])
+@require_pin
 def queue_post():
     """Queue a post from web app for auto posting"""
     try:
@@ -638,29 +608,17 @@ def queue_post():
         with open(image_path, 'wb') as f:
             f.write(image_bytes)
         
-        # Queue for each page
+        # Queue for each page (skema tabel dikelola core/database.py)
         conn = get_db()
         cursor = conn.cursor()
-        
-        # Create queue table if not exists
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS post_queue (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                page_id TEXT NOT NULL,
-                caption TEXT NOT NULL,
-                image_path TEXT NOT NULL,
-                status TEXT DEFAULT 'pending',
-                created_at TEXT NOT NULL,
-                posted_at TEXT
-            )
-        ''')
-        
+
         # Add to queue
+        now_iso = datetime.now().isoformat()
         for page_id in data['page_ids']:
             cursor.execute('''
-                INSERT INTO post_queue (page_id, caption, image_path, created_at)
-                VALUES (?, ?, ?, ?)
-            ''', (page_id, data['caption'], str(image_path), datetime.now().isoformat()))
+                INSERT INTO post_queue (page_id, content, image_path, scheduled_time, created_at, status)
+                VALUES (?, ?, ?, ?, ?, 'pending')
+            ''', (page_id, data['caption'], str(image_path), now_iso, now_iso))
         
         conn.commit()
         conn.close()
@@ -675,28 +633,31 @@ def queue_post():
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/api/queue', methods=['GET'])
+@require_pin
 def get_queue():
     """Get pending posts in queue"""
     try:
         conn = get_db()
         cursor = conn.cursor()
-        
+
         cursor.execute('''
-            SELECT id, page_id, caption, image_path, status, created_at
+            SELECT id, page_id, content, image_path, status,
+                   COALESCE(created_at, scheduled_time) as created_at
             FROM post_queue
             WHERE status = 'pending'
-            ORDER BY created_at DESC
+            ORDER BY COALESCE(created_at, scheduled_time) DESC
         ''')
-        
+
         queue = []
         for row in cursor.fetchall():
+            content = row['content'] or ''
             queue.append({
-                'id': row[0],
-                'page_id': row[1],
-                'caption': row[2][:100] + '...',
-                'image_path': Path(row[3]).name,
-                'status': row[4],
-                'created_at': row[5]
+                'id': row['id'],
+                'page_id': row['page_id'],
+                'caption': content[:100] + ('...' if len(content) > 100 else ''),
+                'image_path': Path(row['image_path']).name if row['image_path'] else None,
+                'status': row['status'],
+                'created_at': row['created_at']
             })
         
         conn.close()
@@ -711,6 +672,7 @@ def health():
     return jsonify({'status': 'ok', 'timestamp': datetime.now().isoformat()})
 
 @bp.route('/api/bot-status', methods=['GET'])
+@require_pin
 def get_bot_status():
     """Get bot enabled/disabled status"""
     disabled_file = BASE_DIR / ".DISABLED"
@@ -718,6 +680,7 @@ def get_bot_status():
     return jsonify({'enabled': is_enabled})
 
 @bp.route('/api/bot-toggle', methods=['POST'])
+@require_pin
 def toggle_bot():
     """Toggle bot on/off"""
     disabled_file = BASE_DIR / ".DISABLED"
@@ -733,6 +696,7 @@ def toggle_bot():
         return jsonify({'enabled': False, 'message': 'Bot disabled'})
 
 @bp.route('/api/stats/enhanced')
+@require_pin
 def get_stats_enhanced():
     """Get enhanced statistics with today's posts"""
     try:
@@ -876,6 +840,7 @@ def get_app_info():
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/api/settings', methods=['POST'])
+@require_pin
 def update_settings():
     """Update settings (API key and image model)"""
     try:
@@ -1188,17 +1153,7 @@ def get_analytics():
 
         conn = get_db()
 
-        # Ensure cache table exists
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS engagement_cache (
-                fb_post_id TEXT PRIMARY KEY,
-                likes INTEGER DEFAULT 0,
-                comments INTEGER DEFAULT 0,
-                cached_at TEXT NOT NULL
-            )
-        """)
-        conn.commit()
-
+        # Tabel engagement_cache dibuat di core/database.init_db()
         posts = conn.execute(
             "SELECT id, fb_post_id, page_id, page_name, timestamp, layout_name FROM posts "
             "WHERE status='success' AND fb_post_id IS NOT NULL AND timestamp >= ? ORDER BY timestamp DESC",
@@ -1326,7 +1281,7 @@ def get_analytics():
 
 @bp.route('/privacy-policy')
 def privacy_policy():
-    return send_from_directory('.', 'privacy_policy.html')
+    return render_template('privacy_policy.html')
 
 
 

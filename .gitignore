@@ -39,3 +39,6 @@ Thumbs.db
 
 # Archive
 archive/
+
+# Secrets
+data/secret.key

@@ -17,15 +17,17 @@ import io
 import base64
 import time
 
-# Telegram notifier
+# Telegram notifier (opsional — no-op kalau kredensial belum dikonfigurasi)
 try:
     from telegram_notifier import send_notification
-except:
+except Exception as _e:
+    print(f"⚠️  Telegram notifier tidak tersedia: {_e}")
+
     def send_notification(msg):
-        pass
+        return False
 
 from core.config import BASE_DIR, DATA_DIR, LOGS_DIR, IMAGES_DIR, DB_PATH, CONFIG_PATH
-from core.database import get_db_connection
+from core.database import get_db_connection, init_db
 from comment_analyzer import CommentAnalyzer
 
 # Ensure directories exist
@@ -81,53 +83,8 @@ class GoldGenAutoPoster:
             raise Exception("Config file not found. Please run setup first.")
     
     def init_database(self):
-        """Initialize SQLite database for tracking posts"""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS posts (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                timestamp TEXT NOT NULL,
-                page_id TEXT NOT NULL,
-                page_name TEXT,
-                content TEXT NOT NULL,
-                image_path TEXT,
-                hook_type TEXT,
-                fb_post_id TEXT,
-                status TEXT DEFAULT 'success',
-                error_message TEXT
-            )
-        ''')
-        # Tambahkan kolom hook_type jika belum ada (untuk migrasi)
-        try:
-            cursor.execute("ALTER TABLE posts ADD COLUMN hook_type TEXT")
-        except:
-            pass
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS last_post_time (
-                page_id TEXT PRIMARY KEY,
-                last_posted TEXT NOT NULL,
-                cooldown_until TEXT
-            )
-        ''')
-        try:
-            cursor.execute("ALTER TABLE last_post_time ADD COLUMN cooldown_until TEXT")
-        except:
-            pass
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS post_queue (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                page_id TEXT NOT NULL,
-                caption TEXT,
-                image_path TEXT,
-                status TEXT DEFAULT 'pending',
-                created_at TEXT NOT NULL,
-                posted_at TEXT,
-                error_message TEXT
-            )
-        ''')
-        conn.commit()
-        conn.close()
+        """Initialize SQLite database (skema tunggal ada di core/database.py)"""
+        init_db()
     
     def setup_gemini(self):
         """Setup Gemini AI with GoldGen style"""
@@ -173,45 +130,25 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
     
     def generate_image(self, topic, fanspage_name=None, page_id=None):
         """Generate educational infographic using Gemini image model"""
+        # Prompt dibangun di luar blok retry supaya retry tidak crash karena
+        # variabel yang belum sempat terbentuk saat error terjadi di sini.
         try:
-            from google.genai import types
-
-            print(f"   Generating image with {self.image_model}...")
-
             image_prompt = self.goldgen.generate_image_prompt(topic, page_id)
-            if fanspage_name:
-                image_prompt += f"\n\nIMPORTANT INSTRUCTION: Add a subtle text watermark that says '{fanspage_name}' placed clearly in one of the corners of the image (e.g. bottom-right or bottom-left corner). Do NOT put the watermark in the center of the image."
-            client = genai.Client(api_key=self.gemini_api_key)
-
-            response = client.models.generate_content(
-                model=self.image_model,
-                contents=image_prompt,
-                config=types.GenerateContentConfig(
-                    response_modalities=['TEXT', 'IMAGE'],
-                    image_config=types.ImageConfig(
-                        aspect_ratio="9:16",
-                        image_size="2K"
-                    )
-                )
-            )
-
-            for part in response.parts:
-                if image := part.as_image():
-                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                    image_path = IMAGES_DIR / f"gold_prospecting_{timestamp}.png"
-                    image.save(str(image_path))
-                    print(f"   ✅ Image generated with {self.image_model}")
-                    return image_path
-
-            print(f"   ⚠️  No image in response, using PIL fallback...")
+        except Exception as e:
+            print(f"   ⚠️  Gagal membangun image prompt: {e}, using PIL fallback...")
             return self._generate_fallback_image(topic, fanspage_name)
 
-        except Exception as e:
-            print(f"   ⚠️  Gemini error: {e}, retrying in 30s...")
-            import time
-            time.sleep(30)
+        if fanspage_name:
+            image_prompt += f"\n\nIMPORTANT INSTRUCTION: Add a subtle text watermark that says '{fanspage_name}' placed clearly in one of the corners of the image (e.g. bottom-right or bottom-left corner). Do NOT put the watermark in the center of the image."
+
+        max_attempts = 2
+        for attempt in range(max_attempts):
             try:
                 from google.genai import types
+
+                label = f"{self.image_model}" + (" (retry)" if attempt else "")
+                print(f"   Generating image with {label}...")
+
                 client = genai.Client(api_key=self.gemini_api_key)
                 response = client.models.generate_content(
                     model=self.image_model,
@@ -224,16 +161,26 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
                         )
                     )
                 )
+
                 for part in response.parts:
                     if image := part.as_image():
                         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
                         image_path = IMAGES_DIR / f"gold_prospecting_{timestamp}.png"
                         image.save(str(image_path))
-                        print(f"   ✅ Image generated with {self.image_model} (retry)")
+                        print(f"   ✅ Image generated with {label}")
                         return image_path
-            except Exception as e2:
-                print(f"   ⚠️  Gemini retry failed: {e2}, using PIL fallback...")
-            return self._generate_fallback_image(topic, fanspage_name)
+
+                print(f"   ⚠️  No image in response, using PIL fallback...")
+                return self._generate_fallback_image(topic, fanspage_name)
+
+            except Exception as e:
+                if attempt < max_attempts - 1:
+                    print(f"   ⚠️  Gemini error: {e}, retrying in 30s...")
+                    time.sleep(30)
+                else:
+                    print(f"   ⚠️  Gemini retry failed: {e}, using PIL fallback...")
+
+        return self._generate_fallback_image(topic, fanspage_name)
     
     def _generate_fallback_image(self, topic, fanspage_name=None):
         """Generate professional infographic locally with PIL"""
@@ -473,18 +420,6 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
         now_wib = datetime.now(timezone(timedelta(hours=7)))
         conn = get_db_connection()
         cursor = conn.cursor()
-        # Add layout_name column if not exists
-        try:
-            cursor.execute("ALTER TABLE posts ADD COLUMN layout_name TEXT")
-            conn.commit()
-        except Exception:
-            pass
-        # Add hook_type column if not exists
-        try:
-            cursor.execute("ALTER TABLE posts ADD COLUMN hook_type TEXT")
-            conn.commit()
-        except Exception:
-            pass
         cursor.execute('''
             INSERT INTO posts (timestamp, page_id, page_name, content, image_path, fb_post_id, status, error_message, layout_name, hook_type)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -512,10 +447,11 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
         conn = get_db_connection()
         cursor = conn.cursor()
         # Ensure row exists first
-        cursor.execute('INSERT OR IGNORE INTO last_post_time (page_id, last_posted) VALUES (?, ?)', (page_id, now_wib.isoformat()))
+        cursor.execute('INSERT OR IGNORE INTO last_post_time (page_id, timestamp) VALUES (?, ?)', (page_id, now_wib.isoformat()))
         cursor.execute('UPDATE last_post_time SET cooldown_until = ? WHERE page_id = ?', (cooldown_until, page_id))
         conn.commit()
         conn.close()
+        print(f"   🧊 Cooldown aktif untuk page {page_id} sampai {cooldown_until}")
 
     def is_in_cooldown(self, page_id):
         """Check if a page is currently in cooldown mode"""
@@ -591,9 +527,11 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
         now_wib = datetime.now(timezone(timedelta(hours=7)))
         conn = get_db_connection()
         cursor = conn.cursor()
+        # Pakai UPSERT (bukan INSERT OR REPLACE) supaya cooldown_until tidak ikut terhapus
         cursor.execute('''
-            INSERT OR REPLACE INTO last_post_time (page_id, timestamp)
+            INSERT INTO last_post_time (page_id, timestamp)
             VALUES (?, ?)
+            ON CONFLICT(page_id) DO UPDATE SET timestamp = excluded.timestamp
         ''', (page_id, now_wib.isoformat()))
         conn.commit()
         conn.close()
@@ -788,10 +726,10 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
             
             # Get pending posts
             cursor.execute('''
-                SELECT id, page_id, content as caption, image_path
+                SELECT id, page_id, content, image_path
                 FROM post_queue
                 WHERE status = 'pending'
-                ORDER BY scheduled_time ASC
+                ORDER BY COALESCE(scheduled_time, created_at) ASC
                 LIMIT 10
             ''')
             
@@ -814,7 +752,10 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
                 
                 if not fanspage:
                     print(f"   ⚠️  Page ID {page_id} not found in config, skipping...")
-                    cursor.execute('UPDATE post_queue SET status = ? WHERE id = ?', ('error', post_id))
+                    cursor.execute(
+                        'UPDATE post_queue SET status = ?, error_message = ? WHERE id = ?',
+                        ('error', f'Page ID {page_id} tidak ada di config', post_id)
+                    )
                     continue
                 
                 if not fanspage.get('enabled', True):
@@ -832,8 +773,8 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
                         
                         # Update queue status
                         cursor.execute('''
-                            UPDATE post_queue 
-                            SET status = ?, posted_at = ?
+                            UPDATE post_queue
+                            SET status = ?, posted_at = ?, error_message = NULL
                             WHERE id = ?
                         ''', ('posted', datetime.now().isoformat(), post_id))
                         
@@ -842,12 +783,18 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
                         self.update_last_post_time(fanspage['page_id'])
                     else:
                         print(f"      ❌ Failed: {error}")
-                        cursor.execute('UPDATE post_queue SET status = ? WHERE id = ?', ('failed', post_id))
+                        cursor.execute(
+                            'UPDATE post_queue SET status = ?, error_message = ? WHERE id = ?',
+                            ('failed', str(error)[:500], post_id)
+                        )
                         self.log_post(fanspage, caption, image_path, None, 'failed', error)
-                
+
                 except Exception as e:
                     print(f"      ❌ Error: {str(e)}")
-                    cursor.execute('UPDATE post_queue SET status = ? WHERE id = ?', ('error', post_id))
+                    cursor.execute(
+                        'UPDATE post_queue SET status = ?, error_message = ? WHERE id = ?',
+                        ('error', str(e)[:500], post_id)
+                    )
             
             conn.commit()
             conn.close()
@@ -858,22 +805,12 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
 
 if __name__ == "__main__":
     import sys
-    try:
-        import fcntl
-        lock_file = open('data/poster.lock', 'w')
-        try:
-            fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except IOError:
-            print("⏳ Another auto_poster instance is running. Exiting.")
-            sys.exit(0)
-    except ImportError:
-        import msvcrt
-        lock_file = open('data/poster.lock', 'w')
-        try:
-            msvcrt.locking(lock_file.fileno(), msvcrt.LK_NBLCK, 1)
-        except IOError:
+    from core.locks import ProcessLock
+
+    with ProcessLock('poster') as lock:
+        if not lock.acquired:
             print("⏳ Another auto_poster instance is running. Exiting.")
             sys.exit(0)
 
-    poster = GoldGenAutoPoster()
-    poster.run()
+        poster = GoldGenAutoPoster()
+        poster.run()

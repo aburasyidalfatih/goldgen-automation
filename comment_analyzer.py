@@ -10,7 +10,7 @@ import sqlite3
 import requests
 from datetime import datetime, timedelta
 from pathlib import Path
-from core.database import get_db_connection
+from core.database import get_db_connection, init_db
 from core.config import CONFIG_PATH
 class CommentAnalyzer:
     def __init__(self, config_path=CONFIG_PATH):
@@ -24,36 +24,25 @@ class CommentAnalyzer:
         self._init_db()
 
     def _init_db(self):
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        # Tabel insight dari analisis komentar
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS comment_insights (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                analyzed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                page_id TEXT,
-                page_name TEXT,
-                total_comments_analyzed INTEGER,
-                top_keywords TEXT,       -- JSON array of keywords
-                requested_topics TEXT,   -- JSON array of topics audience minta
-                sentiment TEXT,          -- positive/neutral/negative
-                suggested_topics TEXT,   -- JSON array of topic suggestions for next content
-                raw_analysis TEXT        -- Full Gemini response
-            )
-        ''')
-        # Kolom di topic_preferences untuk boost topic tertentu
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS topic_preferences (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                page_id TEXT,
-                topic_keyword TEXT NOT NULL,
-                boost_score INTEGER DEFAULT 1,  -- makin tinggi makin diprioritaskan
-                source TEXT DEFAULT 'comment_analysis',
-                last_updated DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        conn.commit()
-        conn.close()
+        """Initialize database (skema tunggal ada di core/database.py)"""
+        init_db()
+
+    def _get_hook_types(self, fb_post_ids):
+        """Ambil hook_type untuk banyak post sekaligus (1 query, bukan 1 koneksi per post)"""
+        if not fb_post_ids:
+            return {}
+        try:
+            conn = get_db_connection()
+            placeholders = ','.join('?' * len(fb_post_ids))
+            rows = conn.execute(
+                f"SELECT fb_post_id, hook_type FROM posts WHERE fb_post_id IN ({placeholders})",
+                list(fb_post_ids)
+            ).fetchall()
+            conn.close()
+            return {r['fb_post_id']: r['hook_type'] for r in rows if r['hook_type']}
+        except Exception as e:
+            print(f"   ⚠️ Gagal mengambil hook_type dari DB: {e}")
+            return {}
 
     def get_recent_comments(self, page_id, access_token, days=3):
         """Ambil komentar yang dibuat dalam N hari terakhir, dari 30 postingan terakhir"""
@@ -72,18 +61,10 @@ class CommentAnalyzer:
 
         cutoff = datetime.now() - timedelta(days=days)
         all_comments = []
+        hook_types = self._get_hook_types([p['id'] for p in posts])
 
         for post in posts:
-            # Get hook_type from DB
-            hook_type = "Unknown"
-            try:
-                conn = get_db_connection()
-                db_post = conn.execute("SELECT hook_type FROM posts WHERE fb_post_id = ?", (post['id'],)).fetchone()
-                if db_post and db_post['hook_type']:
-                    hook_type = db_post['hook_type']
-                conn.close()
-            except Exception:
-                pass
+            hook_type = hook_types.get(post['id'], "Unknown")
 
             # Get comments
             comments_url = f"https://graph.facebook.com/v18.0/{post['id']}/comments"
@@ -138,6 +119,7 @@ class CommentAnalyzer:
         silent_cutoff = datetime.now() - timedelta(days=14)
         metrics = []
         engagement_samples = []  # untuk update baseline
+        hook_types = self._get_hook_types([p['id'] for p in posts])
 
         for post in posts:
             try:
@@ -161,16 +143,8 @@ class CommentAnalyzer:
             # Hanya catat jika ada interaksi lumayan
             if total >= 5:
                 # Get hook_type from DB, fallback ke deteksi keyword dari caption jika Unknown
-                hook_type = "Unknown"
                 message = post.get('message') or ''
-                try:
-                    conn = get_db_connection()
-                    db_post = conn.execute("SELECT hook_type FROM posts WHERE fb_post_id = ?", (post['id'],)).fetchone()
-                    if db_post and db_post['hook_type'] and db_post['hook_type'] != 'Unknown':
-                        hook_type = db_post['hook_type']
-                    conn.close()
-                except Exception:
-                    pass
+                hook_type = hook_types.get(post['id']) or "Unknown"
 
                 # Fallback: deteksi hook dari pola caption (keyword-based heuristics)
                 if hook_type == "Unknown" and message:
@@ -198,18 +172,30 @@ class CommentAnalyzer:
                 })
 
         # Update baseline engagement untuk normalisasi (Tahap 4)
+        #
+        # Analisis ini jalan tiap siklus posting di atas 30 post yang sebagian besar sama,
+        # jadi rata-rata kumulatif akan menghitung post yang sama ratusan kali dan membuat
+        # sample_count membengkak sampai baseline praktis membeku.
+        # Solusi: Exponential Moving Average — baseline mengikuti performa terkini,
+        # dan sample_count merekam ukuran batch terakhir (bukan akumulasi semu).
         if engagement_samples:
             try:
-                avg = sum(engagement_samples) / len(engagement_samples)
+                batch_avg = sum(engagement_samples) / len(engagement_samples)
+                alpha = 0.3  # bobot data baru
                 conn = get_db_connection()
                 conn.execute('''
                     INSERT INTO engagement_baseline (page_id, avg_engagement, sample_count, last_updated)
                     VALUES (?, ?, ?, CURRENT_TIMESTAMP)
                     ON CONFLICT(page_id) DO UPDATE SET
-                        avg_engagement = (avg_engagement * sample_count + ? * ?) / (sample_count + ?),
-                        sample_count = sample_count + ?,
+                        avg_engagement = CASE
+                            WHEN engagement_baseline.avg_engagement > 0
+                                THEN engagement_baseline.avg_engagement * (1 - ?) + ? * ?
+                            ELSE ?
+                        END,
+                        sample_count = ?,
                         last_updated = CURRENT_TIMESTAMP
-                ''', (page_id, avg, len(engagement_samples), avg, len(engagement_samples), len(engagement_samples), len(engagement_samples)))
+                ''', (page_id, batch_avg, len(engagement_samples),
+                      alpha, batch_avg, alpha, batch_avg, len(engagement_samples)))
                 conn.commit()
                 conn.close()
             except Exception as e:
@@ -489,9 +475,8 @@ REPLY ONLY WITH THIS EXACT JSON FORMAT:
         conn.close()
         if not row:
             return None
-        cols = ['id', 'analyzed_at', 'page_id', 'page_name', 'total_comments_analyzed',
-                'top_keywords', 'requested_topics', 'sentiment', 'suggested_topics', 'raw_analysis']
-        return dict(zip(cols, row))
+        # Row factory sudah sqlite3.Row, jadi dict() aman terhadap perubahan urutan kolom
+        return dict(row)
 
     def run(self):
         """Main: analisis komentar semua page (Legacy)"""

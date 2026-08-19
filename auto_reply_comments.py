@@ -11,7 +11,7 @@ import sqlite3
 import base64
 import random
 from datetime import datetime
-from core.database import get_db_connection
+from core.database import get_db_connection, init_db
 from core.config import CONFIG_PATH
 
 class CommentReplier:
@@ -34,21 +34,8 @@ class CommentReplier:
         self._init_db()
     
     def _init_db(self):
-        """Initialize database for tracking replied comments"""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS replied_comments (
-                comment_id TEXT PRIMARY KEY,
-                post_id TEXT,
-                user_name TEXT,
-                comment_text TEXT,
-                reply_text TEXT,
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        conn.commit()
-        conn.close()
+        """Initialize database (skema tunggal ada di core/database.py)"""
+        init_db()
     
     def get_recent_posts(self, page_id, access_token, limit=5):
         """Get recent posts from page"""
@@ -133,28 +120,37 @@ class CommentReplier:
         conn.close()
         return result is not None
 
-    def get_user_history(self, user_name):
-        """Fetch total interactions and the last 3 conversational interactions with this user to build social memory context"""
+    def get_user_history(self, user_name, user_id=None):
+        """Fetch total interactions and the last 3 conversational interactions with this user to build social memory context.
+
+        Identitas diambil dari Facebook user_id kalau tersedia (nama bisa kembar
+        antar orang); nama hanya dipakai sebagai fallback untuk data lama.
+        """
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
+        if user_id:
+            where, params = 'user_id = ?', (user_id,)
+        else:
+            where, params = 'user_id IS NULL AND user_name = ?', (user_name,)
+
         # Get total count
-        cursor.execute('''
-            SELECT COUNT(*) FROM replied_comments 
-            WHERE user_name = ? AND reply_text NOT IN ('[PROCESSING...]', '[HIDDEN SPAM]')
-        ''', (user_name,))
+        cursor.execute(f'''
+            SELECT COUNT(*) FROM replied_comments
+            WHERE {where} AND reply_text NOT IN ('[PROCESSING...]', '[HIDDEN SPAM]')
+        ''', params)
         total_count = cursor.fetchone()[0]
-        
+
         # Get history
-        cursor.execute('''
-            SELECT comment_text, reply_text 
-            FROM replied_comments 
-            WHERE user_name = ? AND reply_text NOT IN ('[PROCESSING...]', '[HIDDEN SPAM]')
+        cursor.execute(f'''
+            SELECT comment_text, reply_text
+            FROM replied_comments
+            WHERE {where} AND reply_text NOT IN ('[PROCESSING...]', '[HIDDEN SPAM]')
             ORDER BY timestamp DESC LIMIT 3
-        ''', (user_name,))
+        ''', params)
         history = cursor.fetchall()
         conn.close()
-        
+
         return {
             'total_count': total_count,
             'interactions': [{'comment': r[0], 'reply': r[1]} for r in history]
@@ -285,10 +281,16 @@ Just provide the direct reply without any quotes or explanations."""
             response.raise_for_status()
             data = response.json()
             reply = data['candidates'][0]['content']['parts'][0]['text'].strip()
-            
-            # Clean up reply
-            reply = reply.replace('"', '').replace("'", "").strip()
-            
+
+            # Clean up reply: buang tanda kutip pembungkus saja.
+            # Apostrof di dalam kalimat WAJIB dipertahankan — slang seperti
+            # "don't" / "ol' timer" adalah bagian dari persona yang diminta prompt.
+            reply = reply.strip()
+            for quote in ('"', '"', '"', "'"):
+                if len(reply) > 1 and reply.startswith(quote) and reply.endswith(quote):
+                    reply = reply[1:-1].strip()
+                    break
+
             return reply
         except Exception as e:
             print(f"❌ Error generating reply: {e}")
@@ -304,7 +306,7 @@ Just provide the direct reply without any quotes or explanations."""
                 "That's the spirit! The gold doesn't find itself — keep swinging!",
                 "Right on! Every day in the field teaches you something new."
             ]
-            if any(char in comment_text.lower() for char in ['what', 'how', 'where']):
+            if any(word in comment_text.lower() for word in ['what', 'how', 'where']):
                 return random.choice(question_fallbacks)
             else:
                 return random.choice(general_fallbacks)
@@ -326,14 +328,14 @@ Just provide the direct reply without any quotes or explanations."""
             print(f"❌ Error posting reply: {e}")
             return False
     
-    def save_replied_comment(self, comment_id, post_id, user_name, comment_text, reply_text):
+    def save_replied_comment(self, comment_id, post_id, user_name, comment_text, reply_text, user_id=None):
         """Save replied comment to database"""
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute('''
-            INSERT OR REPLACE INTO replied_comments (comment_id, post_id, user_name, comment_text, reply_text)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (comment_id, post_id, user_name, comment_text, reply_text))
+            INSERT OR REPLACE INTO replied_comments (comment_id, post_id, user_id, user_name, comment_text, reply_text)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (comment_id, post_id, user_id, user_name, comment_text, reply_text))
         conn.commit()
         conn.close()
 
@@ -442,7 +444,9 @@ COMMENT: "{comment_text}"
                     if total_replied >= max_replies_this_run:
                         break
                     comment_id = comment['id']
-                    user_name = comment.get('from', {}).get('name', 'User')
+                    commenter = comment.get('from', {}) or {}
+                    user_name = commenter.get('name', 'User')
+                    user_id = commenter.get('id')
                     comment_text = comment.get('message', '')
                     
                     image_b64 = None
@@ -467,8 +471,8 @@ COMMENT: "{comment_text}"
                     
                     # Pre-lock the comment to prevent concurrent overlapping crons from replying to the same comment
                     self.save_replied_comment(
-                        comment_id, post_id, user_name, 
-                        comment_text, "[PROCESSING...]"
+                        comment_id, post_id, user_name,
+                        comment_text, "[PROCESSING...]", user_id=user_id
                     )
                     
                     try:
@@ -479,7 +483,7 @@ COMMENT: "{comment_text}"
                             print(f"   🚨 SPAM DETECTED! Hiding comment from public...")
                             if self.hide_comment(comment_id, access_token):
                                 print(f"   ✅ Comment hidden successfully.")
-                                self.save_replied_comment(comment_id, post_id, user_name, comment_text, "[HIDDEN SPAM]")
+                                self.save_replied_comment(comment_id, post_id, user_name, comment_text, "[HIDDEN SPAM]", user_id=user_id)
                             else:
                                 print(f"   ❌ Failed to hide comment.")
                             continue
@@ -488,7 +492,7 @@ COMMENT: "{comment_text}"
                         ml_insights = self.get_latest_insights(page_id)
                         
                         # Fetch User History
-                        user_history_data = self.get_user_history(user_name)
+                        user_history_data = self.get_user_history(user_name, user_id=user_id)
                         
                         # Generate reply
                         reply_text = self.generate_reply(
@@ -507,8 +511,8 @@ COMMENT: "{comment_text}"
                             
                             # Save actual reply to database
                             self.save_replied_comment(
-                                comment_id, post_id, user_name, 
-                                comment_text, reply_text
+                                comment_id, post_id, user_name,
+                                comment_text, reply_text, user_id=user_id
                             )
                             
                             total_replied += 1
@@ -532,22 +536,12 @@ COMMENT: "{comment_text}"
 
 if __name__ == "__main__":
     import sys
-    try:
-        import fcntl
-        lock_file = open('data/replier.lock', 'w')
-        try:
-            fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except IOError:
-            print("⏳ Another auto_reply_comments instance is running. Exiting.")
-            sys.exit(0)
-    except ImportError:
-        import msvcrt
-        lock_file = open('data/replier.lock', 'w')
-        try:
-            msvcrt.locking(lock_file.fileno(), msvcrt.LK_NBLCK, 1)
-        except IOError:
+    from core.locks import ProcessLock
+
+    with ProcessLock('replier') as lock:
+        if not lock.acquired:
             print("⏳ Another auto_reply_comments instance is running. Exiting.")
             sys.exit(0)
 
-    replier = CommentReplier()
-    replier.process_comments()
+        replier = CommentReplier()
+        replier.process_comments()

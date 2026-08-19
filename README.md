@@ -53,12 +53,27 @@ python3 auto_poster.py
 Jika berhasil, akan muncul:
 - ✅ Successfully posted! FB Post ID: xxxxx
 
-## Cron Schedule
+## Scheduling (Internal Worker)
 
-Automasi sudah dijadwalkan untuk berjalan setiap 3 jam:
-- 00:00, 03:00, 06:00, 09:00, 12:00, 15:00, 18:00, 21:00
+Sejak migrasi ke Dokploy, penjadwalan **tidak lagi memakai cron**. Scheduler
+berjalan di dalam proses aplikasi (APScheduler, lihat `core/worker.py`):
 
-Cron job: `0 */3 * * * /home/ubuntu/goldgen-automation/run.sh`
+| Job | Interval | Jitter | Anti-tumpuk |
+|-----|----------|--------|-------------|
+| Auto Poster | tiap 15 menit | ±4 menit | file lock + `max_instances=1` |
+| Auto Reply | tiap 10 menit | ±3 menit | file lock + `max_instances=1` |
+
+Jadwal jam posting per fanpage tetap diatur lewat `schedule_hours` di
+`data/config.json` (atau lewat dashboard) — worker hanya menentukan seberapa
+sering bot mengecek apakah sudah waktunya posting.
+
+## Environment Variables
+
+Lihat `.env.example`. Yang penting untuk produksi:
+
+- `DASHBOARD_PIN` — PIN login dashboard (default `888888`, **wajib diganti**)
+- `SECRET_KEY` — kunci session; kalau kosong akan dibuat otomatis di `data/secret.key`
+- `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` — notifikasi (opsional)
 
 ## Management Commands
 
@@ -79,40 +94,39 @@ source venv/bin/activate
 python3 auto_poster.py
 ```
 
-### Stop Automation
+### Stop / Start Automation
+Pakai tombol toggle di dashboard, atau file penanda:
 ```bash
-crontab -e
-# Comment out the goldgen line with #
-```
-
-### Start Automation
-```bash
-crontab -e
-# Uncomment the goldgen line
+touch .DISABLED   # bot berhenti posting (worker tetap hidup)
+rm .DISABLED      # bot aktif lagi
 ```
 
 ## File Structure
 
 ```
 goldgen-automation/
-├── api.py                      # Web API server (port 18794)
-├── auto_poster.py             # Main automation script
-├── goldgen_service.py         # Core service logic
-├── dashboard_schedule.html    # Web dashboard UI
-├── run.sh                     # Cron wrapper script
-├── requirements.txt           # Python dependencies
-├── README.md                  # This file
+├── api.py                     # Entrypoint: Flask + internal worker (port 18794)
+├── auto_poster.py             # Siklus posting utama
+├── auto_reply_comments.py     # Auto-reply komentar (Gemini + Vision)
+├── comment_analyzer.py        # JIT ML research dari komentar & reaksi
+├── auto_analyzer.py           # Analisis batch semua page (manual/CLI)
+├── goldgen_service.py         # Pemilihan topik, caption, prompt gambar
+├── telegram_notifier.py       # Notifikasi Telegram (opsional)
+├── core/
+│   ├── config.py             # Path, PIN, secret key
+│   ├── database.py           # Skema DB tunggal + auto-migration
+│   ├── locks.py              # File lock anti proses dobel
+│   └── worker.py             # APScheduler internal
+├── controllers/routes.py      # Semua endpoint HTTP
+├── templates/                 # Dashboard, analytics, login, detail
 ├── data/
-│   ├── config.json           # Configuration (API keys, tokens)
-│   ├── posts.db              # SQLite database
-│   └── topic_state.json      # Topic rotation state
-├── generated_images/          # Generated poster images
-├── logs/                      # Execution logs
-├── venv/                      # Virtual environment
-└── archive/                   # Archived old files
-    ├── old_scripts/          # Old/unused scripts
-    ├── old_docs/             # Old documentation
-    └── old_logs/             # Old log files
+│   ├── config.json           # Konfigurasi (API key, token FB)
+│   ├── posts.db              # Database SQLite
+│   ├── topics.json           # Basis pengetahuan topik
+│   ├── layouts.json          # Gaya visual poster
+│   └── secret.key            # Kunci session (auto-generate, jangan di-commit)
+├── generated_images/          # Poster hasil generate
+└── logs/                      # Log eksekusi
 ```
 
 ## Troubleshooting
@@ -126,29 +140,24 @@ goldgen-automation/
 - Verify quota di Google AI Studio
 
 ### Posts Not Appearing
-- Check logs: `tail -f logs/auto_poster.log`
-- Verify cron is running: `crontab -l`
-- Check Facebook Page permissions
+- Cek log worker di output container (job `auto_poster_job` / `auto_reply_job`)
+- Pastikan file `.DISABLED` tidak ada
+- Cek apakah page sedang cooldown: `sqlite3 data/posts.db "SELECT * FROM last_post_time;"`
+- Cek permission Facebook Page & masa berlaku token
 
 ## Customization
 
 ### Change Posting Interval
-Edit crontab:
-```bash
-crontab -e
-
-# Every 3 hours (default)
-0 */3 * * * /home/ubuntu/goldgen-automation/run.sh
-
-# Every 2 hours
-0 */2 * * * /home/ubuntu/goldgen-automation/run.sh
-
-# Every 6 hours
-0 */6 * * * /home/ubuntu/goldgen-automation/run.sh
+Atur per fanpage lewat dashboard, atau langsung di `data/config.json`:
+```json
+"schedule_hours": [7, 12, 17, 21]   // jam posting (WIB)
+"interval_hours": 6                 // alternatif: jarak antar posting
 ```
+Frekuensi pengecekan worker diatur di `core/worker.py`.
 
 ### Customize Poster Design
-Edit `auto_poster.py` → `generate_poster_image()` method
+Edit `goldgen_service.py` → `generate_image_prompt()` (prompt AI) atau
+`auto_poster.py` → `_generate_fallback_image()` (poster PIL saat AI gagal)
 
 ### Add Custom Topics
 Edit `data/topics.json` untuk menambahkan materi edukasi baru. Bot akan memilih topik ini secara acak (atau berdasarkan sentimen komentar) dan membuat gambar instruksional yang menarik.
