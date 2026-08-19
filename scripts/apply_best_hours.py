@@ -53,29 +53,32 @@ def main():
             print(f"   data belum cukup (butuh >= {MIN_SAMPLES} post per jam)")
             continue
 
-        scheduled_with_data = [h for h in schedule if h in stats]
-        if not scheduled_with_data:
-            print("   belum ada data untuk jam yang dijadwalkan")
-            continue
-
-        worst = min(scheduled_with_data, key=lambda h: stats[h]['confident_score'])
         candidates = [h for h in stats if h not in schedule]
         if not candidates:
             print("   tidak ada jam alternatif yang punya data — jadwal dipertahankan")
             continue
 
         best = max(candidates, key=lambda h: stats[h]['confident_score'])
+        scheduled_with_data = [h for h in schedule if h in stats]
 
-        if stats[best]['confident_score'] <= stats[worst]['confident_score']:
-            print(f"   jadwal sudah optimal menurut data "
-                  f"(terburuk {worst:02d}:00 = {stats[worst]['confident_score']:.0f} "
-                  f"masih >= kandidat terbaik {best:02d}:00 = {stats[best]['confident_score']:.0f})")
-            continue
+        if scheduled_with_data:
+            worst = min(scheduled_with_data, key=lambda h: stats[h]['confident_score'])
+            if stats[best]['confident_score'] <= stats[worst]['confident_score']:
+                print(f"   jadwal sudah optimal menurut data "
+                      f"(terburuk {worst:02d}:00 = {stats[worst]['confident_score']:.0f} "
+                      f"masih >= kandidat terbaik {best:02d}:00 = {stats[best]['confident_score']:.0f})")
+                continue
+            alasan_buang = f"skor {stats[worst]['confident_score']:.0f}, {stats[worst]['n']} post"
+        else:
+            # Kasus paling sering & paling berharga: jam yang dijadwalkan sekarang
+            # belum punya bukti sama sekali (mis. jadwal baru diubah), sementara
+            # ada jam lain yang sudah terbukti bagus dari riwayat.
+            worst = schedule[0]
+            alasan_buang = "belum ada bukti untuk jam ini"
 
-        print(f"   USULAN: buang {worst:02d}:00 (skor {stats[worst]['confident_score']:.0f}, "
-              f"{stats[worst]['n']} post)")
+        print(f"   USULAN: buang {worst:02d}:00 ({alasan_buang})")
         print(f"           pakai {best:02d}:00 (skor {stats[best]['confident_score']:.0f}, "
-              f"{stats[best]['n']} post)")
+              f"{stats[best]['n']} post, rata-rata {stats[best]['avg']:.0f})")
 
         if apply_changes:
             new_schedule = sorted([h for h in schedule if h != worst] + [best])
