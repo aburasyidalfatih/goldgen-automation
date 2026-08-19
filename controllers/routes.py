@@ -125,7 +125,9 @@ def get_stats():
         success = cursor.fetchone()['success']
         
         # Failed count
-        cursor.execute("SELECT COUNT(*) as failed FROM posts WHERE status='failed'")
+        # Hitung semua yang bukan sukses sebagai gagal — termasuk baris lama
+        # yang tersimpan dengan status 'error'
+        cursor.execute("SELECT COUNT(*) as failed FROM posts WHERE status != 'success'")
         failed = cursor.fetchone()['failed']
         
         # Last 24 hours
@@ -168,15 +170,20 @@ def get_posts():
         
         posts = []
         for row in cursor.fetchall():
+            content = row['content'] or ''
             posts.append({
                 'id': row['id'],
                 'timestamp': row['timestamp'],
                 'page_name': row['page_name'] if 'page_name' in row.keys() else None,
-                'content': row['content'][:200] + '...' if len(row['content']) > 200 else row['content'],
+                'content': content[:200] + '...' if len(content) > 200 else content,
                 'image_path': Path(row['image_path']).name if row['image_path'] else None,
                 'fb_post_id': row['fb_post_id'],
                 'status': row['status'],
-                'error_message': row['error_message']
+                # Kalau gagal, alasan wajib ada — jangan biarkan kosong di UI
+                'error_message': row['error_message'] or (
+                    'Gagal tanpa keterangan (postingan lama sebelum pencatatan alasan diperbaiki)'
+                    if row['status'] != 'success' else None
+                )
             })
         
         conn.close()
@@ -717,7 +724,9 @@ def get_stats_enhanced():
         success = cursor.fetchone()['success']
         
         # Failed count
-        cursor.execute("SELECT COUNT(*) as failed FROM posts WHERE status='failed'")
+        # Hitung semua yang bukan sukses sebagai gagal — termasuk baris lama
+        # yang tersimpan dengan status 'error'
+        cursor.execute("SELECT COUNT(*) as failed FROM posts WHERE status != 'success'")
         failed = cursor.fetchone()['failed']
         
         # Last 24 hours
@@ -757,7 +766,7 @@ def get_app_info():
         success_posts = cursor.fetchone()['total']
         
         # Get failed posts
-        cursor.execute("SELECT COUNT(*) as total FROM posts WHERE status='failed'")
+        cursor.execute("SELECT COUNT(*) as total FROM posts WHERE status != 'success'")
         failed_posts = cursor.fetchone()['total']
         
         # Get first post date

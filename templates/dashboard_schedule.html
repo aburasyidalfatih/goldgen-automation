@@ -640,11 +640,26 @@
                             `;
                         }
                         
+                        // Kalau gagal, tampilkan alasannya — bukan cuma label "failed"
+                        let failureReason = '';
+                        if (post.status !== 'success' && post.error_message) {
+                            const reason = String(post.error_message)
+                                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                            failureReason = `
+                                <div class="mt-1 text-xs text-red-300 bg-red-900 bg-opacity-30 border-l-2 border-red-500 px-2 py-1 rounded break-words">
+                                    ⚠️ ${reason}
+                                </div>
+                            `;
+                        }
+
+                        const preview = (post.content || '').substring(0, 50);
+
                         return `
                             <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 rounded bg-gray-800 bg-opacity-30 hover:bg-opacity-50 transition-all gap-2">
                                 <div class="flex-1 min-w-0 w-full sm:w-auto">
                                     <div class="font-semibold text-sm sm:text-base">${post.page_name}</div>
-                                    <div class="text-xs sm:text-sm text-gray-400 truncate">${post.content.substring(0, 50)}...</div>
+                                    <div class="text-xs sm:text-sm text-gray-400 truncate">${preview}${preview.length >= 50 ? '...' : ''}</div>
+                                    ${failureReason}
                                 </div>
                                 <div class="flex items-center gap-2 sm:flex-col sm:items-end sm:text-right w-full sm:w-auto">
                                     <div class="${statusColor} text-xs sm:text-sm font-semibold">${post.status}</div>

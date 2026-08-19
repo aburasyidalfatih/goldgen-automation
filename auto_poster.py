@@ -273,6 +273,57 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
         print(f"   ✅ Infographic generated successfully")
         return image_path
     
+    def _describe_fb_error(self, response=None, raw_text=None):
+        """Terjemahkan error Facebook jadi alasan yang bisa dibaca manusia.
+
+        Selalu mengembalikan string non-kosong, supaya kolom error_message di DB
+        tidak pernah kosong saat sebuah postingan gagal.
+        """
+        error = {}
+        text = raw_text or ''
+
+        if response is not None:
+            text = text or (response.text or '')
+            try:
+                error = response.json().get('error', {}) or {}
+            except Exception:
+                pass
+
+        code = error.get('code')
+        subcode = error.get('error_subcode')
+        message = error.get('message') or ''
+        user_msg = error.get('error_user_msg') or ''
+        haystack = f"{message} {user_msg} {text}".lower()
+
+        # Token tidak aktif lagi — penyebab paling sering & paling penting dikenali
+        if code in (190, 102) or 'expired' in haystack or 'oauth' in haystack or 'session has been invalidated' in haystack:
+            reason = "TOKEN TIDAK AKTIF: token Facebook sudah kedaluwarsa/dicabut. Update token di Dashboard."
+        elif code in (200, 10, 3) or 'permission' in haystack:
+            reason = "IZIN KURANG: token tidak punya permission yang dibutuhkan (pages_manage_posts)."
+        elif code in (368, 17, 4, 613) or 'limit' in haystack or 'spam' in haystack or 'blocked' in haystack:
+            reason = "DIBATASI FACEBOOK: kena rate limit / dianggap spam. Bot masuk cooldown."
+        elif code == 100:
+            reason = "PARAMETER DITOLAK: request tidak diterima Facebook (mis. place/feeling tidak valid)."
+        elif code == 1 or code == 2 or 'temporarily' in haystack:
+            reason = "FACEBOOK BERMASALAH: error sementara di sisi Facebook, akan dicoba lagi."
+        elif message:
+            reason = f"ERROR FACEBOOK: {message}"
+        else:
+            reason = f"ERROR FACEBOOK: {(text or 'tidak ada detail dari Facebook')[:200]}"
+
+        # Sertakan kode teknis supaya tetap bisa ditelusuri
+        detail = []
+        if code is not None:
+            detail.append(f"code={code}")
+        if subcode is not None:
+            detail.append(f"subcode={subcode}")
+        if message and message not in reason:
+            detail.append(message[:150])
+        if detail:
+            reason = f"{reason} [{' | '.join(detail)}]"
+
+        return reason[:500]
+
     def validate_token(self, fanspage, max_retries=3):
         """Validate Facebook token before posting with network retry"""
         url = f"https://graph.facebook.com/v18.0/{fanspage['page_id']}"
@@ -285,16 +336,18 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
                 if response.status_code == 200:
                     return True, None
                 else:
-                    error = response.json().get('error', {})
-                    error_msg = error.get('message', 'Unknown error')
-                    error_code = error.get('code')
-                    
+                    reason = self._describe_fb_error(response)
+
                     # Token expired or OAuth error -> no need to retry network, notify admin
-                    if error_code in [190, 102] or 'expired' in error_msg.lower() or 'oauth' in error_msg.lower():
-                        send_notification(f"🚨 <b>Token Facebook Expired!</b>\n\n📄 Page: {fanspage.get('name')}\n⚠️ Error: {error_msg[:150]}\n👉 Harap update token di Dashboard.")
-                        return False, f"TOKEN_EXPIRED: {error_msg}"
-                    
-                    return False, error_msg
+                    if reason.startswith("TOKEN TIDAK AKTIF"):
+                        send_notification(
+                            f"🚨 <b>Token Facebook Tidak Aktif!</b>\n\n"
+                            f"📄 Page: {fanspage.get('name')}\n"
+                            f"⚠️ {reason}\n"
+                            f"👉 Harap update token di Dashboard."
+                        )
+
+                    return False, reason
             except (requests.exceptions.RequestException, Exception) as e:
                 if attempt < max_retries - 1:
                     delay = 3 * (attempt + 1)
@@ -310,8 +363,8 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
         # Validate token first
         valid, error = self.validate_token(fanspage)
         if not valid:
-            print(f"   ❌ Token validation failed: {error}")
-            return None, f"Invalid token: {error}"
+            print(f"   ❌ {error}")
+            return None, error
         
         # Facebook Feeling/Activity IDs (official)
         feelings = {
@@ -380,9 +433,10 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
                         
                         return post_id, None
                     else:
-                        error_msg = response.text
+                        error_msg = self._describe_fb_error(response)
+                        raw_text = response.text or ''
                         # If place/feeling fails, retry without them
-                        if 'place' in error_msg or 'feeling' in error_msg:
+                        if 'place' in raw_text or 'feeling' in raw_text:
                             print(f"   ⚠️  Metadata failed, posting without location/feeling...")
                             data = {
                                 'message': content,
@@ -395,24 +449,35 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
                         
                         if attempt < max_retries - 1:
                             delay = 2 ** attempt
+                            print(f"   ⚠️  {error_msg}")
                             print(f"   ⚠️  Retry {attempt + 1}/{max_retries} after {delay}s")
                             time.sleep(delay)
                         else:
-                            if '368' in error_msg or '17' in error_msg or 'limit' in error_msg.lower() or 'spam' in error_msg.lower():
+                            # Deteksi berdasarkan hasil terjemahan, bukan cocok-cocokan
+                            # substring angka pada teks mentah (dulu '17' bisa cocok tak sengaja)
+                            if error_msg.startswith("DIBATASI FACEBOOK"):
                                 print(f"   🚨 FACEBOOK BAN/LIMIT DETECTED! Activating Self-Healing Cooldown for 24h...")
                                 self.set_cooldown(fanspage['page_id'], hours=24)
-                            return None, error_msg
-                        
+                            if error_msg.startswith("TOKEN TIDAK AKTIF"):
+                                send_notification(
+                                    f"🚨 <b>Token Facebook Tidak Aktif!</b>\n\n"
+                                    f"📄 Page: {fanspage.get('name')}\n"
+                                    f"⚠️ {error_msg}\n"
+                                    f"👉 Harap update token di Dashboard."
+                                )
+                            return None, f"{error_msg} (setelah {max_retries} percobaan)"
+
             except Exception as e:
                 if attempt < max_retries - 1:
                     delay = 2 ** attempt
                     print(f"   ⚠️  Error: {e}, retry {attempt + 1}/{max_retries} after {delay}s")
                     time.sleep(delay)
                 else:
-                    send_notification(f"❌ <b>Goldgen Bot Error</b>\n\n{str(e)[:200]}")
-                    return None, str(e)
-        
-        return None, "Max retries exceeded"
+                    reason = f"GAGAL MENGIRIM: {type(e).__name__}: {str(e)[:200]} (setelah {max_retries} percobaan)"
+                    send_notification(f"❌ <b>Goldgen Bot Error</b>\n\n{reason[:300]}")
+                    return None, reason
+
+        return None, f"GAGAL MENGIRIM: batas percobaan ({max_retries}x) habis tanpa respons sukses dari Facebook"
     
     def log_post(self, fanspage, content, image_path, fb_post_id, status, error_message=None, layout_name=None, hook_type=None):
         """Log post to database"""
@@ -583,9 +648,10 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
                 print("   Validating Facebook token...")
                 valid, token_error = self.validate_token(fanspage)
                 if not valid:
-                    print(f"   ❌ Token invalid: {token_error}")
+                    print(f"   ❌ {token_error}")
                     print("   ⚠️  Skipping generation to save Gemini API tokens.")
-                    self.log_post(fanspage, "[SKIPPED]", "", None, 'failed', f"Token validation failed before generation: {token_error}")
+                    self.log_post(fanspage, "[TIDAK JADI POSTING]", "", None, 'failed',
+                                  f"{token_error} — dibatalkan sebelum generate konten.")
                     continue
 
                 # Lock this fanpage immediately to prevent race conditions with concurrent crons
@@ -628,10 +694,14 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
 
                 
             except Exception as e:
-                error_msg = str(e)
-                print(f"   ❌ Error: {error_msg}\n")
-                self.log_post(fanspage, "", "", None, 'error', error_msg)
-        
+                # Status 'failed' (bukan 'error') supaya ikut terhitung di statistik
+                # dan tampil di dashboard bersama alasannya.
+                import traceback
+                error_msg = f"GAGAL DIPROSES: {type(e).__name__}: {str(e)[:300]}"
+                print(f"   ❌ {error_msg}\n")
+                traceback.print_exc()
+                self.log_post(fanspage, "", "", None, 'failed', error_msg)
+
         # Update state once at the end of cycle
         # ALWAYS update state even if posted_count = 0 to prevent stuck topics
         if posted_count > 0:
@@ -711,9 +781,11 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
                 return False, error
                 
         except Exception as e:
-            error_msg = str(e)
-            print(f"   ❌ Error: {error_msg}\n")
-            self.log_post(target_fanspage, "", "", None, 'error', error_msg)
+            import traceback
+            error_msg = f"GAGAL DIPROSES: {type(e).__name__}: {str(e)[:300]}"
+            print(f"   ❌ {error_msg}\n")
+            traceback.print_exc()
+            self.log_post(target_fanspage, "", "", None, 'failed', error_msg)
             return False, error_msg
 
     def process_queue(self):

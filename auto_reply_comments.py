@@ -351,14 +351,31 @@ Just provide the direct reply without any quotes or explanations."""
             print(f"   ❌ Failed to remove lock for comment {comment_id}: {e}")
     
     def validate_token(self, page_id, access_token):
-        """Validate Facebook token before processing"""
+        """Validate Facebook token before processing.
+
+        Return (valid, reason) — alasan selalu terisi kalau tidak valid, supaya
+        log tidak cuma bilang "invalid" tanpa menjelaskan kenapa.
+        """
         try:
             url = f"https://graph.facebook.com/v18.0/{page_id}"
             params = {'access_token': access_token, 'fields': 'id,name'}
             response = requests.get(url, params=params, timeout=10)
-            return response.status_code == 200
-        except Exception:
-            return False
+            if response.status_code == 200:
+                return True, None
+
+            error = {}
+            try:
+                error = response.json().get('error', {}) or {}
+            except Exception:
+                pass
+            code = error.get('code')
+            message = error.get('message') or (response.text or '')[:150]
+
+            if code in (190, 102) or 'expired' in message.lower() or 'oauth' in message.lower():
+                return False, f"TOKEN TIDAK AKTIF: token Facebook kedaluwarsa/dicabut [code={code}] {message[:120]}"
+            return False, f"ERROR FACEBOOK: {message[:150]} [code={code}]"
+        except Exception as e:
+            return False, f"GAGAL TERHUBUNG: {type(e).__name__}: {str(e)[:150]}"
 
     def hide_comment(self, comment_id, access_token):
         """Hide a malicious comment using Facebook Graph API"""
@@ -419,8 +436,9 @@ COMMENT: "{comment_text}"
             print("=" * 60)
             
             # VALIDATE TOKEN BEFORE PROCESSING ANY POSTS
-            if not self.validate_token(page_id, access_token):
-                print(f"❌ Token for {page_name} is invalid or expired.")
+            token_valid, token_reason = self.validate_token(page_id, access_token)
+            if not token_valid:
+                print(f"❌ Tidak bisa membalas komentar di {page_name}: {token_reason}")
                 print("⚠️  Skipping this fanspage to save Gemini API tokens.")
                 continue
             
