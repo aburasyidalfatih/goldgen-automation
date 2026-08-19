@@ -1,0 +1,161 @@
+#!/usr/bin/env python3
+"""
+Learning Insights - Goldgen Automation
+
+Membaca kembali hasil nyata (engagement) untuk mengukur apakah keputusan bot
+benar-benar berdampak. Semua fungsi read-only dan aman dipanggil kapan saja.
+
+Tiga pertanyaan yang dijawab modul ini:
+  1. Layout mana yang benar-benar disukai audiens page ini? (sadar ukuran sampel)
+  2. Apakah skor editor AI berkorelasi dengan engagement nyata?
+  3. Jam berapa postingan page ini paling berhasil?
+"""
+
+from datetime import datetime
+
+from core.database import get_db_connection
+
+
+def _fetch_posts_with_engagement(page_id=None):
+    """Ambil post sukses yang sudah punya angka engagement"""
+    query = '''
+        SELECT p.page_id, p.page_name, p.timestamp, p.layout_name, p.hook_type,
+               p.editor_score, (ec.likes + ec.comments) AS engagement
+        FROM posts p
+        JOIN engagement_cache ec ON ec.fb_post_id = p.fb_post_id
+        WHERE p.status = 'success'
+    '''
+    params = []
+    if page_id:
+        query += ' AND p.page_id = ?'
+        params.append(page_id)
+
+    conn = get_db_connection()
+    rows = conn.execute(query, params).fetchall()
+    conn.close()
+    return rows
+
+
+def _wilson_lower_bound(mean, n, z=1.96):
+    """Batas bawah interval kepercayaan untuk rata-rata cacah.
+
+    Dipakai agar layout dengan 1 post tidak disamakan dengan layout 10 post:
+    makin sedikit sampel, makin besar potongannya. Ini yang membedakan
+    "kelihatan bagus" dari "terbukti bagus".
+    """
+    if n <= 0:
+        return 0.0
+    # Perkiraan standard error untuk data cacah (Poisson): sqrt(mean / n)
+    se = (mean / n) ** 0.5 if mean > 0 else 0.0
+    return max(0.0, mean - z * se)
+
+
+def layout_report(page_id):
+    """Performa layout untuk satu page, diurut dari yang paling terbukti"""
+    rows = [r for r in _fetch_posts_with_engagement(page_id) if r['layout_name']]
+
+    grouped = {}
+    for r in rows:
+        g = grouped.setdefault(r['layout_name'], [])
+        g.append(float(r['engagement'] or 0))
+
+    report = []
+    for layout, values in grouped.items():
+        n = len(values)
+        mean = sum(values) / n
+        report.append({
+            'layout': layout,
+            'n': n,
+            'avg': round(mean, 1),
+            'confident_score': round(_wilson_lower_bound(mean, n), 1),
+            'best': round(max(values), 1),
+        })
+
+    report.sort(key=lambda x: -x['confident_score'])
+    return report
+
+
+def editor_report(page_id=None, min_samples=12):
+    """Apakah skor editor AI meramalkan engagement?"""
+    rows = _fetch_posts_with_engagement(page_id)
+    pairs = [(float(r['editor_score']), float(r['engagement'] or 0))
+             for r in rows if r['editor_score'] is not None]
+
+    n = len(pairs)
+    result = {'n': n, 'r': None, 'avg_high': None, 'avg_low': None, 'verdict': ''}
+
+    if n < min_samples:
+        result['verdict'] = f'data belum cukup ({n}/{min_samples} post punya skor editor)'
+        return result
+
+    xs = [p[0] for p in pairs]
+    ys = [p[1] for p in pairs]
+    mx, my = sum(xs) / n, sum(ys) / n
+    num = sum((x - mx) * (y - my) for x, y in pairs)
+    dx = sum((x - mx) ** 2 for x in xs) ** 0.5
+    dy = sum((y - my) ** 2 for y in ys) ** 0.5
+    r = (num / (dx * dy)) if dx > 0 and dy > 0 else 0.0
+
+    high = [y for x, y in pairs if x >= 8]
+    low = [y for x, y in pairs if x < 8]
+
+    result['r'] = round(r, 3)
+    result['avg_high'] = round(sum(high) / len(high), 1) if high else None
+    result['avg_low'] = round(sum(low) / len(low), 1) if low else None
+
+    if r >= 0.2:
+        result['verdict'] = 'BERGUNA — skor tinggi cenderung berbuah engagement tinggi'
+    elif r <= -0.2:
+        result['verdict'] = 'MENYESATKAN — skor tinggi justru engagement rendah'
+    else:
+        result['verdict'] = 'TIDAK BERPENGARUH — skor editor acak terhadap hasil'
+    return result
+
+
+def timing_report(page_id):
+    """Rata-rata engagement per jam posting (waktu WIB seperti tersimpan)"""
+    rows = _fetch_posts_with_engagement(page_id)
+
+    by_hour = {}
+    for r in rows:
+        try:
+            hour = datetime.fromisoformat(r['timestamp']).hour
+        except Exception:
+            continue
+        by_hour.setdefault(hour, []).append(float(r['engagement'] or 0))
+
+    report = []
+    for hour, values in sorted(by_hour.items()):
+        n = len(values)
+        mean = sum(values) / n
+        report.append({
+            'hour': hour,
+            'n': n,
+            'avg': round(mean, 1),
+            'confident_score': round(_wilson_lower_bound(mean, n), 1),
+        })
+    return report
+
+
+def best_hours(page_id, count=4, min_samples=2):
+    """Rekomendasi jam posting, hanya dari jam yang datanya memadai"""
+    solid = [h for h in timing_report(page_id) if h['n'] >= min_samples]
+    solid.sort(key=lambda x: -x['confident_score'])
+    return solid[:count]
+
+
+def full_report(fanspages):
+    """Laporan lengkap untuk semua page — dipakai dashboard & CLI"""
+    out = []
+    for page in fanspages:
+        pid = page.get('page_id')
+        out.append({
+            'page_name': page.get('name'),
+            'page_id': pid,
+            'schedule_hours': page.get('schedule_hours', []),
+            'layouts': layout_report(pid),
+            'editor': editor_report(pid),
+            'timing': timing_report(pid),
+            'best_hours': best_hours(pid),
+        })
+    return out

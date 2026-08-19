@@ -86,11 +86,11 @@ class GoldGenService:
             return {}
 
     def _get_layout_performance(self, page_id):
-        """Rata-rata engagement tiap layout untuk SATU page.
+        """Performa tiap layout untuk SATU page.
 
         Sumber data: tabel posts (layout_name) di-join dengan engagement_cache
         yang diisi oleh comment_analyzer setiap siklus riset.
-        Return: {layout_name: {'avg': float, 'n': int}}
+        Return: {layout_name: {'avg': float, 'n': int, 'total': float}}
         """
         if not page_id:
             return {}
@@ -99,7 +99,7 @@ class GoldGenService:
             conn = get_db_connection()
             rows = conn.execute('''
                 SELECT p.layout_name AS layout,
-                       AVG(ec.likes + ec.comments) AS avg_eng,
+                       SUM(ec.likes + ec.comments) AS total_eng,
                        COUNT(*) AS n
                 FROM posts p
                 JOIN engagement_cache ec ON ec.fb_post_id = p.fb_post_id
@@ -110,57 +110,118 @@ class GoldGenService:
                 GROUP BY p.layout_name
             ''', (page_id,)).fetchall()
             conn.close()
-            return {r['layout']: {'avg': r['avg_eng'] or 0.0, 'n': r['n']} for r in rows}
+            result = {}
+            for r in rows:
+                total = float(r['total_eng'] or 0)
+                n = int(r['n'] or 0)
+                if n > 0:
+                    result[r['layout']] = {'avg': total / n, 'n': n, 'total': total}
+            return result
         except Exception as e:
             print(f"   ⚠️ Gagal membaca performa layout: {e}")
             return {}
 
+    def _get_page_engagement_stats(self, page_id):
+        """Rata-rata & simpangan baku engagement page — dipakai sebagai prior.
+
+        Simpangan baku penting: itulah ukuran 'seberapa berisik' engagement page
+        ini, yang menentukan seberapa besar sebuah sampel kecil boleh dipercaya.
+        """
+        try:
+            from core.database import get_db_connection
+            conn = get_db_connection()
+            rows = conn.execute('''
+                SELECT (ec.likes + ec.comments) AS eng
+                FROM posts p
+                JOIN engagement_cache ec ON ec.fb_post_id = p.fb_post_id
+                WHERE p.page_id = ? AND p.status = 'success'
+            ''', (page_id,)).fetchall()
+            conn.close()
+            values = [float(r['eng'] or 0) for r in rows]
+            if not values:
+                return 0.0, 0.0
+            mean = sum(values) / len(values)
+            if len(values) < 2:
+                return mean, max(mean, 1.0)
+            var = sum((v - mean) ** 2 for v in values) / (len(values) - 1)
+            return mean, var ** 0.5
+        except Exception:
+            return 0.0, 0.0
+
     def _choose_layout(self, page_id, fallback_index):
-        """Pilih layout berdasarkan performa nyata di page ini.
+        """Pilih layout memakai Thompson Sampling (Gamma-Poisson).
 
-        Sebelumnya layout ditentukan `index_topik % 16` — murni rotasi, tidak
-        pernah melihat layout mana yang benar-benar disukai audiens, padahal
-        datanya sudah dikumpulkan.
+        Kenapa bukan sekadar "pilih yang rata-ratanya tertinggi":
+        rata-rata dari 1 post dan rata-rata dari 9 post bukan bukti yang setara.
+        Cara lama memperlakukan keduanya sama, sehingga satu post yang kebetulan
+        viral bisa membajak seluruh strategi visual sebuah page.
 
-        Strategi (bandit sederhana):
-        1. Layout yang belum pernah dicoba diprioritaskan (kumpulkan data dulu).
-        2. 20% eksplorasi acak — supaya tidak terkunci di satu gaya dan
-           audiens tidak bosan.
-        3. Sisanya: undian berbobot berdasarkan rata-rata engagement, jadi
-           layout terbaik paling sering muncul tanpa mematikan yang lain.
+        Thompson Sampling menyelesaikan ini. Engagement Facebook sangat
+        overdispersed (satu post bisa meledak karena algoritma, bukan karena
+        layoutnya), jadi TIDAK dimodelkan Poisson — model Poisson akan menganggap
+        satu post 400-engagement sebagai bukti hampir pasti dan langsung terkunci
+        di situ. Yang dipakai: konjugat Normal-Normal terhadap rata-rata layout.
+
+            prior     : N(rata-rata page, tau^2)
+            observasi : n post, rata-rata x, ragam sigma^2 (kebisingan page)
+            posterior : presisi dijumlahkan -> rata-rata tertarik ke prior
+                        sebanding dengan sedikitnya sampel (shrinkage)
+
+        Tiap pemilihan, kita MENGAMBIL SAMPEL dari posterior tiap layout lalu
+        memilih yang tertinggi. Efeknya otomatis:
+        - Sampel sedikit -> tertarik kuat ke rata-rata page + sebaran lebar,
+          jadi ia ikut dicoba tapi tidak bisa membajak keputusan
+        - Sampel banyak  -> posterior sempit di nilai aslinya -> layout yang
+          benar-benar terbukti menang lebih sering
+        - Belum pernah dicoba -> murni prior -> tetap dapat giliran wajar
+
+        Eksplorasi muncul dari ketidakpastian itu sendiri, tidak perlu slot acak.
         """
         if not self.layouts:
             return None, 'no-layout'
 
         perf = self._get_layout_performance(page_id)
-        MIN_SAMPLE = 2  # di bawah ini belum bisa disebut bukti
+        if not perf:
+            return self.layouts[fallback_index % len(self.layouts)], "rotasi (belum ada data)"
 
-        proven = {name: d for name, d in perf.items() if d['n'] >= MIN_SAMPLE and d['avg'] > 0}
+        page_mean, page_sd = self._get_page_engagement_stats(page_id)
+        if page_mean <= 0:
+            observed = [d['avg'] for d in perf.values() if d['avg'] > 0]
+            page_mean = (sum(observed) / len(observed)) if observed else 1.0
+        # Kebisingan antar-post; jangan sampai nol supaya pembagian aman
+        sigma = max(page_sd, page_mean * 0.5, 1.0)
+        # Sebaran prior antar layout — diasumsikan setengah dari kebisingan post.
+        # Makin kecil tau, makin kuat penyusutan ke rata-rata page.
+        tau = max(sigma * 0.5, 1.0)
 
-        # 1. Utamakan layout yang belum punya data — eksplorasi terarah
-        untried = [l for l in self.layouts if l['name'] not in perf]
-        if untried and random.random() < 0.35:
-            layout = random.choice(untried)
-            return layout, f"belum pernah dicoba di page ini"
+        prior_precision = 1.0 / (tau ** 2)
+        obs_precision_unit = 1.0 / (sigma ** 2)
 
-        if not proven:
-            # Belum ada bukti sama sekali -> rotasi lama (perilaku aman)
-            return self.layouts[fallback_index % len(self.layouts)], "rotasi (data belum cukup)"
+        best_layout, best_sample, best_note = None, float('-inf'), ''
+        for layout in self.layouts:
+            d = perf.get(layout['name'])
+            n = d['n'] if d else 0
+            mean = d['avg'] if d else page_mean
 
-        # 2. Slot eksplorasi
-        if random.random() < 0.20:
-            layout = random.choice(self.layouts)
-            return layout, "eksplorasi acak"
+            precision = prior_precision + n * obs_precision_unit
+            post_mean = (page_mean * prior_precision + mean * n * obs_precision_unit) / precision
+            post_sd = (1.0 / precision) ** 0.5
 
-        # 3. Undian berbobot berdasarkan performa
-        candidates = [l for l in self.layouts if l['name'] in proven]
-        weights = [proven[l['name']]['avg'] for l in candidates]
-        if not candidates or sum(weights) <= 0:
-            return self.layouts[fallback_index % len(self.layouts)], "rotasi (bobot kosong)"
+            sample = random.gauss(post_mean, post_sd)
 
-        layout = random.choices(candidates, weights=weights, k=1)[0]
-        d = proven[layout['name']]
-        return layout, f"pemenang: rata-rata {d['avg']:.1f} engagement dari {d['n']} post"
+            if sample > best_sample:
+                best_sample = sample
+                best_layout = layout
+                if n == 0:
+                    best_note = "belum pernah dicoba (prior)"
+                else:
+                    best_note = (f"rata-rata {mean:.0f} dari {n} post "
+                                 f"-> perkiraan wajar {post_mean:.0f}, undian {sample:.0f}")
+
+        if not best_layout:
+            return self.layouts[fallback_index % len(self.layouts)], "rotasi (fallback)"
+
+        return best_layout, best_note
 
     def _get_live_gold_price(self):
         """Fetch real-time gold price via yfinance API"""
@@ -204,6 +265,82 @@ REPLY ONLY WITH THIS EXACT JSON FORMAT:
         except Exception as e:
             print(f"Editor review failed: {e}")
             return {"score": 10, "feedback": "Valid", "hook_type": "Unknown"}
+
+    def editor_score_correlation(self, page_id=None, min_samples=12):
+        """Uji apakah skor editor AI benar-benar meramalkan engagement.
+
+        Selama ini editor menilai caption 1-10 dan memaksa tulis ulang di bawah 8,
+        tapi nilainya tidak pernah dicocokkan dengan hasil nyata. Kalau ternyata
+        tidak berkorelasi, seluruh siklus tulis-ulang cuma membakar kuota API.
+
+        Return dict: {'r': korelasi Pearson, 'n': jumlah sampel,
+                      'avg_high': engagement rata2 skor >=8,
+                      'avg_low': engagement rata2 skor <8, 'verdict': str}
+        """
+        try:
+            from core.database import get_db_connection
+            conn = get_db_connection()
+            query = '''
+                SELECT p.editor_score AS score, (ec.likes + ec.comments) AS eng
+                FROM posts p
+                JOIN engagement_cache ec ON ec.fb_post_id = p.fb_post_id
+                WHERE p.status = 'success' AND p.editor_score IS NOT NULL
+            '''
+            params = []
+            if page_id:
+                query += ' AND p.page_id = ?'
+                params.append(page_id)
+            rows = conn.execute(query, params).fetchall()
+            conn.close()
+        except Exception as e:
+            return {'r': None, 'n': 0, 'verdict': f'gagal membaca data: {e}'}
+
+        pairs = [(float(r['score']), float(r['eng'])) for r in rows
+                 if r['score'] is not None and r['eng'] is not None]
+        n = len(pairs)
+        if n < min_samples:
+            return {'r': None, 'n': n, 'avg_high': None, 'avg_low': None,
+                    'verdict': f'data belum cukup ({n}/{min_samples} post)'}
+
+        xs = [p[0] for p in pairs]
+        ys = [p[1] for p in pairs]
+        mx, my = sum(xs) / n, sum(ys) / n
+        num = sum((x - mx) * (y - my) for x, y in pairs)
+        dx = sum((x - mx) ** 2 for x in xs) ** 0.5
+        dy = sum((y - my) ** 2 for y in ys) ** 0.5
+        r = (num / (dx * dy)) if dx > 0 and dy > 0 else 0.0
+
+        high = [y for x, y in pairs if x >= 8]
+        low = [y for x, y in pairs if x < 8]
+        avg_high = sum(high) / len(high) if high else None
+        avg_low = sum(low) / len(low) if low else None
+
+        if r >= 0.2:
+            verdict = 'editor BERGUNA (skor tinggi cenderung engagement tinggi)'
+        elif r <= -0.2:
+            verdict = 'editor MENYESATKAN (skor tinggi justru engagement rendah)'
+        else:
+            verdict = 'editor TIDAK BERPENGARUH (skornya acak terhadap hasil)'
+
+        return {'r': r, 'n': n, 'avg_high': avg_high, 'avg_low': avg_low, 'verdict': verdict}
+
+    def _editor_is_trustworthy(self, page_id=None):
+        """True kalau siklus tulis-ulang editor layak dijalankan untuk page ini.
+
+        Bersikap optimis saat data belum cukup (perilaku lama dipertahankan),
+        dan baru mematikan tulis-ulang setelah ada bukti bahwa skor editor tidak
+        berhubungan — atau malah berlawanan — dengan engagement nyata.
+        """
+        try:
+            stats = self.editor_score_correlation(page_id)
+        except Exception:
+            return True, 'gagal mengevaluasi editor'
+
+        if stats.get('r') is None:
+            return True, stats.get('verdict', 'data belum cukup')
+        if stats['r'] <= -0.1:
+            return False, f"korelasi {stats['r']:+.2f} dari {stats['n']} post: {stats['verdict']}"
+        return True, f"korelasi {stats['r']:+.2f} dari {stats['n']} post"
 
     def _tokenize(self, text):
         """Tokenisasi + stemming sederhana untuk similarity matching"""
@@ -552,10 +689,18 @@ Requirements:
 """
         
         current_prompt = base_prompt
-        max_retries = 2
+        # Kalau editor terbukti tidak berkorelasi dengan engagement nyata di page
+        # ini, hentikan siklus tulis-ulang: itu hanya membakar kuota API untuk
+        # mengejar nilai yang tidak berarti apa-apa.
+        editor_trusted, trust_note = self._editor_is_trustworthy(page_id)
+        max_retries = 2 if editor_trusted else 0
+        if not editor_trusted:
+            print(f"   🧪 Editor rewrite dimatikan untuk page ini — {trust_note}")
+
         final_caption = ""
         topic['hook_type'] = "Unknown"
-        
+        topic['editor_score'] = None
+
         for attempt in range(max_retries + 1):
             import time
             try:
@@ -564,12 +709,16 @@ Requirements:
                     contents=current_prompt
                 )
                 caption = response.text.strip()
-                
+
                 # Editor review
                 review = self._editor_review(caption)
                 print(f"   🕵️  Editor Review (Attempt {attempt+1}): Score {review.get('score')}/10 - Hook: {review.get('hook_type')}")
                 topic['hook_type'] = review.get('hook_type', 'Unknown')
-                
+                try:
+                    topic['editor_score'] = float(review.get('score')) if review.get('score') is not None else None
+                except (TypeError, ValueError):
+                    topic['editor_score'] = None
+
                 if review.get('score', 0) >= 8 or attempt == max_retries:
                     final_caption = caption
                     break

@@ -992,9 +992,12 @@ Analisa pola konten dan berikan insight dalam format JSON berikut (HANYA output 
 @require_pin
 def get_jit_report():
     try:
-        import json
-        with open('data/config.json', 'r') as f:
-            config = json.load(f)
+        # Pakai CONFIG_PATH, bukan path relatif — path relatif ikut berubah
+        # mengikuti working directory proses dan bisa gagal di luar /app
+        config = {}
+        if CONFIG_PATH.exists():
+            with open(CONFIG_PATH, 'r') as f:
+                config = json.load(f)
         fanspages = config.get('fanspages', [])
         
         conn = get_db_connection()
@@ -1028,6 +1031,22 @@ def get_jit_report():
             
         conn.close()
         return jsonify({'success': True, 'report': report})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@bp.route('/api/analytics/learning')
+@require_pin
+def get_learning_report():
+    """Laporan pembelajaran: layout terbukti, keandalan editor AI, dan jam terbaik"""
+    try:
+        from learning_insights import full_report
+
+        config = {}
+        if CONFIG_PATH.exists():
+            with open(CONFIG_PATH, 'r') as f:
+                config = json.load(f)
+
+        return jsonify({'success': True, 'report': full_report(config.get('fanspages', []))})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 

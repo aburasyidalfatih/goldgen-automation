@@ -479,15 +479,15 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
 
         return None, f"GAGAL MENGIRIM: batas percobaan ({max_retries}x) habis tanpa respons sukses dari Facebook"
     
-    def log_post(self, fanspage, content, image_path, fb_post_id, status, error_message=None, layout_name=None, hook_type=None):
+    def log_post(self, fanspage, content, image_path, fb_post_id, status, error_message=None, layout_name=None, hook_type=None, editor_score=None):
         """Log post to database"""
         from datetime import timezone, timedelta
         now_wib = datetime.now(timezone(timedelta(hours=7)))
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute('''
-            INSERT INTO posts (timestamp, page_id, page_name, content, image_path, fb_post_id, status, error_message, layout_name, hook_type)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO posts (timestamp, page_id, page_name, content, image_path, fb_post_id, status, error_message, layout_name, hook_type, editor_score)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             now_wib.isoformat(),
             fanspage['page_id'],
@@ -498,7 +498,8 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
             status,
             error_message,
             layout_name,
-            hook_type
+            hook_type,
+            editor_score
         ))
         conn.commit()
         conn.close()
@@ -684,11 +685,11 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
                 
                 if fb_post_id:
                     print(f"   ✅ Success! Post ID: {fb_post_id}")
-                    self.log_post(fanspage, content, image_path, fb_post_id, 'success', layout_name=topic.get('layout'), hook_type=topic.get('hook_type'))
+                    self.log_post(fanspage, content, image_path, fb_post_id, 'success', layout_name=topic.get('layout'), hook_type=topic.get('hook_type'), editor_score=topic.get('editor_score'))
                     posted_count += 1
                 else:
                     print(f"   ❌ Failed: {error}")
-                    self.log_post(fanspage, content, image_path, None, 'failed', error, layout_name=topic.get('layout'), hook_type=topic.get('hook_type'))
+                    self.log_post(fanspage, content, image_path, None, 'failed', error, layout_name=topic.get('layout'), hook_type=topic.get('hook_type'), editor_score=topic.get('editor_score'))
                 
                 print()
 
@@ -766,7 +767,7 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
             
             if fb_post_id:
                 print(f"   ✅ Success! Post ID: {fb_post_id}")
-                self.log_post(target_fanspage, caption, image_path, fb_post_id, 'success', layout_name=topic.get('layout'), hook_type=topic.get('hook_type'))
+                self.log_post(target_fanspage, caption, image_path, fb_post_id, 'success', layout_name=topic.get('layout'), hook_type=topic.get('hook_type'), editor_score=topic.get('editor_score'))
                 self.update_last_post_time(target_fanspage['page_id'])
                 
                 next_index = (base_topic_index + 1) % len(self.goldgen.topics)
@@ -777,7 +778,7 @@ Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
                 return True, fb_post_id
             else:
                 print(f"   ❌ Failed: {error}")
-                self.log_post(target_fanspage, caption, image_path, None, 'failed', error, layout_name=topic.get('layout'), hook_type=topic.get('hook_type'))
+                self.log_post(target_fanspage, caption, image_path, None, 'failed', error, layout_name=topic.get('layout'), hook_type=topic.get('hook_type'), editor_score=topic.get('editor_score'))
                 return False, error
                 
         except Exception as e:

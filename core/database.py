@@ -149,6 +149,9 @@ def init_db():
         ('posts', 'hook_type', 'TEXT'),
         ('engagement_baseline', 'last_updated', 'DATETIME'),
         ('replied_comments', 'user_id', 'TEXT'),
+        # Skor editor AI disimpan agar bisa diuji: apakah nilai tinggi dari
+        # editor benar-benar berkorelasi dengan engagement nyata?
+        ('posts', 'editor_score', 'REAL'),
     ]
     for table, col, col_type in migrations:
         try:
