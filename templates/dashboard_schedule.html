@@ -520,15 +520,19 @@
                 
                 const isNow = isScheduledNow && !alreadyPostedThisHour;
                 
-                // Token status dot - green (valid) or red (invalid)
+                // Status token berdasarkan bukti nyata dari percobaan posting terakhir.
+                // Tidak ada lagi hitung mundur 60 hari — long-lived token tidak
+                // punya masa berlaku, jadi countdown itu selalu berujung merah palsu.
                 let tokenDot = '';
                 let tokenStatusText = '';
-                if (fp.token_warning === 'EXPIRED' || fp.token_warning === 'UNKNOWN') {
-                    tokenDot = '<span class="inline-block w-3 h-3 bg-red-500 rounded-full ml-2 animate-pulse" title="Token Invalid"></span>';
-                    tokenStatusText = '<span class="ml-2 px-2 py-0.5 bg-red-600 text-white text-[10px] font-bold rounded animate-bounce">TOKEN INVALID</span>';
+                if (fp.token_warning === 'INVALID' || fp.token_warning === 'NO_TOKEN') {
+                    const tip = (fp.token_message || 'Token bermasalah').replace(/"/g, "'");
+                    const label = fp.token_warning === 'NO_TOKEN' ? 'BELUM ADA TOKEN' : 'TOKEN INVALID';
+                    tokenDot = `<span class="inline-block w-3 h-3 bg-red-500 rounded-full ml-2 animate-pulse" title="${tip}"></span>`;
+                    tokenStatusText = `<span class="ml-2 px-2 py-0.5 bg-red-600 text-white text-[10px] font-bold rounded animate-bounce" title="${tip}">${label}</span>`;
                 } else {
-                    tokenDot = `<span class="inline-block w-3 h-3 bg-green-500 rounded-full ml-2" title="Token Valid (${fp.days_until_expire}d left)"></span>`;
-                    tokenStatusText = `<span class="ml-2 text-[10px] text-gray-500 font-medium">${fp.days_until_expire}d left</span>`;
+                    tokenDot = '<span class="inline-block w-3 h-3 bg-green-500 rounded-full ml-2" title="Token aktif (posting terakhir tidak bermasalah)"></span>';
+                    tokenStatusText = '';
                 }
                 const isEnabled = fp.enabled !== false; // default true
                 const toggleBtnText = isEnabled ? 'Pause' : 'Resume';

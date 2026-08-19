@@ -374,27 +374,50 @@ def get_config():
                 config = json.load(f)
         
         now = datetime.now()
+
+        # Status token berdasarkan BUKTI NYATA, bukan tebakan kalender.
+        #
+        # Versi lama menghitung `60 - hari sejak token dibuat` dan menandai
+        # EXPIRED setelah hari ke-60. Itu salah untuk long-lived page token yang
+        # `expires_at`-nya 0 (tidak pernah kedaluwarsa) — semua page jadi merah
+        # padahal tokennya sehat, dan peringatan yang selalu menyala jadi diabaikan.
+        #
+        # Sekarang: page ditandai bermasalah HANYA kalau percobaan posting terakhir
+        # memang gagal karena token. Tidak ada request tambahan ke Facebook.
+        token_failures = {}
+        try:
+            conn = get_db()
+            rows = conn.execute("""
+                SELECT page_id, status, error_message, timestamp
+                FROM posts
+                WHERE id IN (SELECT MAX(id) FROM posts GROUP BY page_id)
+            """).fetchall()
+            conn.close()
+            for row in rows:
+                msg = row['error_message'] or ''
+                if row['status'] != 'success' and msg.startswith('TOKEN TIDAK AKTIF'):
+                    token_failures[row['page_id']] = {'reason': msg[:200], 'since': row['timestamp']}
+        except Exception as e:
+            print(f"Token status check skipped: {e}")
+
         fanspages = []
         for page in config.get('fanspages', []):
-            # Token expiration check
             token_created = page.get('token_created_date')
-            token_warning = None
-            days_until_expire = None
-            
-            if token_created:
-                created_date = datetime.fromisoformat(token_created)
-                days_since_created = (now - created_date).days
-                days_until_expire = 60 - days_since_created
-                
-                if days_until_expire <= 0:
-                    token_warning = "EXPIRED"
-                elif days_until_expire <= 7:
-                    token_warning = "CRITICAL"
-                elif days_until_expire <= 14:
-                    token_warning = "WARNING"
+            failure = token_failures.get(page.get('page_id'))
+
+            if not page.get('access_token'):
+                token_warning = "NO_TOKEN"
+                token_message = "Belum ada token untuk page ini."
+            elif failure:
+                token_warning = "INVALID"
+                token_message = failure['reason']
             else:
-                token_warning = "UNKNOWN"
-            
+                token_warning = None
+                token_message = None
+
+            # Tidak lagi menebak sisa hari — long-lived token tidak punya masa berlaku
+            days_until_expire = None
+
             fanspages.append({
                 'name': page['name'],
                 'page_id': page['page_id'],
@@ -403,6 +426,7 @@ def get_config():
                 'enabled': page.get('enabled', True),
                 'has_token': bool(page.get('access_token')),
                 'token_warning': token_warning,
+                'token_message': token_message,
                 'days_until_expire': days_until_expire,
                 'token_created_date': token_created,
                 'instagram_config': page.get('instagram_config', {}),
