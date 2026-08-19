@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rekomendasi Jam Posting — GoldGen</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+
+<style>
+  /* Anti-FOUC */
+  body { visibility: hidden; opacity: 0; transition: opacity 0.5s ease; }
+  body.ready { visibility: visible; opacity: 1; }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+      font-family: 'Outfit', sans-serif;
+      background-color: #09090b;
+      background-image: radial-gradient(circle at 50% 0%, rgba(212, 165, 35, 0.08), transparent 50%);
+      color: #e4e4e7;
+      min-height: 100vh;
+      -webkit-tap-highlight-color: transparent;
+  }
+  .topbar { background: rgba(24, 24, 27, 0.8); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(63, 63, 70, 0.6); padding: 16px 32px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 50; flex-wrap: wrap; gap: 12px; }
+  .topbar h1 { font-size: 20px; font-weight: 700; background: linear-gradient(to right, #FBBF24, #B8860B); -webkit-background-clip: text; color: transparent; display: flex; align-items: center; gap: 8px; }
+  .topbar h1::before { content: '⏰'; font-size: 24px; }
+  .topbar nav a { color: #a1a1aa; text-decoration: none; margin-left: 20px; font-size: 15px; font-weight: 500; transition: color 0.3s; }
+  .topbar nav a:hover { color: #FBBF24; }
+  .container { max-width: 1200px; margin: 0 auto; padding: 32px 20px; animation: fadeInUp 0.6s ease-out forwards; }
+
+  .header-desc { color: #a1a1aa; font-size: 16px; margin-bottom: 28px; line-height: 1.6; }
+  .header-desc strong { color: #FBBF24; }
+
+  .page-card {
+      background: rgba(24, 24, 27, 0.6);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(63, 63, 70, 0.5);
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 24px;
+      transition: border-color 0.3s;
+  }
+  .page-card:hover { border-color: rgba(212, 165, 35, 0.35); }
+  .card-head { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px; border-bottom: 1px solid rgba(63,63,70,0.5); padding-bottom: 16px; margin-bottom: 20px; }
+  .card-head h2 { font-size: 22px; font-weight: 700; color: #FBBF24; }
+  .chip { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; margin-right: 6px; }
+  .chip-now { background: rgba(251,191,36,0.12); border: 1px solid rgba(251,191,36,0.4); color: #FBBF24; }
+  .chip-rec { background: rgba(34,197,94,0.12); border: 1px solid rgba(34,197,94,0.45); color: #4ade80; }
+  .label { font-size: 12px; color: #71717a; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; font-weight: 600; }
+
+  /* Grafik batang per jam */
+  .chart { display: grid; grid-template-columns: repeat(24, 1fr); gap: 3px; align-items: end; height: 170px; margin-top: 6px; }
+  .bar-wrap { position: relative; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; }
+  .bar { width: 100%; border-radius: 4px 4px 0 0; transition: filter 0.2s, transform 0.2s; min-height: 2px; }
+  .bar:hover { filter: brightness(1.4); transform: scaleY(1.02); }
+  .bar-none { background: rgba(63,63,70,0.35); }
+  .bar-data { background: linear-gradient(to top, #92400e, #FBBF24); }
+  .bar-best { background: linear-gradient(to top, #15803d, #4ade80); box-shadow: 0 0 12px rgba(74,222,128,0.35); }
+  .bar-thin { opacity: 0.45; background-image: repeating-linear-gradient(45deg, rgba(255,255,255,0.16) 0 3px, transparent 3px 6px); }
+  .hour-axis { display: grid; grid-template-columns: repeat(24, 1fr); gap: 3px; margin-top: 6px; }
+  .hour-lbl { font-size: 9px; color: #52525b; text-align: center; }
+  .hour-lbl.sched { color: #FBBF24; font-weight: 800; }
+
+  .tip { font-size: 12px; color: #71717a; margin-top: 12px; line-height: 1.6; }
+  .verdict { border-left: 3px solid; padding: 12px 14px; border-radius: 0 10px 10px 0; margin-top: 18px; font-size: 14px; line-height: 1.6; }
+  .verdict-good { border-color: #4ade80; background: rgba(34,197,94,0.08); }
+  .verdict-none { border-color: #71717a; background: rgba(113,113,122,0.08); color: #a1a1aa; }
+  .btn { background: linear-gradient(to right, #FBBF24, #B8860B); color: #1c1917; border: none; padding: 9px 18px; border-radius: 10px; font-weight: 700; cursor: pointer; font-size: 14px; font-family: inherit; transition: opacity 0.2s, transform 0.2s; }
+  .btn:hover { opacity: 0.9; transform: translateY(-1px); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+  .loading-state { text-align: center; padding: 60px; color: #FBBF24; font-size: 18px; font-weight: 600; animation: pulse 1.5s infinite; }
+  .empty-state { text-align: center; padding: 24px 10px; color: #71717a; font-style: italic; font-size: 14px; }
+
+  table.hours { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
+  table.hours th { text-align: left; color: #71717a; font-weight: 600; padding: 6px 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+  table.hours td { padding: 7px 8px; border-top: 1px solid rgba(63,63,70,0.4); }
+  .rank { color: #FBBF24; font-weight: 700; }
+
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+  @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+  @media (max-width: 640px) {
+    .container { padding: 20px 12px; }
+    .hour-lbl { font-size: 7px; }
+    .chart { height: 130px; }
+  }
+</style>
+</head>
+<body class="selection:bg-amber-500/30">
+<div class="topbar">
+  <h1>Rekomendasi Jam Posting</h1>
+  <nav>
+    <button class="btn" onclick="loadReport()">🔄 Segarkan</button>
+    <a href="/analytics">🧠 Otak Bot</a>
+    <a href="/dashboard">← Dashboard</a>
+  </nav>
+</div>
+
+<div class="container">
+  <p class="header-desc">
+    Jam posting dinilai dari <strong>engagement nyata</strong> tiap postingan yang pernah tayang.
+    Angka <strong>skor yakin</strong> adalah rata-rata yang sudah dipotong sesuai ketidakpastian —
+    jam dengan 1–2 postingan tidak diperlakukan sama dengan jam yang sudah puluhan kali terbukti.
+    Bot hanya punya data untuk jam yang <em>pernah dipakai</em>, jadi jam yang belum pernah dicoba bukan berarti jelek.
+  </p>
+
+  <div id="loading" class="loading-state">Menghitung performa tiap jam... ⏳</div>
+  <div id="pages"></div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  document.body.classList.add('ready');
+  loadReport();
+});
+
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => (
+  {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]
+));
+
+async function loadReport() {
+  const box = document.getElementById('pages');
+  const loading = document.getElementById('loading');
+  box.innerHTML = '';
+  loading.style.display = 'block';
+  loading.textContent = 'Menghitung performa tiap jam... ⏳';
+
+  try {
+    const res = await fetch('/api/analytics/learning');
+    if (res.status === 401) { window.location.href = '/login'; return; }
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'gagal memuat');
+    render(data.report);
+  } catch (e) {
+    loading.textContent = '⚠️ Gagal memuat: ' + e.message;
+  }
+}
+
+function render(report) {
+  const box = document.getElementById('pages');
+  const loading = document.getElementById('loading');
+  box.innerHTML = '';
+
+  if (!report || report.length === 0) {
+    box.innerHTML = '<div class="empty-state">Belum ada fanspage yang dikonfigurasi.</div>';
+    loading.style.display = 'none';
+    return;
+  }
+
+  report.forEach(page => {
+    const sched = page.schedule_hours || [];
+    const timing = page.timing || [];
+    const byHour = {};
+    timing.forEach(t => byHour[t.hour] = t);
+    const maxAvg = Math.max(1, ...timing.map(t => t.avg));
+
+    // Grafik 24 jam
+    let bars = '', axis = '';
+    for (let h = 0; h < 24; h++) {
+      const t = byHour[h];
+      const isSched = sched.includes(h);
+      let cls = 'bar bar-none', height = 4, tip = `${String(h).padStart(2,'0')}:00 — belum pernah dipakai`;
+      if (t) {
+        height = Math.max(6, Math.round((t.avg / maxAvg) * 100));
+        const thin = t.n < 3 ? ' bar-thin' : '';
+        cls = 'bar ' + (t.n >= 3 && t.confident_score >= 0.8 * Math.max(...timing.filter(x=>x.n>=3).map(x=>x.confident_score), 0)
+              ? 'bar-best' : 'bar-data') + thin;
+        tip = `${String(h).padStart(2,'0')}:00 — rata2 ${t.avg} engagement dari ${t.n} post (skor yakin ${t.confident_score})`;
+      }
+      bars += `<div class="bar-wrap" title="${esc(tip)}"><div class="${cls}" style="height:${height}%"></div></div>`;
+      axis += `<div class="hour-lbl ${isSched ? 'sched' : ''}">${isSched ? '★' : ''}${String(h).padStart(2,'0')}</div>`;
+    }
+
+    // Tabel jam terbaik
+    const best = page.best_hours || [];
+    let table = '<div class="empty-state">Belum ada jam dengan data memadai (butuh minimal 2 postingan per jam).</div>';
+    if (best.length) {
+      table = `<table class="hours"><tr><th>#</th><th>Jam</th><th>Rata-rata</th><th>Sampel</th><th>Skor yakin</th><th>Status</th></tr>` +
+        best.map((h, i) => `<tr>
+            <td class="rank">${i + 1}</td>
+            <td><strong>${String(h.hour).padStart(2,'0')}:00</strong></td>
+            <td>${h.avg}</td>
+            <td>${h.n} post${h.n < 3 ? ' <span style="color:#a16207">(tipis)</span>' : ''}</td>
+            <td><strong style="color:#FBBF24">${h.confident_score}</strong></td>
+            <td>${sched.includes(h.hour) ? '<span class="chip chip-now">dipakai</span>' : '<span class="chip chip-rec">usulan</span>'}</td>
+          </tr>`).join('') + '</table>';
+    }
+
+    // Kesimpulan + tombol terapkan
+    const topNew = best.find(h => !sched.includes(h.hour));
+    const schedWithData = sched.filter(h => byHour[h] && byHour[h].n >= 2);
+    const worst = schedWithData.length
+      ? schedWithData.reduce((a, b) => byHour[a].confident_score <= byHour[b].confident_score ? a : b)
+      : (sched.length ? sched[0] : null);
+
+    let verdict = '<div class="verdict verdict-none">Belum ada usulan — data per jam masih terlalu tipis untuk disimpulkan.</div>';
+    let action = '';
+    if (topNew && worst !== null) {
+      const worstInfo = byHour[worst]
+        ? `skor yakin ${byHour[worst].confident_score} dari ${byHour[worst].n} post`
+        : 'belum ada bukti untuk jam ini';
+      verdict = `<div class="verdict verdict-good">
+          <strong>Usulan:</strong> ganti <strong>${String(worst).padStart(2,'0')}:00</strong> (${esc(worstInfo)})
+          dengan <strong>${String(topNew.hour).padStart(2,'0')}:00</strong>
+          (rata-rata ${topNew.avg} dari ${topNew.n} post).
+          ${topNew.n < 3 ? '<br><span style="color:#fbbf24">⚠️ Sampelnya masih tipis — anggap ini dugaan awal, bukan kesimpulan.</span>' : ''}
+        </div>`;
+      action = `<button class="btn" style="margin-top:14px"
+                  onclick="applyHour('${esc(page.page_id)}', ${worst}, ${topNew.hour}, this)">
+                  ✅ Terapkan jam ${String(topNew.hour).padStart(2,'0')}:00
+                </button>`;
+    }
+
+    const card = document.createElement('div');
+    card.className = 'page-card';
+    card.innerHTML = `
+      <div class="card-head">
+        <div>
+          <h2>${esc(page.page_name)}</h2>
+          <div style="margin-top:8px">
+            <span class="label" style="display:inline; margin-right:6px">Jadwal sekarang:</span>
+            ${sched.length ? sched.map(h => `<span class="chip chip-now">${String(h).padStart(2,'0')}:00</span>`).join('')
+                           : '<span style="color:#71717a; font-size:13px">memakai interval jam, bukan jadwal tetap</span>'}
+          </div>
+        </div>
+      </div>
+
+      <div class="label">Engagement rata-rata per jam (★ = sedang dijadwalkan)</div>
+      <div class="chart">${bars}</div>
+      <div class="hour-axis">${axis}</div>
+      <div class="tip">
+        Batang <span style="color:#4ade80">hijau</span> = jam terbaik yang sudah teruji ·
+        <span style="color:#FBBF24">kuning</span> = ada data ·
+        abu-abu = belum pernah dipakai ·
+        bergaris = sampel masih tipis (&lt;3 post)
+      </div>
+
+      <div style="margin-top:22px" class="label">Peringkat jam</div>
+      ${table}
+      ${verdict}
+      ${action}
+    `;
+    box.appendChild(card);
+  });
+
+  loading.style.display = 'none';
+}
+
+async function applyHour(pageId, oldHour, newHour, btn) {
+  const pad = h => String(h).padStart(2, '0');
+  if (!confirm(`Ubah jadwal posting?\n\nHapus  : ${pad(oldHour)}:00\nTambah : ${pad(newHour)}:00\n\nJumlah slot posting per hari tidak berubah.`)) return;
+
+  btn.disabled = true;
+  btn.textContent = 'Menyimpan...';
+  try {
+    const cfg = await (await fetch('/api/config')).json();
+    const page = (cfg.fanspages || []).find(p => p.page_id === pageId);
+    if (!page) throw new Error('fanspage tidak ditemukan');
+
+    const next = Array.from(new Set(
+      (page.schedule_hours || []).filter(h => h !== oldHour).concat([newHour])
+    )).sort((a, b) => a - b);
+
+    const res = await fetch(`/api/fanspages/${pageId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ schedule_hours: next })
+    });
+    const out = await res.json();
+    if (!res.ok || out.error) throw new Error(out.error || 'gagal menyimpan');
+
+    btn.textContent = '✅ Tersimpan — jadwal baru: ' + next.map(pad).join(', ');
+    setTimeout(loadReport, 1200);
+  } catch (e) {
+    alert('Gagal menerapkan: ' + e.message);
+    btn.disabled = false;
+    btn.textContent = `✅ Terapkan jam ${pad(newHour)}:00`;
+  }
+}
+</script>
+</body>
+</html>

@@ -1050,6 +1050,12 @@ def get_learning_report():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@bp.route('/schedule-insight')
+@require_pin
+def serve_schedule_insight():
+    """Halaman rekomendasi jam posting per fanspage"""
+    return render_template("schedule_insight.html")
+
 @bp.route('/analytics')
 @require_pin
 def serve_analytics():
