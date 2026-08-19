@@ -29,21 +29,39 @@ class GoldGenService:
             self.layouts = []
             self.topics = []
 
-    def _get_audience_preferences(self, page_id=None):
-        """Ambil top topic preferences dari analisis komentar"""
+    def _get_audience_preferences(self, page_id=None, limit=10):
+        """Ambil top topic preferences dari analisis komentar.
+
+        Diambil lebih banyak dari yang dibutuhkan lalu disaring, supaya
+        preferensi sampah warisan lama (skornya terlanjur tinggi) tidak
+        menghabiskan jatah slot preferensi yang benar-benar berguna.
+        """
         try:
             from core.database import get_db_connection
             conn = get_db_connection()
+            fetch = limit * 4
             if page_id:
                 rows = conn.execute(
-                    'SELECT topic_keyword, boost_score FROM topic_preferences WHERE page_id = ? ORDER BY boost_score DESC LIMIT 10', (page_id,)
+                    'SELECT topic_keyword, boost_score FROM topic_preferences WHERE page_id = ? ORDER BY boost_score DESC LIMIT ?', (page_id, fetch)
                 ).fetchall()
             else:
                 rows = conn.execute(
-                    'SELECT topic_keyword, boost_score FROM topic_preferences ORDER BY boost_score DESC LIMIT 10'
+                    'SELECT topic_keyword, boost_score FROM topic_preferences ORDER BY boost_score DESC LIMIT ?', (fetch,)
                 ).fetchall()
             conn.close()
-            return [r[0] for r in rows]
+
+            # Buang preferensi sampah warisan lama ("hook: unknown", dsb) agar
+            # tidak ikut menentukan pemilihan topik maupun gaya hook
+            from comment_analyzer import _is_meaningful, normalize_hook
+            result = []
+            for r in rows:
+                kw = r[0]
+                if not _is_meaningful(kw):
+                    continue
+                if kw.startswith('hook:') and not normalize_hook(kw):
+                    continue
+                result.append(kw)
+            return result[:limit]
         except Exception:
             return []
 
@@ -66,6 +84,83 @@ class GoldGenService:
             return {}
         except Exception:
             return {}
+
+    def _get_layout_performance(self, page_id):
+        """Rata-rata engagement tiap layout untuk SATU page.
+
+        Sumber data: tabel posts (layout_name) di-join dengan engagement_cache
+        yang diisi oleh comment_analyzer setiap siklus riset.
+        Return: {layout_name: {'avg': float, 'n': int}}
+        """
+        if not page_id:
+            return {}
+        try:
+            from core.database import get_db_connection
+            conn = get_db_connection()
+            rows = conn.execute('''
+                SELECT p.layout_name AS layout,
+                       AVG(ec.likes + ec.comments) AS avg_eng,
+                       COUNT(*) AS n
+                FROM posts p
+                JOIN engagement_cache ec ON ec.fb_post_id = p.fb_post_id
+                WHERE p.page_id = ?
+                  AND p.status = 'success'
+                  AND p.layout_name IS NOT NULL
+                  AND p.layout_name != ''
+                GROUP BY p.layout_name
+            ''', (page_id,)).fetchall()
+            conn.close()
+            return {r['layout']: {'avg': r['avg_eng'] or 0.0, 'n': r['n']} for r in rows}
+        except Exception as e:
+            print(f"   ⚠️ Gagal membaca performa layout: {e}")
+            return {}
+
+    def _choose_layout(self, page_id, fallback_index):
+        """Pilih layout berdasarkan performa nyata di page ini.
+
+        Sebelumnya layout ditentukan `index_topik % 16` — murni rotasi, tidak
+        pernah melihat layout mana yang benar-benar disukai audiens, padahal
+        datanya sudah dikumpulkan.
+
+        Strategi (bandit sederhana):
+        1. Layout yang belum pernah dicoba diprioritaskan (kumpulkan data dulu).
+        2. 20% eksplorasi acak — supaya tidak terkunci di satu gaya dan
+           audiens tidak bosan.
+        3. Sisanya: undian berbobot berdasarkan rata-rata engagement, jadi
+           layout terbaik paling sering muncul tanpa mematikan yang lain.
+        """
+        if not self.layouts:
+            return None, 'no-layout'
+
+        perf = self._get_layout_performance(page_id)
+        MIN_SAMPLE = 2  # di bawah ini belum bisa disebut bukti
+
+        proven = {name: d for name, d in perf.items() if d['n'] >= MIN_SAMPLE and d['avg'] > 0}
+
+        # 1. Utamakan layout yang belum punya data — eksplorasi terarah
+        untried = [l for l in self.layouts if l['name'] not in perf]
+        if untried and random.random() < 0.35:
+            layout = random.choice(untried)
+            return layout, f"belum pernah dicoba di page ini"
+
+        if not proven:
+            # Belum ada bukti sama sekali -> rotasi lama (perilaku aman)
+            return self.layouts[fallback_index % len(self.layouts)], "rotasi (data belum cukup)"
+
+        # 2. Slot eksplorasi
+        if random.random() < 0.20:
+            layout = random.choice(self.layouts)
+            return layout, "eksplorasi acak"
+
+        # 3. Undian berbobot berdasarkan performa
+        candidates = [l for l in self.layouts if l['name'] in proven]
+        weights = [proven[l['name']]['avg'] for l in candidates]
+        if not candidates or sum(weights) <= 0:
+            return self.layouts[fallback_index % len(self.layouts)], "rotasi (bobot kosong)"
+
+        layout = random.choices(candidates, weights=weights, k=1)[0]
+        d = proven[layout['name']]
+        return layout, f"pemenang: rata-rata {d['avg']:.1f} engagement dari {d['n']} post"
 
     def _get_live_gold_price(self):
         """Fetch real-time gold price via yfinance API"""
@@ -234,11 +329,12 @@ Do not include any other text, markdown blocks, or quotes. Just the raw JSON.
             news_topic = self._get_breaking_news()
             if news_topic:
                 print(f"   🚨 Found breaking news: {news_topic['headline']}")
-                # Assign a random layout
-                layout_index = random.randint(0, len(self.layouts) - 1)
-                layout = self.layouts[layout_index]
-                news_topic['layout'] = layout['name']
-                news_topic['composition'] = layout['composition']
+                # Layout tetap dipilih berdasarkan performa page, bukan acak murni
+                layout, why = self._choose_layout(page_id, random.randint(0, len(self.layouts) - 1))
+                if layout:
+                    news_topic['layout'] = layout['name']
+                    news_topic['composition'] = layout['composition']
+                    print(f"   🎨 Layout: {layout['name']} ({why})")
                 return news_topic
 
         state_file = self.state_file
@@ -310,11 +406,12 @@ Do not include any other text, markdown blocks, or quotes. Just the raw JSON.
         if explore_mode:
             topic['explore_mode'] = True
 
-        # Assign layout
-        layout_index = selected_index % len(self.layouts)
-        layout = self.layouts[layout_index]
-        topic['layout'] = layout['name']
-        topic['composition'] = layout['composition']
+        # Assign layout — berdasarkan performa nyata di page ini, bukan rotasi buta
+        layout, why = self._choose_layout(page_id, selected_index)
+        if layout:
+            topic['layout'] = layout['name']
+            topic['composition'] = layout['composition']
+            print(f"   🎨 Layout: {layout['name']} ({why})")
 
         # Update state
         next_index = (current_index + 1) % len(self.topics)
@@ -354,9 +451,10 @@ Do not include any other text, markdown blocks, or quotes. Just the raw JSON.
         
         list_text = "\n".join([f"• {point}" for point in topic['list_points']])
         
+        from comment_analyzer import _is_meaningful
         insights = self._get_latest_insights(page_id)
-        avoid_patterns = insights.get('avoid_patterns', [])
-        prompt_suggestions = insights.get('prompt_improvement_suggestions', [])
+        avoid_patterns = [p for p in (insights.get('avoid_patterns') or []) if _is_meaningful(p)]
+        prompt_suggestions = [p for p in (insights.get('prompt_improvement_suggestions') or []) if _is_meaningful(p)]
         
         dynamic_avoid = ""
         if avoid_patterns:
@@ -380,10 +478,14 @@ Do not include any other text, markdown blocks, or quotes. Just the raw JSON.
         if "MINI-GAME" in topic['headline']:
             minigame_instruction = "IMPORTANT GAMIFICATION INSTRUCTION: This is a 'Find the Hidden Gold' mini-game! You MUST write an exciting, challenging caption. Ask the audience to spot the hidden nugget in the picture, circle it, and post their screenshot in the comments. Promise them you will personally check their answers in the comments!\n"
 
-        # Check for winning hook in preferences
+        # Check for winning hook in preferences.
+        # Hanya hook yang dikenali sistem yang dipakai — label seperti
+        # "unknown (high engagement outliers)" tidak bisa dieksekusi AI dan
+        # dulu justru diperintahkan sebagai gaya hook wajib.
+        from comment_analyzer import normalize_hook
         prefs = self._get_audience_preferences(page_id)
         winning_hook_instruction = ""
-        winning_hooks = [p.replace("hook:", "").strip() for p in prefs if p.startswith("hook:")]
+        winning_hooks = [h for h in (normalize_hook(p) for p in prefs if p.startswith("hook:")) if h]
         if winning_hooks:
             best_hook = winning_hooks[0].upper()
             winning_hook_instruction = f"\n🔥 CRITICAL INSTRUCTION: Based on A/B testing, the '{best_hook}' hook style performs best for this specific audience. You MUST use a '{best_hook}' style hook for this post! (e.g. if Fear, use a warning. If Secret, use insider knowledge).\n"
@@ -509,7 +611,10 @@ COMPOSITION GUIDE: {topic['composition']}
 """
         
         insights = self._get_latest_insights(page_id)
-        visual_styles = insights.get('preferred_visual_styles', [])
+        # Saring nilai kosong seperti "none identified" — kalau diteruskan, string
+        # itu masuk ke prompt gambar sebagai instruksi gaya dan hanya membingungkan model
+        from comment_analyzer import _is_meaningful
+        visual_styles = [v for v in (insights.get('preferred_visual_styles') or []) if _is_meaningful(v)]
         if visual_styles:
             base_prompt += "\nAUDIENCE PREFERRED VISUAL STYLES (Incorporate these if possible):\n"
             base_prompt += "\n".join([f"- {v}" for v in visual_styles]) + "\n\n"

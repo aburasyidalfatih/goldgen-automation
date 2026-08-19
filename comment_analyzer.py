@@ -12,6 +12,48 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from core.database import get_db_connection, init_db
 from core.config import CONFIG_PATH
+
+# Hook yang benar-benar dikenali sistem. Editor AI hanya menghasilkan label dari
+# daftar ini, dan prompt caption hanya bisa menindaklanjuti label dari daftar ini.
+# Apa pun di luar ini (mis. "unknown", "high engagement outliers",
+# "physics/technical") tidak bisa dieksekusi dan hanya mengotori preferensi.
+CANONICAL_HOOKS = ['fear', 'secret', 'mythbuster', 'challenge', 'story', 'fact', 'news']
+
+# Nilai kosong yang sering dikembalikan AI dan tidak boleh masuk prompt
+JUNK_VALUES = {
+    '', '-', 'n/a', 'na', 'none', 'none identified', 'nothing', 'unknown',
+    'not identified', 'no data', 'tidak ada', 'null', 'undefined',
+}
+
+
+def _is_meaningful(value):
+    """False untuk nilai kosong/placeholder yang tidak berguna sebagai instruksi AI"""
+    if not value or not isinstance(value, str):
+        return False
+    cleaned = value.strip().lower().strip('.')
+    if cleaned in JUNK_VALUES or len(cleaned) < 3:
+        return False
+    # Buang frasa yang intinya "tidak teridentifikasi"
+    return not any(cleaned.startswith(p) for p in ('none ', 'no specific', 'not enough', 'unknown'))
+
+
+def normalize_hook(raw):
+    """Petakan label hook bebas dari AI ke salah satu CANONICAL_HOOKS.
+
+    Return None kalau tidak cocok — lebih baik tidak memaksakan gaya hook
+    daripada menyuruh AI memakai gaya 'UNKNOWN (HIGH ENGAGEMENT OUTLIERS)'.
+    """
+    if not raw:
+        return None
+    text = str(raw).lower()
+    if 'unknown' in text:
+        return None
+    for hook in CANONICAL_HOOKS:
+        if hook in text:
+            return hook
+    return None
+
+
 class CommentAnalyzer:
     def __init__(self, config_path=CONFIG_PATH):
         with open(config_path, 'r') as f:
@@ -105,7 +147,7 @@ class CommentAnalyzer:
         url = f"https://graph.facebook.com/v18.0/{page_id}/posts"
         params = {
             'access_token': access_token,
-            'fields': 'id,message,created_time,likes.summary(true),shares,reactions.type(LOVE).limit(0).summary(total_count).as(love),reactions.type(HAHA).limit(0).summary(total_count).as(haha),reactions.type(WOW).limit(0).summary(total_count).as(wow),reactions.type(ANGRY).limit(0).summary(total_count).as(angry),reactions.type(SAD).limit(0).summary(total_count).as(sad)',
+            'fields': 'id,message,created_time,likes.summary(true),comments.summary(true),shares,reactions.type(LOVE).limit(0).summary(total_count).as(love),reactions.type(HAHA).limit(0).summary(total_count).as(haha),reactions.type(WOW).limit(0).summary(total_count).as(wow),reactions.type(ANGRY).limit(0).summary(total_count).as(angry),reactions.type(SAD).limit(0).summary(total_count).as(sad)',
             'limit': 30
         }
         try:
@@ -119,6 +161,7 @@ class CommentAnalyzer:
         silent_cutoff = datetime.now() - timedelta(days=14)
         metrics = []
         engagement_samples = []  # untuk update baseline
+        perf_rows = []           # performa per-post untuk pembelajaran layout
         hook_types = self._get_hook_types([p['id'] for p in posts])
 
         for post in posts:
@@ -137,11 +180,19 @@ class CommentAnalyzer:
             angry = post.get('angry', {}).get('summary', {}).get('total_count', 0)
             sad = post.get('sad', {}).get('summary', {}).get('total_count', 0)
 
+            comments_count = post.get('comments', {}).get('summary', {}).get('total_count', 0)
             total = likes + shares + love + haha + wow + angry + sad
             engagement_samples.append(total)
 
-            # Hanya catat jika ada interaksi lumayan
-            if total >= 5:
+            # Simpan performa per-post supaya pemilihan LAYOUT bisa belajar dari
+            # data nyata. Sebelumnya angka ini cuma dipakai sesaat lalu dibuang,
+            # dan engagement_cache hanya terisi kalau dashboard Analytics dibuka.
+            perf_rows.append((post['id'], likes + love + haha + wow, comments_count))
+
+            # Ambang diturunkan agar page kecil ikut belajar. Dengan ambang lama (5),
+            # page dengan engagement rendah tidak pernah menghasilkan riset sama
+            # sekali, sehingga kontennya tidak pernah membaik (jebakan cold-start).
+            if total >= 2:
                 # Get hook_type from DB, fallback ke deteksi keyword dari caption jika Unknown
                 message = post.get('message') or ''
                 hook_type = hook_types.get(post['id']) or "Unknown"
@@ -170,6 +221,25 @@ class CommentAnalyzer:
                     'total': total,
                     'message_preview': message[:120]
                 })
+
+        # Simpan performa per-post ke engagement_cache — inilah bahan bakar
+        # pembelajaran layout di goldgen_service._get_layout_performance()
+        if perf_rows:
+            try:
+                conn = get_db_connection()
+                conn.executemany('''
+                    INSERT INTO engagement_cache (fb_post_id, likes, comments, cached_at)
+                    VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                    ON CONFLICT(fb_post_id) DO UPDATE SET
+                        likes = excluded.likes,
+                        comments = excluded.comments,
+                        cached_at = CURRENT_TIMESTAMP
+                ''', perf_rows)
+                conn.commit()
+                conn.close()
+                print(f"   💾 Performa {len(perf_rows)} postingan tersimpan untuk pembelajaran layout")
+            except Exception as e:
+                print(f"   ⚠️ Gagal menyimpan performa post: {e}")
 
         # Update baseline engagement untuk normalisasi (Tahap 4)
         #
@@ -204,56 +274,84 @@ class CommentAnalyzer:
         return metrics
 
     def get_most_engaged_image(self, page_id, access_token, days=3):
-        """Find the local image path of the most commented post in the last N days"""
+        """Cari file gambar lokal dari postingan dengan engagement tertinggi.
+
+        Dua perbaikan penting dibanding versi lama:
+        1. Peringkat memakai like + komentar + share, bukan komentar saja.
+        2. Kandidat yang file gambarnya sudah terhapus (cleanup 3 hari) dilewati,
+           lalu lanjut ke kandidat berikutnya. Versi lama langsung menyerah dan
+           mengembalikan None, sehingga Vision AI sering tidak pernah jalan.
+        """
+        import os
+
         url = f"https://graph.facebook.com/v18.0/{page_id}/posts"
         try:
-            r = requests.get(url, params={'access_token': access_token, 'fields': 'id,created_time', 'limit': 20}, timeout=30)
+            r = requests.get(url, params={
+                'access_token': access_token,
+                'fields': 'id,created_time,likes.summary(true),comments.summary(true),shares',
+                'limit': 25
+            }, timeout=30)
             posts = r.json().get('data', [])
-        except Exception:
+        except Exception as e:
+            print(f"   ⚠️  Gagal mengambil postingan untuk Vision AI: {e}")
             return None
-            
+
         cutoff = datetime.now() - timedelta(days=days)
-        best_post_id = None
-        max_comments = -1
-        
+        ranked = []
+
         for post in posts:
             try:
                 if datetime.strptime(post['created_time'], '%Y-%m-%dT%H:%M:%S+0000') < cutoff:
                     continue
-                r_com = requests.get(f"https://graph.facebook.com/v18.0/{post['id']}/comments?summary=1&access_token={access_token}", timeout=30)
-                count = r_com.json().get('summary', {}).get('total_count', 0)
-                if count > max_comments:
-                    max_comments = count
-                    best_post_id = post['id']
-            except:
-                pass
-                
-        if best_post_id:
-            try:
-                conn = get_db_connection()
-                db_post = conn.execute("SELECT image_path FROM posts WHERE fb_post_id = ?", (best_post_id,)).fetchone()
-                conn.close()
-                if db_post and db_post['image_path']:
-                    return db_post['image_path']
-            except:
-                pass
+                likes = post.get('likes', {}).get('summary', {}).get('total_count', 0)
+                comments = post.get('comments', {}).get('summary', {}).get('total_count', 0)
+                shares = post.get('shares', {}).get('count', 0)
+                ranked.append((likes + comments + shares, post['id']))
+            except Exception:
+                continue
+
+        if not ranked:
+            return None
+
+        ranked.sort(reverse=True)
+        try:
+            conn = get_db_connection()
+            for score, fb_post_id in ranked:
+                row = conn.execute(
+                    "SELECT image_path FROM posts WHERE fb_post_id = ?", (fb_post_id,)
+                ).fetchone()
+                if row and row['image_path'] and os.path.exists(row['image_path']):
+                    conn.close()
+                    print(f"   🏆 Gambar terbaik: engagement {score} ({os.path.basename(row['image_path'])})")
+                    return row['image_path']
+            conn.close()
+        except Exception as e:
+            print(f"   ⚠️  Gagal mencari gambar terbaik: {e}")
+
+        print("   ⚠️  Tidak ada gambar pemenang yang filenya masih tersimpan")
         return None
 
     def analyze_vision_styles(self, image_path):
-        """Use Gemini Vision to extract winning visual aesthetics from the top image"""
+        """Use Gemini Vision to extract winning visual aesthetics from the top image.
+
+        Model diambil dari config (self.text_model), BUKAN hardcoded. Versi lama
+        memakai 'gemini-1.5-flash' yang sudah dipensiunkan Google (404), sehingga
+        seluruh analisis visual gagal diam-diam dan tidak pernah berkontribusi.
+        """
         import base64
         import os
         import re
         if not image_path or not os.path.exists(image_path):
+            print(f"   ⚠️  Vision AI dilewati: file gambar tidak ada ({image_path})")
             return []
-            
+
         try:
             with open(image_path, "rb") as f:
                 encoded_image = base64.b64encode(f.read()).decode("utf-8")
-                
+
             prompt = "Analyze this top-performing gold prospecting image. What specific visual aesthetics make it highly engaging to an American audience? (e.g. muddy hands, extreme macro shot, sun glare, rugged realism). Reply ONLY with a JSON array of strings representing the 3-5 best visual keywords. Example: [\"macro photography\", \"muddy realism\"]"
-            
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={self.gemini_api_key}"
+
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.text_model}:generateContent?key={self.gemini_api_key}"
             payload = {
                 "contents": [{
                     "parts": [
@@ -262,13 +360,22 @@ class CommentAnalyzer:
                     ]
                 }]
             }
-            response = requests.post(url, json=payload, timeout=30)
-            text = response.json()['candidates'][0]['content']['parts'][0]['text']
+            response = requests.post(url, json=payload, timeout=60)
+            data = response.json()
+
+            # Jangan telan error diam-diam — tampilkan alasan sebenarnya
+            if 'candidates' not in data:
+                err = (data.get('error') or {}).get('message', str(data)[:150])
+                print(f"   ❌ Vision AI gagal (model={self.text_model}): {err[:180]}")
+                return []
+
+            text = data['candidates'][0]['content']['parts'][0]['text']
             match = re.search(r'\[.*\]', text, re.DOTALL)
             if match:
-                return json.loads(match.group(0))
+                styles = json.loads(match.group(0))
+                return [s for s in styles if isinstance(s, str) and _is_meaningful(s)]
         except Exception as e:
-            print(f"❌ Vision AI Error: {e}")
+            print(f"   ❌ Vision AI Error: {type(e).__name__}: {e}")
         return []
 
     def analyze_with_gemini(self, comments, page_name, silent_metrics=None, page_id=None):
@@ -400,7 +507,21 @@ REPLY ONLY WITH THIS EXACT JSON FORMAT:
 
         # Update topic_preferences berdasarkan suggested topics
         for item in analysis.get('suggested_topics', []):
-            topic_kw = item.get('topic', '').lower()
+            if not isinstance(item, dict):
+                continue
+            topic_kw = (item.get('topic') or '').lower().strip()
+
+            # Saring sampah sebelum masuk DB — preferensi yang tidak bisa
+            # dieksekusi hanya akan menggeser sinyal yang benar-benar berguna
+            if not _is_meaningful(topic_kw):
+                continue
+            if topic_kw.startswith('hook'):
+                hook = normalize_hook(topic_kw)
+                if not hook:
+                    print(f"   ⏭️  Preferensi hook diabaikan (tidak dikenali): {topic_kw[:50]}")
+                    continue
+                topic_kw = f"hook: {hook}"
+
             if topic_kw:
                 # Cek apakah sudah ada, kalau ada boost score-nya
                 existing = cursor.execute(
@@ -516,8 +637,12 @@ REPLY ONLY WITH THIS EXACT JSON FORMAT:
         if silent_metrics:
             print(f"   📈 Menemukan {len(silent_metrics)} postingan dengan Silent Engagement tinggi")
 
-        if len(comments) < 3 and not silent_metrics:
-            print(f"   ⚠️ Hanya {len(comments)} komentar dan tidak ada keviralan bisu, riset dilewati")
+        # Riset hanya dilewati kalau benar-benar TIDAK ADA sinyal apa pun.
+        # Ambang lama (butuh >=3 komentar) membuat page kecil tidak pernah belajar,
+        # padahal justru merekalah yang paling perlu perbaikan konten.
+        # Bukti lemah tetap aman: bobotnya kecil (lihat perhitungan weight di bawah).
+        if not comments and not silent_metrics:
+            print(f"   ⚠️ Tidak ada komentar maupun engagement sama sekali, riset dilewati")
             return False
 
         print(f"   🤖 Menganalisa {len(comments)} komentar dan {len(silent_metrics)} metrik dengan Gemini...")
@@ -533,7 +658,17 @@ REPLY ONLY WITH THIS EXACT JSON FORMAT:
             vision_styles = self.analyze_vision_styles(best_img)
             if vision_styles:
                 print(f"   ✅ Vision AI menemukan gaya visual pemenang: {vision_styles}")
-                analysis['preferred_visual_styles'] = vision_styles
+                # Gabungkan, jangan timpa: gaya dari Vision AI (melihat gambar asli)
+                # diprioritaskan, gaya dari analisis komentar tetap dipertahankan.
+                text_styles = [s for s in (analysis.get('preferred_visual_styles') or [])
+                               if isinstance(s, str) and _is_meaningful(s)]
+                merged, seen = [], set()
+                for style in vision_styles + text_styles:
+                    key = style.strip().lower()
+                    if key not in seen:
+                        seen.add(key)
+                        merged.append(style)
+                analysis['preferred_visual_styles'] = merged[:6]
             else:
                 print(f"   ⚠️  Vision AI gagal mengekstrak gaya visual")
 
