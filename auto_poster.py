@@ -116,18 +116,6 @@ class GoldGenAutoPoster:
             return caption, topic
     
     
-    def _generate_fallback_caption(self, gold_data):
-        """Fallback caption if GoldGen fails"""
-        return f"""💰 UPDATE HARGA EMAS HARI INI
-
-Harga emas per gram: Rp {gold_data['price']:,}
-Perubahan: {gold_data['change']}
-Tanggal: {gold_data['date']}
-
-Pantau terus pergerakan harga emas untuk keputusan investasi yang tepat!
-
-#HargaEmas #InvestasiEmas #EmasHariIni #GoldPrice"""
-    
     def generate_image(self, topic, fanspage_name=None, page_id=None):
         """Generate educational infographic using Gemini image model"""
         # Prompt dibangun di luar blok retry supaya retry tidak crash karena

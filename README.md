@@ -181,9 +181,30 @@ sqlite3 data/posts.db "SELECT timestamp, error_message FROM posts WHERE status='
 - `config.json` contains sensitive data (API keys, tokens)
 - File permissions are set to user-only access
 - Never commit config.json to git
-- Rotate Facebook tokens regularly (every 60 days recommended)
+- Long-lived page token tidak punya masa kedaluwarsa; ia hanya mati kalau
+  password diganti, izin dicabut, atau app kena review. Cek kapan saja dengan:
+  `python check_tokens.py`
+- Ganti `DASHBOARD_PIN` dari nilai default sebelum dipakai di produksi
 
 ## Changelog
+
+### 2026-08-20
+- **Skema database disatukan** di `core/database.py` + migrasi otomatis dari
+  skema lama (memperbaiki cooldown anti-ban & antrean posting yang gagal senyap)
+- **Endpoint sensitif dikunci PIN** (config, fanspages, settings, bot-toggle, queue)
+- **Alasan kegagalan selalu tercatat & tampil** di dashboard, termasuk token tidak aktif
+- **Status token berbasis bukti** — hitung mundur 60 hari dihapus karena
+  long-lived page token tidak punya masa kedaluwarsa
+- **Vision AI diperbaiki** — model hardcoded `gemini-1.5-flash` sudah 404
+  (dipensiunkan Google), sekarang memakai model dari config
+- **Layout gambar belajar dari engagement** via Thompson Sampling (Normal-Normal),
+  sadar ukuran sampel — 1 post viral tidak lagi membajak strategi visual
+- **Skor editor AI divalidasi** terhadap engagement nyata; tulis-ulang dimatikan
+  otomatis kalau terbukti tidak berkorelasi
+- **Analisis & UI jam posting** per fanspage di `/schedule-insight`
+- Total topics: **101** · layouts: **16**
+- File baru: `core/locks.py`, `telegram_notifier.py`, `learning_insights.py`,
+  `check_tokens.py`, `templates/schedule_insight.html`
 
 ### 2026-03-27
 - **Fitur Analisa Komentar** — tombol "💬 Analisa Komentar" di halaman Analytics
