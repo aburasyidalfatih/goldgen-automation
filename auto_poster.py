@@ -346,6 +346,27 @@ class GoldGenAutoPoster:
         
         return False, "Token validation failed: Max retries exceeded"
     
+    def _extract_post_id(self, result):
+        """Ambil ID POSTINGAN dari respons /photos, bukan ID foto.
+
+        Endpoint /photos mengembalikan dua ID:
+            id      -> ID objek foto            (mis. 122199562316591645)
+            post_id -> ID postingan di feed     (mis. 488507404341313_122199562340591645)
+
+        Selama ini yang disimpan adalah 'id', padahal semua pembacaan balik
+        memakai endpoint /posts yang mengembalikan format post_id. Keduanya tidak
+        pernah cocok, sehingga:
+          - Vision AI tidak pernah menemukan gambar pemenang untuk dianalisis
+          - hook_type tidak pernah terbaca balik dan selalu jadi "Unknown"
+            (inilah sumber preferensi sampah "hook: unknown")
+          - baris engagement_cache jadi yatim dan tidak ikut melatih layout
+        """
+        post_id = result.get('post_id') or result.get('id')
+        photo_id = result.get('id')
+        if post_id and photo_id and post_id != photo_id:
+            print(f"   🔗 Post ID: {post_id} (foto: {photo_id})")
+        return post_id
+
     def post_to_facebook(self, fanspage, content, image_path):
         """Post content and image to Facebook page with retry"""
         # Validate token first
@@ -412,13 +433,12 @@ class GoldGenAutoPoster:
                     response = requests.post(url, data=data, files=files, timeout=30)
                     
                     if response.status_code == 200:
-                        result = response.json()
-                        post_id = result.get('id')
+                        post_id = self._extract_post_id(response.json())
                         print(f"   📍 Location: {location['name']}")
-                        
+
                         # Send Telegram notification
                         send_notification(f"✅ <b>Goldgen Bot</b>\n\n📝 Posted to Facebook\n📍 {location['name']}\n🆔 {post_id}")
-                        
+
                         return post_id, None
                     else:
                         error_msg = self._describe_fb_error(response)
@@ -433,7 +453,7 @@ class GoldGenAutoPoster:
                             image_file.seek(0)  # Reset file pointer
                             response = requests.post(url, data=data, files={'source': image_file}, timeout=30)
                             if response.status_code == 200:
-                                return response.json().get('id'), None
+                                return self._extract_post_id(response.json()), None
                         
                         if attempt < max_retries - 1:
                             delay = 2 ** attempt
