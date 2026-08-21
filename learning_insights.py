@@ -112,6 +112,39 @@ def editor_report(page_id=None, min_samples=12):
     return result
 
 
+def hook_compliance_report(page_id):
+    """Seberapa sering generator benar-benar memakai hook yang diminta?
+
+    Sistem bisa mempelajari hook mana yang menang, tapi kalau instruksinya tidak
+    dipatuhi maka sisi eksploitasi tidak pernah berjalan — yang terjadi cuma
+    eksplorasi acak. Angka ini membuat masalah itu terlihat, bukan tersembunyi.
+    """
+    conn = get_db_connection()
+    rows = conn.execute('''
+        SELECT requested_hook, hook_type
+        FROM posts
+        WHERE page_id = ? AND status = 'success' AND requested_hook IS NOT NULL
+        ORDER BY id DESC LIMIT 30
+    ''', (page_id,)).fetchall()
+    conn.close()
+
+    total = len(rows)
+    if total == 0:
+        return {'n': 0, 'patuh': 0, 'rasio': None, 'contoh': []}
+
+    patuh = 0
+    contoh = []
+    for r in rows:
+        diminta = (r['requested_hook'] or '').strip().lower()
+        keluar = (r['hook_type'] or '').strip().lower()
+        cocok = bool(diminta) and diminta in keluar
+        patuh += 1 if cocok else 0
+        if len(contoh) < 5:
+            contoh.append({'diminta': diminta, 'keluar': keluar or '-', 'cocok': cocok})
+
+    return {'n': total, 'patuh': patuh, 'rasio': round(patuh / total, 2), 'contoh': contoh}
+
+
 def timing_report(page_id):
     """Rata-rata engagement per jam posting (waktu WIB seperti tersimpan)"""
     rows = _fetch_posts_with_engagement(page_id)
@@ -155,6 +188,7 @@ def full_report(fanspages):
             'schedule_hours': page.get('schedule_hours', []),
             'layouts': layout_report(pid),
             'editor': editor_report(pid),
+            'hook_compliance': hook_compliance_report(pid),
             'timing': timing_report(pid),
             'best_hours': best_hours(pid),
         })

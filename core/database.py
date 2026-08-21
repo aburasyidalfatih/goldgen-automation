@@ -152,6 +152,9 @@ def init_db():
         # Skor editor AI disimpan agar bisa diuji: apakah nilai tinggi dari
         # editor benar-benar berkorelasi dengan engagement nyata?
         ('posts', 'editor_score', 'REAL'),
+        # Hook yang DIMINTA sistem (vs hook_type = yang benar-benar terdeteksi),
+        # supaya tingkat kepatuhan generator bisa diukur, bukan ditebak
+        ('posts', 'requested_hook', 'TEXT'),
     ]
     for table, col, col_type in migrations:
         try:

@@ -10,6 +10,59 @@ import random
 from pathlib import Path
 from datetime import datetime
 
+# Panduan penulisan untuk tiap gaya hook.
+#
+# Dipakai untuk MENGGANTIKAN daftar hook generik ketika sudah diketahui gaya
+# mana yang menang di sebuah page. Sebelumnya kedua hal itu tampil bersamaan di
+# prompt yang sama, dan model justru mengikuti daftar generiknya — akibatnya
+# instruksi "wajib pakai gaya X" praktis diabaikan dan hampir semua caption
+# keluar bergaya Mythbuster, apa pun yang sudah dipelajari.
+HOOK_PLAYBOOK = {
+    'fear': [
+        '"That [common habit] is costing you gold every single trip."',
+        '"Most folks lose the best paydirt before they even start digging. Here is how."',
+        '"Keep doing [mistake] and you will walk right over a fortune."',
+    ],
+    'secret': [
+        '"While beginners [do X], real veterans know [secret Y]."',
+        '"Most people walk right past [thing] because they do not know [secret]."',
+        '"What old timers know about [topic] that nobody talks about."',
+    ],
+    'mythbuster': [
+        '"Everything you were told about [topic] is dead wrong."',
+        '"Stop [common practice]. Here is what actually works."',
+        '"That old rule about [topic]? It has been costing people gold for years."',
+    ],
+    'challenge': [
+        '"Can you spot the gold in this picture? Most cannot."',
+        '"Bet you cannot name the one indicator in this shot."',
+        '"Real prospectors will catch this in two seconds. Can you?"',
+    ],
+    'story': [
+        '"Twenty years back I watched a fella walk away from a fortune. Here is why."',
+        '"I remember the day this creek finally gave up its gold."',
+        '"An old timer showed me this trick once. It changed everything."',
+    ],
+    'fact': [
+        '"Here is the geology that decides where gold actually settles."',
+        '"Gold does one thing, always: it drops the second the water slows."',
+        '"The science behind [topic] explains exactly where to dig."',
+    ],
+    'news': [
+        '"Word just came in from [place] and it changes things."',
+        '"A discovery this week has prospectors rethinking [topic]."',
+        '"Fresh report out of [place] worth paying attention to."',
+    ],
+}
+
+# Daftar generik — hanya dipakai saat page belum punya hook pemenang
+GENERIC_HOOK_STYLES = """- "While beginners [do X], real veterans know [secret Y]"
+- "Most people walk right past [thing] because they don't know [secret]"
+- "The [number] secret(s) that separate amateur prospectors from legends"
+- "Stop [common mistake]. Here's what actually works..."
+- "What successful prospectors know about [topic] that nobody talks about\""""
+
+
 class GoldGenService:
     def __init__(self, api_key, model='gemini-3.5-flash'):
         self.client = genai.Client(api_key=api_key)
@@ -235,15 +288,31 @@ class GoldGenService:
             print(f"Warning: Could not fetch live gold price: {e}")
         return None
 
-    def _editor_review(self, caption):
-        """AI Editor to review scroll-stopping power and extract hook type"""
+    def _editor_review(self, caption, requested_hook=None):
+        """AI Editor to review scroll-stopping power and extract hook type.
+
+        Kalau sebuah gaya hook sudah terbukti menang di page ini, editor ikut
+        menegakkannya. Tanpa penegakan, instruksi 'wajib pakai gaya X' hanya
+        jadi saran yang diabaikan model, dan sisi eksploitasi dari pembelajaran
+        hook tidak pernah benar-benar berjalan.
+        """
         try:
+            hook_rule = ""
+            if requested_hook:
+                hook_rule = (
+                    f"\n3. MANDATORY HOOK CHECK: The writer was REQUIRED to open with a "
+                    f"'{requested_hook.upper()}' style hook. If the opening is clearly a different "
+                    f"style, DEDUCT 4 POINTS and state plainly in the feedback which style was used "
+                    f"instead and how to rewrite the opening as '{requested_hook.upper()}'.\n"
+                )
+
             editor_prompt = f"""You are a cynical, highly-experienced American Facebook Marketing Editor for a gold prospecting page based in the US.
-Review this drafted caption. 
-1. Does the first line grab attention? Is it engaging? 
+Review this drafted caption.
+1. Does the first line grab attention? Is it engaging?
 2. Does it sound like a rugged American veteran? (It MUST use Imperial units like oz/inches/feet, NOT metric).
+{hook_rule}
 Assign a SCORE from 1 to 10 for "Scroll-Stopping Power". If it uses metric units, automatically deduct 5 points.
-Also identify the HOOK_TYPE used (e.g., Fear, Secret, Mythbuster, Challenge, Story, Fact).
+Also identify the HOOK_TYPE actually used (e.g., Fear, Secret, Mythbuster, Challenge, Story, Fact).
 
 DRAFT CAPTION:
 {caption}
@@ -623,9 +692,27 @@ Do not include any other text, markdown blocks, or quotes. Just the raw JSON.
         prefs = self._get_audience_preferences(page_id)
         winning_hook_instruction = ""
         winning_hooks = [h for h in (normalize_hook(p) for p in prefs if p.startswith("hook:")) if h]
-        if winning_hooks:
-            best_hook = winning_hooks[0].upper()
-            winning_hook_instruction = f"\n🔥 CRITICAL INSTRUCTION: Based on A/B testing, the '{best_hook}' hook style performs best for this specific audience. You MUST use a '{best_hook}' style hook for this post! (e.g. if Fear, use a warning. If Secret, use insider knowledge).\n"
+        requested_hook = winning_hooks[0] if winning_hooks else None
+        topic['requested_hook'] = requested_hook
+
+        if requested_hook:
+            best_hook = requested_hook.upper()
+            winning_hook_instruction = (
+                f"\n🔥 CRITICAL INSTRUCTION: Based on real engagement data from THIS page, the "
+                f"'{best_hook}' hook style performs best. Your opening MUST be a '{best_hook}' hook. "
+                f"An editor will check this and reject the draft if the hook is any other style.\n"
+            )
+            # Hanya tampilkan template untuk gaya yang diminta. Menampilkan daftar
+            # generik sekaligus membuat model mengikuti daftar itu dan mengabaikan
+            # gaya yang sudah terbukti menang.
+            examples = "\n".join(HOOK_PLAYBOOK.get(requested_hook, []))
+            hook_style_block = (
+                f"HOOK STYLE — WAJIB bergaya {best_hook} (jangan pakai gaya lain):\n{examples}\n"
+                f"Tiru POLA-nya, jangan salin kalimatnya mentah-mentah."
+            )
+        else:
+            best_hook = None
+            hook_style_block = f"HOOK STYLE (MUST USE ONE):\n{GENERIC_HOOK_STYLES}"
 
         base_prompt = f"""Create a VIRAL EDUCATIONAL CAPTION for a gold prospecting Facebook post.
 
@@ -646,12 +733,7 @@ CRITICAL: Do NOT write this in a generic, predictable way. Pick a UNIQUE angle f
 
 === PROVEN VIRAL FORMULA (based on top-performing posts analysis) ===
 
-HOOK STYLE (MUST USE ONE):
-- "While beginners [do X], real veterans know [secret Y]"
-- "Most people walk right past [thing] because they don't know [secret]"
-- "The [number] secret(s) that separate amateur prospectors from legends"
-- "Stop [common mistake]. Here's what actually works..."
-- "What successful prospectors know about [topic] that nobody talks about"
+{hook_style_block}
 
 CONTENT STRUCTURE:
 1. HEADLINE — Bombastic, provocative, promises exclusive insider knowledge
@@ -710,8 +792,8 @@ Requirements:
                 )
                 caption = response.text.strip()
 
-                # Editor review
-                review = self._editor_review(caption)
+                # Editor review — ikut memeriksa kepatuhan gaya hook
+                review = self._editor_review(caption, requested_hook=requested_hook)
                 print(f"   🕵️  Editor Review (Attempt {attempt+1}): Score {review.get('score')}/10 - Hook: {review.get('hook_type')}")
                 topic['hook_type'] = review.get('hook_type', 'Unknown')
                 try:

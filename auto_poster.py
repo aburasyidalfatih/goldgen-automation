@@ -487,15 +487,15 @@ class GoldGenAutoPoster:
 
         return None, f"GAGAL MENGIRIM: batas percobaan ({max_retries}x) habis tanpa respons sukses dari Facebook"
     
-    def log_post(self, fanspage, content, image_path, fb_post_id, status, error_message=None, layout_name=None, hook_type=None, editor_score=None):
+    def log_post(self, fanspage, content, image_path, fb_post_id, status, error_message=None, layout_name=None, hook_type=None, editor_score=None, requested_hook=None):
         """Log post to database"""
         from datetime import timezone, timedelta
         now_wib = datetime.now(timezone(timedelta(hours=7)))
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute('''
-            INSERT INTO posts (timestamp, page_id, page_name, content, image_path, fb_post_id, status, error_message, layout_name, hook_type, editor_score)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO posts (timestamp, page_id, page_name, content, image_path, fb_post_id, status, error_message, layout_name, hook_type, editor_score, requested_hook)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             now_wib.isoformat(),
             fanspage['page_id'],
@@ -507,7 +507,8 @@ class GoldGenAutoPoster:
             error_message,
             layout_name,
             hook_type,
-            editor_score
+            editor_score,
+            requested_hook
         ))
         conn.commit()
         conn.close()
@@ -693,11 +694,11 @@ class GoldGenAutoPoster:
                 
                 if fb_post_id:
                     print(f"   ✅ Success! Post ID: {fb_post_id}")
-                    self.log_post(fanspage, content, image_path, fb_post_id, 'success', layout_name=topic.get('layout'), hook_type=topic.get('hook_type'), editor_score=topic.get('editor_score'))
+                    self.log_post(fanspage, content, image_path, fb_post_id, 'success', layout_name=topic.get('layout'), hook_type=topic.get('hook_type'), editor_score=topic.get('editor_score'), requested_hook=topic.get('requested_hook'))
                     posted_count += 1
                 else:
                     print(f"   ❌ Failed: {error}")
-                    self.log_post(fanspage, content, image_path, None, 'failed', error, layout_name=topic.get('layout'), hook_type=topic.get('hook_type'), editor_score=topic.get('editor_score'))
+                    self.log_post(fanspage, content, image_path, None, 'failed', error, layout_name=topic.get('layout'), hook_type=topic.get('hook_type'), editor_score=topic.get('editor_score'), requested_hook=topic.get('requested_hook'))
                 
                 print()
 
@@ -775,7 +776,7 @@ class GoldGenAutoPoster:
             
             if fb_post_id:
                 print(f"   ✅ Success! Post ID: {fb_post_id}")
-                self.log_post(target_fanspage, caption, image_path, fb_post_id, 'success', layout_name=topic.get('layout'), hook_type=topic.get('hook_type'), editor_score=topic.get('editor_score'))
+                self.log_post(target_fanspage, caption, image_path, fb_post_id, 'success', layout_name=topic.get('layout'), hook_type=topic.get('hook_type'), editor_score=topic.get('editor_score'), requested_hook=topic.get('requested_hook'))
                 self.update_last_post_time(target_fanspage['page_id'])
                 
                 next_index = (base_topic_index + 1) % len(self.goldgen.topics)
@@ -786,7 +787,7 @@ class GoldGenAutoPoster:
                 return True, fb_post_id
             else:
                 print(f"   ❌ Failed: {error}")
-                self.log_post(target_fanspage, caption, image_path, None, 'failed', error, layout_name=topic.get('layout'), hook_type=topic.get('hook_type'), editor_score=topic.get('editor_score'))
+                self.log_post(target_fanspage, caption, image_path, None, 'failed', error, layout_name=topic.get('layout'), hook_type=topic.get('hook_type'), editor_score=topic.get('editor_score'), requested_hook=topic.get('requested_hook'))
                 return False, error
                 
         except Exception as e:

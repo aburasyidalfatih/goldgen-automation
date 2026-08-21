@@ -49,6 +49,18 @@ def main():
                 print(f"   caption skor >=8 : {e['avg_high']:.0f} engagement")
                 print(f"   caption skor <8  : {e['avg_low']:.0f} engagement")
 
+        # --- Kepatuhan hook ---
+        hc = page['hook_compliance']
+        if hc['n'] == 0:
+            print("\n🎯 KEPATUHAN HOOK — belum ada data "
+                  "(kolom requested_hook baru terisi mulai posting berikutnya)")
+        else:
+            persen = hc['rasio'] * 100
+            nilai = 'BAIK' if persen >= 70 else ('SEDANG' if persen >= 40 else 'BURUK — instruksi hook diabaikan')
+            print(f"\n🎯 KEPATUHAN HOOK — {hc['patuh']}/{hc['n']} sesuai ({persen:.0f}%) — {nilai}")
+            for c in hc['contoh']:
+                print(f"   {'✅' if c['cocok'] else '❌'} diminta {c['diminta']:<12} -> keluar {c['keluar']}")
+
         # --- Jam posting ---
         print("\n⏰ JAM POSTING")
         if not page['timing']:
