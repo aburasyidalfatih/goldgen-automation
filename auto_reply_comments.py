@@ -13,6 +13,7 @@ import random
 from datetime import datetime
 from core.database import get_db_connection, init_db
 from core.config import CONFIG_PATH
+from core.safe_log import redact
 
 class CommentReplier:
     def __init__(self, config_path=CONFIG_PATH):
@@ -29,6 +30,10 @@ class CommentReplier:
         if not self.fanspages:
             raise ValueError("No enabled fanspages found in config")
         
+        # Postingan yang edge /comments-nya ditolak Facebook — dicatat agar
+        # tidak dicoba berulang kali dalam siklus yang sama
+        self._unsupported_posts = set()
+
         # Database
         self.db_path = 'data/posts.db'
         self._init_db()
@@ -52,7 +57,7 @@ class CommentReplier:
             data = response.json()
             return data.get('data', [])
         except Exception as e:
-            print(f"❌ Error getting posts: {e}")
+            print(f"❌ Error getting posts: {redact(e)}")
             return []
     
     def get_comments(self, post_id, access_token, page_id):
@@ -65,21 +70,41 @@ class CommentReplier:
             'limit': 100
         }
         
+        # Sebagian postingan dicantumkan Facebook di /posts tapi menolak edge
+        # /comments dengan error (#100). Itu anomali di sisi Facebook, jadi cukup
+        # dilewati sekali dengan catatan ringkas — jangan diulang berisik tiap siklus.
+        if post_id in self._unsupported_posts:
+            return []
+
         try:
             response = requests.get(url, params=params, timeout=30)
-            response.raise_for_status()
+
+            if response.status_code != 200:
+                error = {}
+                try:
+                    error = response.json().get('error', {}) or {}
+                except Exception:
+                    pass
+                if error.get('code') == 100:
+                    self._unsupported_posts.add(post_id)
+                    print(f"   ℹ️  Postingan {post_id[-18:]} tidak mendukung komentar, dilewati")
+                    return []
+                # redact(): URL error dari requests memuat access_token utuh
+                print(f"❌ Error getting comments: {redact(error.get('message') or response.text)[:150]}")
+                return []
+
             data = response.json()
             comments = data.get('data', [])
-            
+
             # Filter out comments from the page itself
             filtered_comments = [
-                c for c in comments 
+                c for c in comments
                 if c.get('from', {}).get('id') != page_id
             ]
-            
+
             return filtered_comments
         except Exception as e:
-            print(f"❌ Error getting comments: {e}")
+            print(f"❌ Error getting comments: {redact(e)}")
             return []
     
     # === Human-like behavior configuration ===
@@ -178,7 +203,7 @@ class CommentReplier:
             response.raise_for_status()
             return base64.b64encode(response.content).decode('utf-8')
         except Exception as e:
-            print(f"   ❌ Failed to download attachment image: {e}")
+            print(f"   ❌ Failed to download attachment image: {redact(e)}")
             return None
     
     def generate_reply(self, comment_text, post_context="", user_name="User", user_history=None, ml_insights=None, image_b64=None):
@@ -293,7 +318,7 @@ Just provide the direct reply without any quotes or explanations."""
 
             return reply
         except Exception as e:
-            print(f"❌ Error generating reply: {e}")
+            print(f"❌ Error generating reply: {redact(e)}")
             # Fallback pool - variasi agar tidak identik jika API error berulang
             question_fallbacks = [
                 "That's a great question! There's always more to learn when you're out digging in the dirt. Are you panning in rivers or dry washing?",
@@ -325,7 +350,7 @@ Just provide the direct reply without any quotes or explanations."""
             data = response.json()
             return data.get('id') is not None
         except Exception as e:
-            print(f"❌ Error posting reply: {e}")
+            print(f"❌ Error posting reply: {redact(e)}")
             return False
     
     def save_replied_comment(self, comment_id, post_id, user_name, comment_text, reply_text, user_id=None):
@@ -348,7 +373,7 @@ Just provide the direct reply without any quotes or explanations."""
             conn.commit()
             conn.close()
         except Exception as e:
-            print(f"   ❌ Failed to remove lock for comment {comment_id}: {e}")
+            print(f"   ❌ Failed to remove lock for comment {comment_id}: {redact(e)}")
     
     def validate_token(self, page_id, access_token):
         """Validate Facebook token before processing.
@@ -541,7 +566,7 @@ COMMENT: "{comment_text}"
                             print(f"   ❌ Failed to reply. Removing lock...")
                             self.remove_replied_comment(comment_id)
                     except Exception as e:
-                        print(f"   ❌ Error processing reply: {e}")
+                        print(f"   ❌ Error processing reply: {redact(e)}")
                         self.remove_replied_comment(comment_id)
                 
                 print()

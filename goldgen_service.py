@@ -9,6 +9,7 @@ import json
 import random
 from pathlib import Path
 from datetime import datetime
+from core.safe_log import redact
 
 # Panduan penulisan untuk tiap gaya hook.
 #
@@ -285,7 +286,7 @@ class GoldGenService:
             if current_price:
                 return f"${current_price:.2f}/oz"
         except Exception as e:
-            print(f"Warning: Could not fetch live gold price: {e}")
+            print(f"Warning: Could not fetch live gold price: {redact(e)}")
         return None
 
     def _editor_review(self, caption, requested_hook=None):
@@ -312,7 +313,11 @@ Review this drafted caption.
 2. Does it sound like a rugged American veteran? (It MUST use Imperial units like oz/inches/feet, NOT metric).
 {hook_rule}
 Assign a SCORE from 1 to 10 for "Scroll-Stopping Power". If it uses metric units, automatically deduct 5 points.
-Also identify the HOOK_TYPE actually used (e.g., Fear, Secret, Mythbuster, Challenge, Story, Fact).
+
+HOOK_TYPE MUST BE EXACTLY ONE OF THESE SEVEN WORDS — never invent your own label:
+Fear, Secret, Mythbuster, Challenge, Story, Fact, News
+Pick the closest match. (Curiosity/mystery/insider angles = Secret. Contrast or
+"everyone is wrong" angles = Mythbuster. Science/geology explanations = Fact.)
 
 DRAFT CAPTION:
 {caption}
@@ -332,7 +337,7 @@ REPLY ONLY WITH THIS EXACT JSON FORMAT:
                 return json.loads(match.group(0))
             return {"score": 10, "feedback": "Valid", "hook_type": "Unknown"}
         except Exception as e:
-            print(f"Editor review failed: {e}")
+            print(f"Editor review failed: {redact(e)}")
             return {"score": 10, "feedback": "Valid", "hook_type": "Unknown"}
 
     def editor_score_correlation(self, page_id=None, min_samples=12):
@@ -523,7 +528,7 @@ Do not include any other text, markdown blocks, or quotes. Just the raw JSON.
                 return new_topic
             return None
         except Exception as e:
-            print(f"⚠️ Dynamic Topic Generation failed: {e}")
+            print(f"⚠️ Dynamic Topic Generation failed: {redact(e)}")
             return None
 
     def get_next_topic(self, page_id=None):
@@ -795,7 +800,19 @@ Requirements:
                 # Editor review — ikut memeriksa kepatuhan gaya hook
                 review = self._editor_review(caption, requested_hook=requested_hook)
                 print(f"   🕵️  Editor Review (Attempt {attempt+1}): Score {review.get('score')}/10 - Hook: {review.get('hook_type')}")
-                topic['hook_type'] = review.get('hook_type', 'Unknown')
+
+                # Normalisasi ke daftar resmi. Kalau editor tetap mengarang label
+                # (mis. "mystery", "contrast"), pemetaan sinonim menyelamatkannya
+                # supaya sinyal pembelajaran tidak terbuang seperti sebelumnya.
+                from comment_analyzer import normalize_hook
+                raw_hook = review.get('hook_type', 'Unknown')
+                canonical = normalize_hook(raw_hook)
+                if canonical:
+                    topic['hook_type'] = canonical.capitalize()
+                    if canonical not in str(raw_hook).lower():
+                        print(f"   🔤 Label editor '{raw_hook}' dipetakan ke '{canonical}'")
+                else:
+                    topic['hook_type'] = raw_hook
                 try:
                     topic['editor_score'] = float(review.get('score')) if review.get('score') is not None else None
                 except (TypeError, ValueError):
@@ -810,7 +827,7 @@ Requirements:
                     current_prompt = base_prompt + f"\n\n[YOUR PREVIOUS DRAFT - REJECTED]:\n{caption}\n\nEDITOR FEEDBACK: {review.get('feedback')}\n\n🔥 CRITICAL INSTRUCTION: Write a COMPLETELY NEW version that directly fixes the editor's feedback above. Do not repeat the same mistakes."
                     time.sleep(2)
             except Exception as e:
-                print(f"   ⚠️  Gemini text error: {e}")
+                print(f"   ⚠️  Gemini text error: {redact(e)}")
                 if attempt < max_retries:
                     time.sleep(4)
                 else:

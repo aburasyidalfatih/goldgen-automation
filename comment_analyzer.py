@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from core.database import get_db_connection, init_db
 from core.config import CONFIG_PATH
+from core.safe_log import redact
 
 # Hook yang benar-benar dikenali sistem. Editor AI hanya menghasilkan label dari
 # daftar ini, dan prompt caption hanya bisa menindaklanjuti label dari daftar ini.
@@ -37,6 +38,22 @@ def _is_meaningful(value):
     return not any(cleaned.startswith(p) for p in ('none ', 'no specific', 'not enough', 'unknown'))
 
 
+# Sinonim yang sering dikarang editor AI ("mystery", "curiosity", "contrast", ...).
+# Tanpa pemetaan ini, label tersebut dibuang dan sinyal pembelajarannya hilang —
+# padahal maknanya sama dengan salah satu hook resmi.
+# Urutan penting: dicek dari yang paling spesifik.
+HOOK_SYNONYMS = [
+    ('secret',     ['mystery', 'curiosity', 'curious', 'intrigue', 'insider', 'hidden', 'reveal', 'unknown secret']),
+    ('mythbuster', ['myth', 'debunk', 'contrarian', 'contrast', 'comparison', 'misconception', 'wrong', 'truth']),
+    ('challenge',  ['quiz', 'guess', 'spot the', 'test yourself', 'game', 'puzzle']),
+    ('story',      ['experience', 'personal', 'journey', 'testimonial', 'anecdote', 'memoir']),
+    ('fear',       ['warning', 'danger', 'mistake', 'loss', 'risk', 'costly']),
+    ('fact',       ['science', 'scientific', 'geology', 'geological', 'data', 'educational',
+                    'technical', 'how-to', 'authority', 'expertise', 'informative']),
+    ('news',       ['breaking', 'report', 'announcement', 'update']),
+]
+
+
 def normalize_hook(raw):
     """Petakan label hook bebas dari AI ke salah satu CANONICAL_HOOKS.
 
@@ -48,9 +65,17 @@ def normalize_hook(raw):
     text = str(raw).lower()
     if 'unknown' in text:
         return None
+
+    # 1. Nama resmi disebut langsung
     for hook in CANONICAL_HOOKS:
         if hook in text:
             return hook
+
+    # 2. Sinonim — editor kadang mengarang istilah sendiri
+    for hook, aliases in HOOK_SYNONYMS:
+        if any(alias in text for alias in aliases):
+            return hook
+
     return None
 
 
@@ -83,7 +108,7 @@ class CommentAnalyzer:
             conn.close()
             return {r['fb_post_id']: r['hook_type'] for r in rows if r['hook_type']}
         except Exception as e:
-            print(f"   ⚠️ Gagal mengambil hook_type dari DB: {e}")
+            print(f"   ⚠️ Gagal mengambil hook_type dari DB: {redact(e)}")
             return {}
 
     def get_recent_comments(self, page_id, access_token, days=3):
@@ -98,7 +123,7 @@ class CommentAnalyzer:
             response = requests.get(url, params=params, timeout=30)
             posts = response.json().get('data', [])
         except Exception as e:
-            print(f"❌ Error getting posts: {e}")
+            print(f"❌ Error getting posts: {redact(e)}")
             return []
 
         cutoff = datetime.now() - timedelta(days=days)
@@ -154,7 +179,7 @@ class CommentAnalyzer:
             response = requests.get(url, params=params, timeout=30)
             posts = response.json().get('data', [])
         except Exception as e:
-            print(f"❌ Error getting metrics: {e}")
+            print(f"❌ Error getting metrics: {redact(e)}")
             return []
 
         # Perluas jangkauan keviralan bisu menjadi 14 hari ke belakang
@@ -239,7 +264,7 @@ class CommentAnalyzer:
                 conn.close()
                 print(f"   💾 Performa {len(perf_rows)} postingan tersimpan untuk pembelajaran layout")
             except Exception as e:
-                print(f"   ⚠️ Gagal menyimpan performa post: {e}")
+                print(f"   ⚠️ Gagal menyimpan performa post: {redact(e)}")
 
         # Update baseline engagement untuk normalisasi (Tahap 4)
         #
@@ -269,7 +294,7 @@ class CommentAnalyzer:
                 conn.commit()
                 conn.close()
             except Exception as e:
-                print(f"   ⚠️ Failed to update engagement baseline: {e}")
+                print(f"   ⚠️ Failed to update engagement baseline: {redact(e)}")
 
         return metrics
 
@@ -293,7 +318,7 @@ class CommentAnalyzer:
             }, timeout=30)
             posts = r.json().get('data', [])
         except Exception as e:
-            print(f"   ⚠️  Gagal mengambil postingan untuk Vision AI: {e}")
+            print(f"   ⚠️  Gagal mengambil postingan untuk Vision AI: {redact(e)}")
             return None
 
         cutoff = datetime.now() - timedelta(days=days)
@@ -326,7 +351,7 @@ class CommentAnalyzer:
                     return row['image_path']
             conn.close()
         except Exception as e:
-            print(f"   ⚠️  Gagal mencari gambar terbaik: {e}")
+            print(f"   ⚠️  Gagal mencari gambar terbaik: {redact(e)}")
 
         print("   ⚠️  Tidak ada gambar pemenang yang filenya masih tersimpan")
         return None
@@ -366,7 +391,7 @@ class CommentAnalyzer:
             # Jangan telan error diam-diam — tampilkan alasan sebenarnya
             if 'candidates' not in data:
                 err = (data.get('error') or {}).get('message', str(data)[:150])
-                print(f"   ❌ Vision AI gagal (model={self.text_model}): {err[:180]}")
+                print(f"   ❌ Vision AI gagal (model={self.text_model}): {redact(err)[:180]}")
                 return []
 
             text = data['candidates'][0]['content']['parts'][0]['text']
@@ -375,7 +400,7 @@ class CommentAnalyzer:
                 styles = json.loads(match.group(0))
                 return [s for s in styles if isinstance(s, str) and _is_meaningful(s)]
         except Exception as e:
-            print(f"   ❌ Vision AI Error: {type(e).__name__}: {e}")
+            print(f"   ❌ Vision AI Error: {type(e).__name__}: {redact(e)}")
         return []
 
     def analyze_with_gemini(self, comments, page_name, silent_metrics=None, page_id=None):
@@ -485,7 +510,7 @@ REPLY ONLY WITH THIS EXACT JSON FORMAT:
                     return json.loads(text[start:end+1])
                 return None
         except Exception as e:
-            print(f"❌ Gemini analysis error: {e}")
+            print(f"❌ Gemini analysis error: {redact(e)}")
             return None
 
     def save_insight(self, page_id, page_name, total_comments, analysis, weight=1):
@@ -564,7 +589,7 @@ REPLY ONLY WITH THIS EXACT JSON FORMAT:
                 print("   ⏳ Time Decay applied to topic_preferences globally.")
             conn.commit()
         except Exception as e:
-            print(f"   ❌ Failed to apply time decay: {e}")
+            print(f"   ❌ Failed to apply time decay: {redact(e)}")
         finally:
             conn.close()
 

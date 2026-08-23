@@ -28,6 +28,7 @@ except Exception as _e:
 
 from core.config import BASE_DIR, DATA_DIR, LOGS_DIR, IMAGES_DIR, DB_PATH, CONFIG_PATH
 from core.database import get_db_connection, init_db
+from core.safe_log import redact
 from comment_analyzer import CommentAnalyzer
 
 # Ensure directories exist
@@ -163,10 +164,10 @@ class GoldGenAutoPoster:
 
             except Exception as e:
                 if attempt < max_attempts - 1:
-                    print(f"   ⚠️  Gemini error: {e}, retrying in 30s...")
+                    print(f"   ⚠️  Gemini error: {redact(e)}, retrying in 30s...")
                     time.sleep(30)
                 else:
-                    print(f"   ⚠️  Gemini retry failed: {e}, using PIL fallback...")
+                    print(f"   ⚠️  Gemini retry failed: {redact(e)}, using PIL fallback...")
 
         return self._generate_fallback_image(topic, fanspage_name)
     
@@ -478,10 +479,10 @@ class GoldGenAutoPoster:
             except Exception as e:
                 if attempt < max_retries - 1:
                     delay = 2 ** attempt
-                    print(f"   ⚠️  Error: {e}, retry {attempt + 1}/{max_retries} after {delay}s")
+                    print(f"   ⚠️  Error: {redact(e)}, retry {attempt + 1}/{max_retries} after {delay}s")
                     time.sleep(delay)
                 else:
-                    reason = f"GAGAL MENGIRIM: {type(e).__name__}: {str(e)[:200]} (setelah {max_retries} percobaan)"
+                    reason = f"GAGAL MENGIRIM: {type(e).__name__}: {redact(e)[:200]} (setelah {max_retries} percobaan)"
                     send_notification(f"❌ <b>Goldgen Bot Error</b>\n\n{reason[:300]}")
                     return None, reason
 
@@ -707,7 +708,7 @@ class GoldGenAutoPoster:
                 # Status 'failed' (bukan 'error') supaya ikut terhitung di statistik
                 # dan tampil di dashboard bersama alasannya.
                 import traceback
-                error_msg = f"GAGAL DIPROSES: {type(e).__name__}: {str(e)[:300]}"
+                error_msg = f"GAGAL DIPROSES: {type(e).__name__}: {redact(e)[:300]}"
                 print(f"   ❌ {error_msg}\n")
                 traceback.print_exc()
                 self.log_post(fanspage, "", "", None, 'failed', error_msg)
@@ -792,7 +793,7 @@ class GoldGenAutoPoster:
                 
         except Exception as e:
             import traceback
-            error_msg = f"GAGAL DIPROSES: {type(e).__name__}: {str(e)[:300]}"
+            error_msg = f"GAGAL DIPROSES: {type(e).__name__}: {redact(e)[:300]}"
             print(f"   ❌ {error_msg}\n")
             traceback.print_exc()
             self.log_post(target_fanspage, "", "", None, 'failed', error_msg)

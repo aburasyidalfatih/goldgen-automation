@@ -132,15 +132,25 @@ def hook_compliance_report(page_id):
     if total == 0:
         return {'n': 0, 'patuh': 0, 'rasio': None, 'contoh': []}
 
+    # Kedua sisi dinormalisasi lebih dulu. Editor kadang mengarang label
+    # ("mystery", "contrast") yang maknanya sama dengan hook resmi — tanpa
+    # pemetaan ini, caption yang sebenarnya sudah patuh akan terhitung melanggar.
+    from comment_analyzer import normalize_hook
+
     patuh = 0
     contoh = []
     for r in rows:
-        diminta = (r['requested_hook'] or '').strip().lower()
-        keluar = (r['hook_type'] or '').strip().lower()
-        cocok = bool(diminta) and diminta in keluar
+        diminta_raw = (r['requested_hook'] or '').strip().lower()
+        keluar_raw = (r['hook_type'] or '').strip().lower()
+        diminta = normalize_hook(diminta_raw) or diminta_raw
+        keluar = normalize_hook(keluar_raw)
+        cocok = bool(diminta) and diminta == keluar
         patuh += 1 if cocok else 0
         if len(contoh) < 5:
-            contoh.append({'diminta': diminta, 'keluar': keluar or '-', 'cocok': cocok})
+            label_keluar = keluar_raw or '-'
+            if keluar and keluar != keluar_raw:
+                label_keluar = f"{keluar_raw} (= {keluar})"
+            contoh.append({'diminta': diminta, 'keluar': label_keluar, 'cocok': cocok})
 
     return {'n': total, 'patuh': patuh, 'rasio': round(patuh / total, 2), 'contoh': contoh}
 
