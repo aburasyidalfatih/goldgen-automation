@@ -141,6 +141,57 @@ def init_db():
         )
     ''')
 
+    # Snapshot engagement pada UMUR TETAP (48 jam setelah tayang).
+    #
+    # engagement_cache hanya menyimpan nilai terakhir, dan tiap post diukur pada
+    # umur yang berbeda-beda — post lama sempat matang berhari-hari, post baru
+    # baru beberapa jam. Membandingkannya langsung membuat konten baru selalu
+    # kalah, dan bias itu ikut menyetir pemilihan layout serta rekomendasi jam.
+    # Snapshot pada umur seragam membuat perbandingannya adil.
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS engagement_snapshots (
+            fb_post_id TEXT NOT NULL,
+            age_hours INTEGER NOT NULL,
+            likes INTEGER DEFAULT 0,
+            comments INTEGER DEFAULT 0,
+            captured_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (fb_post_id, age_hours)
+        )
+    ''')
+
+    # View tunggal yang dipakai SEMUA perhitungan pembelajaran.
+    # Aturannya: pakai snapshot 48 jam kalau ada; kalau belum ada, pakai
+    # engagement_cache HANYA bila pengukurannya sudah cukup matang (>= 48 jam).
+    # Post yang baru diukur beberapa jam sengaja tidak diikutkan agar tidak
+    # menyeret turun layout/jam yang kebetulan dipakai belakangan.
+    cursor.execute('DROP VIEW IF EXISTS post_engagement')
+    cursor.execute('''
+        CREATE VIEW post_engagement AS
+        SELECT p.id            AS post_id,
+               p.page_id       AS page_id,
+               p.page_name     AS page_name,
+               p.timestamp     AS timestamp,
+               p.layout_name   AS layout_name,
+               p.hook_type     AS hook_type,
+               p.requested_hook AS requested_hook,
+               p.editor_score  AS editor_score,
+               p.content       AS content,
+               p.fb_post_id    AS fb_post_id,
+               COALESCE(s.likes + s.comments, ec.likes + ec.comments) AS engagement,
+               CASE WHEN s.fb_post_id IS NOT NULL THEN 'snapshot48' ELSE 'cache' END AS source
+        FROM posts p
+        LEFT JOIN engagement_snapshots s
+               ON s.fb_post_id = p.fb_post_id AND s.age_hours = 48
+        LEFT JOIN engagement_cache ec
+               ON ec.fb_post_id = p.fb_post_id
+        WHERE p.status = 'success'
+          AND (
+                s.fb_post_id IS NOT NULL
+                OR (ec.fb_post_id IS NOT NULL
+                    AND (julianday(ec.cached_at) - julianday(p.timestamp)) * 24 >= 48)
+              )
+    ''')
+
     # === Auto Migration: Cek & Tambahkan Kolom yang Belum Ada ===
     migrations = [
         ('topic_preferences', 'last_updated', 'DATETIME'),

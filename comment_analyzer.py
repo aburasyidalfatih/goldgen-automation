@@ -187,6 +187,7 @@ class CommentAnalyzer:
         metrics = []
         engagement_samples = []  # untuk update baseline
         perf_rows = []           # performa per-post untuk pembelajaran layout
+        snapshot_rows = []       # snapshot pada umur 48 jam (perbandingan yang adil)
         hook_types = self._get_hook_types([p['id'] for p in posts])
 
         for post in posts:
@@ -208,6 +209,16 @@ class CommentAnalyzer:
             comments_count = post.get('comments', {}).get('summary', {}).get('total_count', 0)
             total = likes + shares + love + haha + wow + angry + sad
             engagement_samples.append(total)
+
+            # Rekam snapshot begitu postingan melewati 48 jam. INSERT OR IGNORE
+            # membuat pengukuran PERTAMA setelah 48 jam yang dipakai selamanya,
+            # sehingga tiap post dinilai pada tingkat kematangan yang sama.
+            try:
+                age_hours = (datetime.utcnow() - post_time).total_seconds() / 3600
+                if age_hours >= 48:
+                    snapshot_rows.append((post['id'], likes + love + haha + wow, comments_count))
+            except Exception:
+                pass
 
             # Simpan performa per-post supaya pemilihan LAYOUT bisa belajar dari
             # data nyata. Sebelumnya angka ini cuma dipakai sesaat lalu dibuang,
@@ -246,6 +257,22 @@ class CommentAnalyzer:
                     'total': total,
                     'message_preview': message[:120]
                 })
+
+        # Simpan snapshot umur-48-jam — dasar semua perbandingan yang adil
+        if snapshot_rows:
+            try:
+                conn = get_db_connection()
+                conn.executemany('''
+                    INSERT OR IGNORE INTO engagement_snapshots (fb_post_id, age_hours, likes, comments)
+                    VALUES (?, 48, ?, ?)
+                ''', snapshot_rows)
+                baru = conn.total_changes
+                conn.commit()
+                conn.close()
+                if baru:
+                    print(f"   📸 {baru} snapshot engagement 48 jam terekam")
+            except Exception as e:
+                print(f"   ⚠️ Gagal menyimpan snapshot engagement: {redact(e)}")
 
         # Simpan performa per-post ke engagement_cache — inilah bahan bakar
         # pembelajaran layout di goldgen_service._get_layout_performance()

@@ -48,6 +48,14 @@ def main():
             if e['avg_high'] is not None and e['avg_low'] is not None:
                 print(f"   caption skor >=8 : {e['avg_high']:.0f} engagement")
                 print(f"   caption skor <8  : {e['avg_low']:.0f} engagement")
+            if e.get('contoh_skor_tinggi_sepi'):
+                print("   Dinilai BAGUS tapi sepi:")
+                for c in e['contoh_skor_tinggi_sepi']:
+                    print(f"      [{c['skor']:.0f}/10, eng {c['engagement']:.0f}] {c['pembuka']}")
+            if e.get('contoh_skor_rendah_ramai'):
+                print("   Dinilai JELEK tapi ramai:")
+                for c in e['contoh_skor_rendah_ramai']:
+                    print(f"      [{c['skor']:.0f}/10, eng {c['engagement']:.0f}] {c['pembuka']}")
 
         # --- Kepatuhan hook ---
         hc = page['hook_compliance']

@@ -18,16 +18,17 @@ from core.database import get_db_connection
 
 def _fetch_posts_with_engagement(page_id=None):
     """Ambil post sukses yang sudah punya angka engagement"""
+    # Semua perhitungan memakai view post_engagement: hanya pengukuran matang
+    # (>=48 jam) atau snapshot umur seragam, supaya perbandingannya adil.
     query = '''
-        SELECT p.page_id, p.page_name, p.timestamp, p.layout_name, p.hook_type,
-               p.editor_score, (ec.likes + ec.comments) AS engagement
-        FROM posts p
-        JOIN engagement_cache ec ON ec.fb_post_id = p.fb_post_id
-        WHERE p.status = 'success'
+        SELECT page_id, page_name, timestamp, layout_name, hook_type,
+               editor_score, content, engagement, source
+        FROM post_engagement
+        WHERE 1=1
     '''
     params = []
     if page_id:
-        query += ' AND p.page_id = ?'
+        query += ' AND page_id = ?'
         params.append(page_id)
 
     conn = get_db_connection()
@@ -109,6 +110,20 @@ def editor_report(page_id=None, min_samples=12):
         result['verdict'] = 'MENYESATKAN — skor tinggi justru engagement rendah'
     else:
         result['verdict'] = 'TIDAK BERPENGARUH — skor editor acak terhadap hasil'
+
+    # Bukti konkret supaya penilaian editor bisa diperiksa manusia, bukan cuma
+    # dipercaya angkanya: contoh caption yang dinilai tinggi tapi sepi, dan
+    # sebaliknya. Dari sini terlihat selera editor menyimpang ke arah mana.
+    scored = [(float(x['editor_score']), float(x['engagement'] or 0), x['content'] or '')
+              for x in rows if x['editor_score'] is not None]
+    tinggi_sepi = sorted([s for s in scored if s[0] >= 8], key=lambda x: x[1])[:2]
+    rendah_ramai = sorted([s for s in scored if s[0] < 8], key=lambda x: -x[1])[:2]
+    result['contoh_skor_tinggi_sepi'] = [
+        {'skor': s, 'engagement': e, 'pembuka': c.strip().split('\n')[0][:90]} for s, e, c in tinggi_sepi
+    ]
+    result['contoh_skor_rendah_ramai'] = [
+        {'skor': s, 'engagement': e, 'pembuka': c.strip().split('\n')[0][:90]} for s, e, c in rendah_ramai
+    ]
     return result
 
 

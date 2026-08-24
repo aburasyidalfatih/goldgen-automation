@@ -151,17 +151,18 @@ class GoldGenService:
         try:
             from core.database import get_db_connection
             conn = get_db_connection()
+            # View post_engagement hanya memuat pengukuran yang matang (>=48 jam)
+            # atau snapshot umur seragam, sehingga layout yang kebetulan baru
+            # dipakai tidak dihukum karena engagement-nya belum sempat tumbuh.
             rows = conn.execute('''
-                SELECT p.layout_name AS layout,
-                       SUM(ec.likes + ec.comments) AS total_eng,
+                SELECT layout_name AS layout,
+                       SUM(engagement) AS total_eng,
                        COUNT(*) AS n
-                FROM posts p
-                JOIN engagement_cache ec ON ec.fb_post_id = p.fb_post_id
-                WHERE p.page_id = ?
-                  AND p.status = 'success'
-                  AND p.layout_name IS NOT NULL
-                  AND p.layout_name != ''
-                GROUP BY p.layout_name
+                FROM post_engagement
+                WHERE page_id = ?
+                  AND layout_name IS NOT NULL
+                  AND layout_name != ''
+                GROUP BY layout_name
             ''', (page_id,)).fetchall()
             conn.close()
             result = {}
@@ -184,12 +185,9 @@ class GoldGenService:
         try:
             from core.database import get_db_connection
             conn = get_db_connection()
-            rows = conn.execute('''
-                SELECT (ec.likes + ec.comments) AS eng
-                FROM posts p
-                JOIN engagement_cache ec ON ec.fb_post_id = p.fb_post_id
-                WHERE p.page_id = ? AND p.status = 'success'
-            ''', (page_id,)).fetchall()
+            rows = conn.execute(
+                'SELECT engagement AS eng FROM post_engagement WHERE page_id = ?', (page_id,)
+            ).fetchall()
             conn.close()
             values = [float(r['eng'] or 0) for r in rows]
             if not values:
@@ -355,14 +353,13 @@ REPLY ONLY WITH THIS EXACT JSON FORMAT:
             from core.database import get_db_connection
             conn = get_db_connection()
             query = '''
-                SELECT p.editor_score AS score, (ec.likes + ec.comments) AS eng
-                FROM posts p
-                JOIN engagement_cache ec ON ec.fb_post_id = p.fb_post_id
-                WHERE p.status = 'success' AND p.editor_score IS NOT NULL
+                SELECT editor_score AS score, engagement AS eng
+                FROM post_engagement
+                WHERE editor_score IS NOT NULL
             '''
             params = []
             if page_id:
-                query += ' AND p.page_id = ?'
+                query += ' AND page_id = ?'
                 params.append(page_id)
             rows = conn.execute(query, params).fetchall()
             conn.close()
