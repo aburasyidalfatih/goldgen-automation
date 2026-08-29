@@ -217,12 +217,20 @@ def audience_report(page_id):
         FROM page_stats WHERE page_id = ? ORDER BY captured_date
     ''', (page_id,)).fetchall()
 
-    # Reach nyata baru terisi kalau token punya scope read_insights
-    reach = conn.execute('''
-        SELECT COUNT(*) n, AVG(s.impressions) rata
+    # post_impressions sudah dihapus Meta; post_clicks jadi ukuran perhatian
+    klik = conn.execute('''
+        SELECT COUNT(*) n, AVG(s.clicks) rata
         FROM engagement_snapshots s JOIN posts p ON p.fb_post_id = s.fb_post_id
-        WHERE p.page_id = ? AND s.impressions IS NOT NULL
+        WHERE p.page_id = ? AND s.clicks IS NOT NULL
     ''', (page_id,)).fetchone()
+
+    # Interaksi harian seluruh halaman — sinyal jangkauan yang tidak tergantung
+    # berapa kali kita posting
+    harian = conn.execute('''
+        SELECT captured_date, post_engagements, page_views
+        FROM page_stats WHERE page_id = ? AND post_engagements IS NOT NULL
+        ORDER BY captured_date DESC LIMIT 7
+    ''', (page_id,)).fetchall()
     conn.close()
 
     riwayat = [{'tanggal': r['captured_date'], 'pengikut': r['pengikut']} for r in rows if r['pengikut']]
@@ -232,8 +240,12 @@ def audience_report(page_id):
         'pengikut_terkini': riwayat[-1]['pengikut'] if riwayat else None,
         'pertumbuhan': None,
         'engagement_per_1000': None,
-        'reach_tersedia': bool(reach and reach['n']),
-        'reach_rata': round(reach['rata'], 1) if reach and reach['rata'] else None,
+        'klik_tersedia': bool(klik and klik['n']),
+        'klik_rata': round(klik['rata'], 1) if klik and klik['rata'] else None,
+        'interaksi_harian': [
+            {'tanggal': h['captured_date'], 'interaksi': h['post_engagements'], 'kunjungan': h['page_views']}
+            for h in harian
+        ],
     }
 
     if len(riwayat) >= 2:

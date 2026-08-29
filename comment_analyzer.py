@@ -111,11 +111,30 @@ class CommentAnalyzer:
             print(f"   ⚠️ Gagal mengambil hook_type dari DB: {redact(e)}")
             return {}
 
+    def _page_insight(self, page_id, access_token, metric):
+        """Ambil nilai terbaru sebuah metrik level page (None kalau tidak tersedia)"""
+        try:
+            r = requests.get(
+                f"https://graph.facebook.com/v18.0/{page_id}/insights",
+                params={'access_token': access_token, 'metric': metric, 'period': 'day'},
+                timeout=30
+            ).json()
+            data = r.get('data') or []
+            if data and data[0].get('values'):
+                return data[0]['values'][-1].get('value')
+        except Exception:
+            pass
+        return None
+
     def capture_page_stats(self, page_id, access_token):
-        """Rekam ukuran audiens page (sekali per hari).
+        """Rekam ukuran audiens & kesehatan jangkauan page (sekali per hari).
 
         Tanpa angka ini, penurunan engagement tidak bisa dibedakan antara
-        "konten memburuk" dan "audiens/jangkauan menyusut".
+        "konten memburuk" dan "postingan tidak sampai ke orang".
+
+        page_post_engagements sangat berguna: ia mengukur total interaksi
+        halaman per hari, terlepas dari berapa kali kita posting. Kalau
+        pengikut stabil tapi angka ini terjun, masalahnya distribusi.
         """
         try:
             r = requests.get(
@@ -126,30 +145,45 @@ class CommentAnalyzer:
             if 'fan_count' not in r and 'followers_count' not in r:
                 return None
 
+            # Metrik ini hanya terisi kalau token punya read_insights
+            engagements = self._page_insight(page_id, access_token, 'page_post_engagements')
+            views = self._page_insight(page_id, access_token, 'page_views_total')
+
             conn = get_db_connection()
             conn.execute('''
-                INSERT OR REPLACE INTO page_stats (page_id, captured_date, fan_count, followers_count)
-                VALUES (?, date('now'), ?, ?)
-            ''', (page_id, r.get('fan_count'), r.get('followers_count')))
+                INSERT OR REPLACE INTO page_stats
+                    (page_id, captured_date, fan_count, followers_count, post_engagements, page_views)
+                VALUES (?, date('now'), ?, ?, ?, ?)
+            ''', (page_id, r.get('fan_count'), r.get('followers_count'), engagements, views))
             conn.commit()
             conn.close()
+
+            if engagements is not None:
+                print(f"   📊 Interaksi halaman hari ini: {engagements} | kunjungan: {views}")
             return r.get('followers_count') or r.get('fan_count')
         except Exception as e:
             print(f"   ⚠️ Gagal merekam statistik page: {redact(e)}")
             return None
 
-    def fetch_impressions(self, fb_post_id, access_token):
-        """Ambil reach/impressions sebuah postingan.
+    def fetch_post_clicks(self, fb_post_id, access_token):
+        """Ambil jumlah klik sebuah postingan (butuh scope read_insights).
 
-        Butuh scope `read_insights` pada token. Selama scope itu belum ada,
-        Facebook mengembalikan data kosong — fungsi ini diam saja dan
-        mengembalikan None, jadi tidak ada yang rusak. Begitu izinnya
-        ditambahkan, angka reach otomatis mulai terekam tanpa ubah kode.
+        Catatan penting: `post_impressions` dan `post_impressions_unique`
+        SUDAH DIHAPUS Meta — dites langsung dengan token ber-read_insights dan
+        tetap ditolak "(#100) must be a valid insights metric". Jadi reach asli
+        memang tidak bisa lagi diambil lewat API.
+
+        `post_clicks` masih hidup dan jadi pengganti terbaik: ia menghitung
+        berapa orang benar-benar mengklik postingan (buka foto, "lihat
+        selengkapnya"). Berbeda dengan like/komentar yang butuh niat lebih
+        besar, klik mendekati ukuran "berapa banyak yang benar-benar melihat
+        lalu tertarik" — cukup untuk memisahkan konten lemah dari jangkauan
+        yang menyempit.
         """
         try:
             r = requests.get(
                 f"https://graph.facebook.com/v18.0/{fb_post_id}/insights",
-                params={'access_token': access_token, 'metric': 'post_impressions_unique'},
+                params={'access_token': access_token, 'metric': 'post_clicks'},
                 timeout=30
             ).json()
             data = r.get('data') or []
@@ -264,7 +298,8 @@ class CommentAnalyzer:
             try:
                 age_hours = (datetime.utcnow() - post_time).total_seconds() / 3600
                 if age_hours >= 48:
-                    snapshot_rows.append((post['id'], likes + love + haha + wow, comments_count))
+                    klik = self.fetch_post_clicks(post['id'], access_token)
+                    snapshot_rows.append((post['id'], likes + love + haha + wow, comments_count, klik))
             except Exception:
                 pass
 
@@ -311,8 +346,8 @@ class CommentAnalyzer:
             try:
                 conn = get_db_connection()
                 conn.executemany('''
-                    INSERT OR IGNORE INTO engagement_snapshots (fb_post_id, age_hours, likes, comments)
-                    VALUES (?, 48, ?, ?)
+                    INSERT OR IGNORE INTO engagement_snapshots (fb_post_id, age_hours, likes, comments, clicks)
+                    VALUES (?, 48, ?, ?, ?)
                 ''', snapshot_rows)
                 baru = conn.total_changes
                 conn.commit()

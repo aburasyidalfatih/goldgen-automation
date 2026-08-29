@@ -66,10 +66,14 @@ def main():
             print(baris)
             if a['engagement_per_1000'] is not None:
                 print(f"   engagement per 1.000 pengikut: {a['engagement_per_1000']}")
-            if a['reach_tersedia']:
-                print(f"   reach rata-rata: {a['reach_rata']}")
+            if a['klik_tersedia']:
+                print(f"   klik rata-rata per postingan: {a['klik_rata']}")
             else:
-                print("   reach: belum tersedia (token perlu scope read_insights)")
+                print("   klik per postingan: terekam mulai snapshot berikutnya")
+            if a['interaksi_harian']:
+                print("   interaksi harian halaman (sinyal jangkauan):")
+                for h in a['interaksi_harian'][:5]:
+                    print(f"      {h['tanggal']}  interaksi {h['interaksi']:<6} kunjungan {h['kunjungan']}")
         else:
             print("\n👥 AUDIENS — belum ada data (terekam mulai siklus riset berikutnya)")
 

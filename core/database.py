@@ -232,7 +232,13 @@ def init_db():
         ('posts', 'requested_hook', 'TEXT'),
         # Reach/impressions — terisi otomatis begitu token diberi scope
         # read_insights; sebelum itu tetap NULL dan diabaikan perhitungan.
+        # post_impressions sudah dihapus Meta (diuji langsung dengan token
+        # ber-read_insights: tetap ditolak). post_clicks masih hidup dan jadi
+        # pengganti terbaik untuk mengukur perhatian nyata.
         ('engagement_snapshots', 'impressions', 'INTEGER'),
+        ('engagement_snapshots', 'clicks', 'INTEGER'),
+        ('page_stats', 'post_engagements', 'INTEGER'),
+        ('page_stats', 'page_views', 'INTEGER'),
     ]
     for table, col, col_type in migrations:
         try:
