@@ -200,6 +200,110 @@ class GoldGenService:
         except Exception:
             return 0.0, 0.0
 
+    def _simpan_state(self, state_file, state, current_index, selected_index):
+        """Simpan rotasi & daftar topik yang baru dipakai (anti pengulangan)"""
+        recently_used = state.get('recently_used', [])
+        recently_used.append(selected_index)
+        if len(recently_used) > 20:
+            recently_used = recently_used[-20:]
+        try:
+            state_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(state_file, 'w') as f:
+                json.dump({
+                    'current_topic_index': (current_index + 1) % max(len(self.topics), 1),
+                    'last_updated': datetime.now().isoformat(),
+                    'recently_used': recently_used
+                }, f)
+        except Exception as e:
+            print(f"   ⚠️ Gagal menyimpan state topik: {redact(e)}")
+
+    def _get_topic_performance(self, page_id):
+        """Rata-rata engagement tiap topik untuk SATU page.
+
+        Sebelumnya topik tidak pernah disimpan per postingan, jadi bot bisa
+        belajar layout dan hook tapi buta terhadap ISI kontennya — padahal
+        topik justru penentu terbesar apakah audiens suka atau tidak.
+        """
+        if not page_id:
+            return {}
+        try:
+            from core.database import get_db_connection
+            conn = get_db_connection()
+            rows = conn.execute('''
+                SELECT topic_headline AS judul,
+                       SUM(engagement) AS total_eng,
+                       COUNT(*) AS n
+                FROM post_engagement
+                WHERE page_id = ? AND topic_headline IS NOT NULL AND topic_headline != ''
+                GROUP BY topic_headline
+            ''', (page_id,)).fetchall()
+            conn.close()
+            return {r['judul']: {'avg': float(r['total_eng'] or 0) / r['n'], 'n': r['n']}
+                    for r in rows if r['n']}
+        except Exception as e:
+            print(f"   ⚠️ Gagal membaca performa topik: {redact(e)}")
+            return {}
+
+    def _choose_topic_by_performance(self, page_id, preferences, recently_used):
+        """Pilih topik dengan Thompson Sampling, dipandu preferensi audiens.
+
+        Menggabungkan dua sumber pengetahuan yang selama ini terpisah:
+        - preferensi dari komentar = apa yang audiens BILANG mereka mau
+          (dipakai sebagai prior, menaikkan peluang topik yang relevan)
+        - engagement nyata = apa yang audiens benar-benar SUKAI
+          (dipakai sebagai bukti yang memperbarui posterior)
+
+        Return index topik, atau None kalau belum ada bukti sama sekali
+        sehingga pemanggil memakai jalur lama.
+        """
+        perf = self._get_topic_performance(page_id)
+        if not perf:
+            return None
+
+        page_mean, page_sd = self._get_page_engagement_stats(page_id)
+        if page_mean <= 0:
+            nilai = [d['avg'] for d in perf.values() if d['avg'] > 0]
+            page_mean = (sum(nilai) / len(nilai)) if nilai else 1.0
+        sigma = max(page_sd, page_mean * 0.5, 1.0)
+        tau = max(sigma * 0.5, 1.0)
+        prior_precision = 1.0 / (tau ** 2)
+        obs_precision_unit = 1.0 / (sigma ** 2)
+
+        hindari = set(recently_used[-5:])
+        terbaik, skor_terbaik = None, float('-inf')
+
+        for i, topic in enumerate(self.topics):
+            if i in hindari:
+                continue
+            judul = topic.get('headline')
+            d = perf.get(judul)
+            n = d['n'] if d else 0
+            mean = d['avg'] if d else page_mean
+
+            # Preferensi audiens menaikkan prior — topik yang mereka minta
+            # dapat kesempatan lebih besar walau belum pernah diuji
+            prior = page_mean
+            if preferences:
+                teks = f"{judul} {topic.get('subtitle', '')}"
+                if any(self._topic_match_score(p, teks) > 0 for p in preferences):
+                    prior = page_mean * 1.3
+
+            precision = prior_precision + n * obs_precision_unit
+            post_mean = (prior * prior_precision + mean * n * obs_precision_unit) / precision
+            sample = random.gauss(post_mean, (1.0 / precision) ** 0.5)
+
+            if sample > skor_terbaik:
+                skor_terbaik = sample
+                terbaik = (i, judul, n, mean)
+
+        if not terbaik:
+            return None
+
+        i, judul, n, mean = terbaik
+        asal = f"rata-rata {mean:.0f} dari {n} post" if n else "belum pernah dipakai"
+        print(f"   📚 Topik dipilih dari performa: {judul[:44]} ({asal})")
+        return i
+
     def _choose_layout(self, page_id, fallback_index):
         """Pilih layout memakai Thompson Sampling (Gamma-Poisson).
 
@@ -563,6 +667,23 @@ Do not include any other text, markdown blocks, or quotes. Just the raw JSON.
 
         selected_index = current_index
         explore_mode = False
+
+        # Jalur utama begitu ada bukti engagement per topik: Thompson Sampling
+        # yang memakai preferensi audiens sebagai prior. Kalau belum ada bukti,
+        # lanjut ke jalur lama (pencocokan preferensi + rotasi) di bawah.
+        performa_index = self._choose_topic_by_performance(
+            page_id, preferences, state.get('recently_used', [])
+        )
+        if performa_index is not None:
+            topic = self.topics[performa_index].copy()
+            layout, why = self._choose_layout(page_id, performa_index)
+            if layout:
+                topic['layout'] = layout['name']
+                topic['composition'] = layout['composition']
+                print(f"   🎨 Layout: {layout['name']} ({why})")
+            self._simpan_state(state_file, state, current_index, performa_index)
+            return topic
+
         if preferences:
             # Exploration slot: 10% kemungkinan abaikan preferensi untuk mencegah feedback loop
             if random.random() < 0.10:

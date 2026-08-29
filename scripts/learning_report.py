@@ -40,6 +40,39 @@ def main():
                 print(f"   {l['layout'][:25]:<26}{l['avg']:>8.0f}{l['n']:>8}{l['confident_score']:>12.0f}  {bar(l['confident_score'], scale)}")
             print("   * skor yakin = rata-rata dipotong sesuai ketidakpastian sampel kecil")
 
+        # --- Topik ---
+        print("\n📚 TOPIK — isi konten yang paling disukai audiens page ini")
+        if not page['topics']:
+            print("   belum ada data (topik baru mulai dicatat pada postingan berikutnya)")
+        else:
+            print(f"   {'TOPIK':<46}{'RATA2':>8}{'SAMPEL':>8}{'YAKIN':>8}")
+            for t in page['topics']:
+                print(f"   {t['topik'][:45]:<46}{t['avg']:>8.0f}{t['n']:>8}{t['confident_score']:>8.0f}")
+
+        # --- Rasio klik ---
+        k = page['clicks']
+        print("\n🖱️  KLIK — daya tarik yang sudah dinormalkan terhadap paparan")
+        if k['n'] == 0:
+            print("   belum ada data klik (terekam pada snapshot 48 jam berikutnya)")
+        else:
+            print(f"   {k['n']} post berdata | klik rata-rata {k['klik_rata']} | rasio engagement/klik {k['rasio']}%")
+            for t in k['terbaik']:
+                print(f"      {t['rasio']:>5.1f}%  klik {t['klik']:<5} eng {t['engagement']:<4} {t['topik']}")
+
+        # --- Unsur caption ---
+        cf = page['caption_features']
+        print("\n✍️  UNSUR CAPTION — apakah aturan prompt kita benar-benar berbuah?")
+        if not cf['cukup']:
+            print(f"   data belum cukup ({cf['n']} post)")
+        elif not cf['fitur']:
+            print("   variasi antar caption belum cukup untuk dibandingkan")
+        else:
+            for f in cf['fitur']:
+                arah = "lebih tinggi" if f['selisih_persen'] > 0 else "lebih rendah"
+                print(f"   {f['fitur']:<18} {f['label_ya']:<14} {f['rata_ya']:>6.0f} (n={f['n_ya']})"
+                      f"  vs {f['label_tidak']:<14} {f['rata_tidak']:>6.0f} (n={f['n_tidak']})"
+                      f"  -> {abs(f['selisih_persen']):.0f}% {arah}")
+
         # --- Editor ---
         e = page['editor']
         print(f"\n🕵️  EDITOR AI — {e['verdict']}")

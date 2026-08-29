@@ -199,8 +199,11 @@ def init_db():
                p.hook_type     AS hook_type,
                p.requested_hook AS requested_hook,
                p.editor_score  AS editor_score,
+               p.topic_id      AS topic_id,
+               p.topic_headline AS topic_headline,
                p.content       AS content,
                p.fb_post_id    AS fb_post_id,
+               s.clicks        AS clicks,
                COALESCE(s.likes + s.comments, ec.likes + ec.comments) AS engagement,
                CASE WHEN s.fb_post_id IS NOT NULL THEN 'snapshot48' ELSE 'cache' END AS source
         FROM posts p
@@ -239,6 +242,10 @@ def init_db():
         ('engagement_snapshots', 'clicks', 'INTEGER'),
         ('page_stats', 'post_engagements', 'INTEGER'),
         ('page_stats', 'page_views', 'INTEGER'),
+        # Topik TIDAK pernah disimpan sebelumnya — bot bisa belajar layout & hook
+        # tapi buta terhadap topik, padahal itu isi kontennya
+        ('posts', 'topic_id', 'INTEGER'),
+        ('posts', 'topic_headline', 'TEXT'),
     ]
     for table, col, col_type in migrations:
         try:

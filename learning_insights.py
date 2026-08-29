@@ -22,7 +22,8 @@ def _fetch_posts_with_engagement(page_id=None):
     # (>=48 jam) atau snapshot umur seragam, supaya perbandingannya adil.
     query = '''
         SELECT page_id, page_name, timestamp, layout_name, hook_type,
-               editor_score, content, engagement, source
+               editor_score, topic_id, topic_headline, content,
+               clicks, engagement, source
         FROM post_engagement
         WHERE 1=1
     '''
@@ -202,6 +203,122 @@ def best_hours(page_id, count=4, min_samples=2):
     return solid[:count]
 
 
+def topic_report(page_id, limit=8):
+    """Topik mana yang benar-benar disukai audiens page ini.
+
+    Sebelumnya tidak ada laporan seperti ini sama sekali — topik tidak pernah
+    disimpan per postingan, jadi bot mengoptimalkan pembungkus (layout, hook)
+    tanpa pernah tahu isi mana yang laku.
+    """
+    rows = [r for r in _fetch_posts_with_engagement(page_id) if r['topic_headline']]
+
+    grouped = {}
+    for r in rows:
+        grouped.setdefault(r['topic_headline'], []).append(float(r['engagement'] or 0))
+
+    report = []
+    for judul, values in grouped.items():
+        n = len(values)
+        mean = sum(values) / n
+        report.append({
+            'topik': judul,
+            'n': n,
+            'avg': round(mean, 1),
+            'confident_score': round(_wilson_lower_bound(mean, n), 1),
+        })
+    report.sort(key=lambda x: -x['confident_score'])
+    return report[:limit]
+
+
+def click_report(page_id):
+    """Rasio engagement terhadap klik — ukuran daya tarik yang sudah dinormalkan.
+
+    Like mentah mencampur dua hal: berapa banyak orang yang terpapar, dan
+    seberapa menarik kontennya. Membaginya dengan klik memisahkan keduanya:
+    klik turun = jangkauan menyempit; klik tetap tapi rasio turun = konten
+    yang kurang memikat.
+    """
+    rows = [r for r in _fetch_posts_with_engagement(page_id)
+            if r['clicks'] and r['clicks'] > 0]
+    if not rows:
+        return {'n': 0, 'klik_rata': None, 'rasio': None, 'terbaik': []}
+
+    klik = [float(r['clicks']) for r in rows]
+    eng = [float(r['engagement'] or 0) for r in rows]
+    rasio = [e / k for e, k in zip(eng, klik)]
+
+    terbaik = sorted(
+        [{'topik': (r['topic_headline'] or r['layout_name'] or '-')[:40],
+          'klik': int(r['clicks']),
+          'engagement': int(r['engagement'] or 0),
+          'rasio': round(float(r['engagement'] or 0) / float(r['clicks']) * 100, 1)}
+         for r in rows],
+        key=lambda x: -x['rasio']
+    )[:3]
+
+    return {
+        'n': len(rows),
+        'klik_rata': round(sum(klik) / len(klik), 1),
+        'rasio': round(sum(rasio) / len(rasio) * 100, 1),
+        'terbaik': terbaik,
+    }
+
+
+def caption_feature_report(page_id, min_samples=8):
+    """Unsur caption mana yang berhubungan dengan engagement lebih tinggi.
+
+    Menguji hal-hal yang selama ini hanya diatur lewat prompt tanpa pernah
+    diverifikasi: panjang caption, ada tidaknya pertanyaan, jumlah emoji,
+    dan jumlah tagar.
+    """
+    import re
+
+    rows = [r for r in _fetch_posts_with_engagement(page_id) if r['content']]
+    if len(rows) < min_samples:
+        return {'n': len(rows), 'cukup': False, 'fitur': []}
+
+    def emoji_count(teks):
+        return sum(1 for ch in teks if ord(ch) > 0x2500)
+
+    contoh = []
+    for r in rows:
+        teks = r['content'] or ''
+        contoh.append({
+            'eng': float(r['engagement'] or 0),
+            'panjang': len(teks),
+            'tanya': '?' in teks,
+            'emoji': emoji_count(teks),
+            'tagar': teks.count('#'),
+        })
+
+    hasil = []
+
+    def bandingkan(nama, fungsi_pisah, label_ya, label_tidak):
+        ya = [c['eng'] for c in contoh if fungsi_pisah(c)]
+        tidak = [c['eng'] for c in contoh if not fungsi_pisah(c)]
+        if len(ya) < 3 or len(tidak) < 3:
+            return
+        rata_ya = sum(ya) / len(ya)
+        rata_tidak = sum(tidak) / len(tidak)
+        selisih = ((rata_ya - rata_tidak) / rata_tidak * 100) if rata_tidak else 0
+        hasil.append({
+            'fitur': nama,
+            'label_ya': label_ya, 'rata_ya': round(rata_ya, 1), 'n_ya': len(ya),
+            'label_tidak': label_tidak, 'rata_tidak': round(rata_tidak, 1), 'n_tidak': len(tidak),
+            'selisih_persen': round(selisih, 1),
+        })
+
+    median_panjang = sorted(c['panjang'] for c in contoh)[len(contoh) // 2]
+    bandingkan('Panjang caption', lambda c: c['panjang'] > median_panjang,
+               f'>{median_panjang} huruf', f'<={median_panjang} huruf')
+    bandingkan('Ada pertanyaan', lambda c: c['tanya'], 'ada "?"', 'tanpa "?"')
+    bandingkan('Banyak emoji', lambda c: c['emoji'] >= 3, '>=3 emoji', '<3 emoji')
+    bandingkan('Jumlah tagar', lambda c: c['tagar'] >= 4, '>=4 tagar', '<4 tagar')
+
+    hasil.sort(key=lambda x: -abs(x['selisih_persen']))
+    return {'n': len(rows), 'cukup': True, 'fitur': hasil}
+
+
 def audience_report(page_id):
     """Tren ukuran audiens + engagement relatif terhadapnya.
 
@@ -275,6 +392,9 @@ def full_report(fanspages):
             'editor': editor_report(pid),
             'hook_compliance': hook_compliance_report(pid),
             'audience': audience_report(pid),
+            'topics': topic_report(pid),
+            'clicks': click_report(pid),
+            'caption_features': caption_feature_report(pid),
             'timing': timing_report(pid),
             'best_hours': best_hours(pid),
         })
