@@ -160,10 +160,17 @@ def init_db():
     ''')
 
     # View tunggal yang dipakai SEMUA perhitungan pembelajaran.
+    #
     # Aturannya: pakai snapshot 48 jam kalau ada; kalau belum ada, pakai
-    # engagement_cache HANYA bila pengukurannya sudah cukup matang (>= 48 jam).
-    # Post yang baru diukur beberapa jam sengaja tidak diikutkan agar tidak
-    # menyeret turun layout/jam yang kebetulan dipakai belakangan.
+    # engagement_cache HANYA bila pengukurannya berada di JENDELA 36-96 jam.
+    #
+    # Batas atas itu penting dan sempat terlewat. Syarat awal cuma ">= 48 jam",
+    # padahal engagement_cache rata-rata diukur 231 jam setelah tayang. Akibatnya
+    # view mencampur pengukuran umur 48 jam dengan umur 10 hari, dan selisihnya
+    # bukan main: untuk SETIAP layout, baris cache tampak 2-7x lebih tinggi
+    # daripada baris snapshot (mis. FIELD SIGNS GRID 264 vs 37). Post baru yang
+    # dinilai lewat snapshot otomatis kalah dari post lama yang diukur belakangan
+    # — bias yang sama, hanya bergeser batasnya.
     cursor.execute('DROP VIEW IF EXISTS post_engagement')
     cursor.execute('''
         CREATE VIEW post_engagement AS
@@ -188,7 +195,7 @@ def init_db():
           AND (
                 s.fb_post_id IS NOT NULL
                 OR (ec.fb_post_id IS NOT NULL
-                    AND (julianday(ec.cached_at) - julianday(p.timestamp)) * 24 >= 48)
+                    AND (julianday(ec.cached_at) - julianday(p.timestamp)) * 24 BETWEEN 36 AND 96)
               )
     ''')
 
