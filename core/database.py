@@ -159,6 +159,23 @@ def init_db():
         )
     ''')
 
+    # Riwayat ukuran audiens tiap page.
+    #
+    # Dipakai untuk memisahkan dua hal yang gampang tertukar: "kontennya kurang
+    # menarik" versus "postingannya memang tidak sampai ke orang". Reach asli
+    # butuh scope read_insights yang belum dimiliki token; sementara itu jumlah
+    # pengikut bisa diambil bebas dan cukup untuk menghitung engagement rate.
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS page_stats (
+            page_id TEXT NOT NULL,
+            captured_date TEXT NOT NULL,
+            fan_count INTEGER,
+            followers_count INTEGER,
+            captured_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (page_id, captured_date)
+        )
+    ''')
+
     # View tunggal yang dipakai SEMUA perhitungan pembelajaran.
     #
     # Aturannya: pakai snapshot 48 jam kalau ada; kalau belum ada, pakai
@@ -213,6 +230,9 @@ def init_db():
         # Hook yang DIMINTA sistem (vs hook_type = yang benar-benar terdeteksi),
         # supaya tingkat kepatuhan generator bisa diukur, bukan ditebak
         ('posts', 'requested_hook', 'TEXT'),
+        # Reach/impressions — terisi otomatis begitu token diberi scope
+        # read_insights; sebelum itu tetap NULL dan diabaikan perhitungan.
+        ('engagement_snapshots', 'impressions', 'INTEGER'),
     ]
     for table, col, col_type in migrations:
         try:

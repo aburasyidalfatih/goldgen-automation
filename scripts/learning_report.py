@@ -57,6 +57,22 @@ def main():
                 for c in e['contoh_skor_rendah_ramai']:
                     print(f"      [{c['skor']:.0f}/10, eng {c['engagement']:.0f}] {c['pembuka']}")
 
+        # --- Audiens & jangkauan ---
+        a = page['audience']
+        if a['pengikut_terkini']:
+            baris = f"\n👥 AUDIENS — {a['pengikut_terkini']:,} pengikut"
+            if a['pertumbuhan'] is not None:
+                baris += f" ({a['pertumbuhan']:+.2f}% sejak mulai dicatat)"
+            print(baris)
+            if a['engagement_per_1000'] is not None:
+                print(f"   engagement per 1.000 pengikut: {a['engagement_per_1000']}")
+            if a['reach_tersedia']:
+                print(f"   reach rata-rata: {a['reach_rata']}")
+            else:
+                print("   reach: belum tersedia (token perlu scope read_insights)")
+        else:
+            print("\n👥 AUDIENS — belum ada data (terekam mulai siklus riset berikutnya)")
+
         # --- Kepatuhan hook ---
         hc = page['hook_compliance']
         if hc['n'] == 0:

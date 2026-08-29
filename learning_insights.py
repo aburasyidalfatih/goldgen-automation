@@ -202,6 +202,54 @@ def best_hours(page_id, count=4, min_samples=2):
     return solid[:count]
 
 
+def audience_report(page_id):
+    """Tren ukuran audiens + engagement relatif terhadapnya.
+
+    Engagement mentah bisa turun karena dua sebab yang sangat berbeda:
+    kontennya kurang menarik, atau postingannya tidak sampai ke orang.
+    Menormalkan terhadap jumlah pengikut memisahkan keduanya sebagian —
+    kalau pengikut naik tapi engagement per 1.000 pengikut turun, masalahnya
+    ada di jangkauan atau daya tarik konten, bukan di ukuran audiens.
+    """
+    conn = get_db_connection()
+    rows = conn.execute('''
+        SELECT captured_date, COALESCE(followers_count, fan_count) AS pengikut
+        FROM page_stats WHERE page_id = ? ORDER BY captured_date
+    ''', (page_id,)).fetchall()
+
+    # Reach nyata baru terisi kalau token punya scope read_insights
+    reach = conn.execute('''
+        SELECT COUNT(*) n, AVG(s.impressions) rata
+        FROM engagement_snapshots s JOIN posts p ON p.fb_post_id = s.fb_post_id
+        WHERE p.page_id = ? AND s.impressions IS NOT NULL
+    ''', (page_id,)).fetchone()
+    conn.close()
+
+    riwayat = [{'tanggal': r['captured_date'], 'pengikut': r['pengikut']} for r in rows if r['pengikut']]
+
+    hasil = {
+        'riwayat': riwayat[-14:],
+        'pengikut_terkini': riwayat[-1]['pengikut'] if riwayat else None,
+        'pertumbuhan': None,
+        'engagement_per_1000': None,
+        'reach_tersedia': bool(reach and reach['n']),
+        'reach_rata': round(reach['rata'], 1) if reach and reach['rata'] else None,
+    }
+
+    if len(riwayat) >= 2:
+        awal, akhir = riwayat[0]['pengikut'], riwayat[-1]['pengikut']
+        if awal:
+            hasil['pertumbuhan'] = round((akhir - awal) / awal * 100, 2)
+
+    if hasil['pengikut_terkini']:
+        posts = _fetch_posts_with_engagement(page_id)
+        if posts:
+            rata = sum(float(p['engagement'] or 0) for p in posts) / len(posts)
+            hasil['engagement_per_1000'] = round(rata / hasil['pengikut_terkini'] * 1000, 2)
+
+    return hasil
+
+
 def full_report(fanspages):
     """Laporan lengkap untuk semua page — dipakai dashboard & CLI"""
     out = []
@@ -214,6 +262,7 @@ def full_report(fanspages):
             'layouts': layout_report(pid),
             'editor': editor_report(pid),
             'hook_compliance': hook_compliance_report(pid),
+            'audience': audience_report(pid),
             'timing': timing_report(pid),
             'best_hours': best_hours(pid),
         })

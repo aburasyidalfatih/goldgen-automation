@@ -111,6 +111,54 @@ class CommentAnalyzer:
             print(f"   ⚠️ Gagal mengambil hook_type dari DB: {redact(e)}")
             return {}
 
+    def capture_page_stats(self, page_id, access_token):
+        """Rekam ukuran audiens page (sekali per hari).
+
+        Tanpa angka ini, penurunan engagement tidak bisa dibedakan antara
+        "konten memburuk" dan "audiens/jangkauan menyusut".
+        """
+        try:
+            r = requests.get(
+                f"https://graph.facebook.com/v18.0/{page_id}",
+                params={'access_token': access_token, 'fields': 'fan_count,followers_count'},
+                timeout=30
+            ).json()
+            if 'fan_count' not in r and 'followers_count' not in r:
+                return None
+
+            conn = get_db_connection()
+            conn.execute('''
+                INSERT OR REPLACE INTO page_stats (page_id, captured_date, fan_count, followers_count)
+                VALUES (?, date('now'), ?, ?)
+            ''', (page_id, r.get('fan_count'), r.get('followers_count')))
+            conn.commit()
+            conn.close()
+            return r.get('followers_count') or r.get('fan_count')
+        except Exception as e:
+            print(f"   ⚠️ Gagal merekam statistik page: {redact(e)}")
+            return None
+
+    def fetch_impressions(self, fb_post_id, access_token):
+        """Ambil reach/impressions sebuah postingan.
+
+        Butuh scope `read_insights` pada token. Selama scope itu belum ada,
+        Facebook mengembalikan data kosong — fungsi ini diam saja dan
+        mengembalikan None, jadi tidak ada yang rusak. Begitu izinnya
+        ditambahkan, angka reach otomatis mulai terekam tanpa ubah kode.
+        """
+        try:
+            r = requests.get(
+                f"https://graph.facebook.com/v18.0/{fb_post_id}/insights",
+                params={'access_token': access_token, 'metric': 'post_impressions_unique'},
+                timeout=30
+            ).json()
+            data = r.get('data') or []
+            if data and data[0].get('values'):
+                return data[0]['values'][0].get('value')
+        except Exception:
+            pass
+        return None
+
     def get_recent_comments(self, page_id, access_token, days=3):
         """Ambil komentar yang dibuat dalam N hari terakhir, dari 30 postingan terakhir"""
         url = f"https://graph.facebook.com/v18.0/{page_id}/posts"
@@ -680,7 +728,12 @@ REPLY ONLY WITH THIS EXACT JSON FORMAT:
         access_token = page_config['access_token']
 
         print(f"\n▶ [JIT ML RESEARCH] Menganalisa halaman: {page_name}")
-        
+
+        # Rekam ukuran audiens supaya engagement bisa dinilai relatif, bukan mutlak
+        pengikut = self.capture_page_stats(page_id, access_token)
+        if pengikut:
+            print(f"   👥 Pengikut: {pengikut:,}")
+
         # Ambil komentar dari 3 hari terakhir
         comments = self.get_recent_comments(page_id, access_token, days=3)
         
