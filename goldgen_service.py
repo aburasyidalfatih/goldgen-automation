@@ -590,6 +590,27 @@ REPLY ONLY WITH THIS EXACT JSON FORMAT:
             print(f"⚠️ News Espionage failed: {e}")
         return None
 
+    def _cari_topik_serupa(self, judul, ambang=0.5):
+        """Cari topik yang sudah ada dan sangat mirip dengan judul ini.
+
+        Return index topik serupa, atau None. Dipakai agar generator tidak
+        terus-menerus menciptakan ulang topik yang sebenarnya sudah ada —
+        pemeriksaan produksi menemukan 63 pasang topik hasil generate yang
+        kemiripannya >=50%, beberapa bahkan identik.
+        """
+        target = self._tokenize(judul or '')
+        if not target:
+            return None
+        for i, t in enumerate(self.topics):
+            lain = self._tokenize(t.get('headline') or '')
+            if not lain:
+                continue
+            irisan = len(target & lain)
+            gabungan = len(target | lain)
+            if gabungan and irisan / gabungan >= ambang:
+                return i
+        return None
+
     def _generate_dynamic_topic(self, keyword):
         """Generates a brand new topic structure dynamically based on audience keyword"""
         try:
@@ -714,21 +735,38 @@ Do not include any other text, markdown blocks, or quotes. Just the raw JSON.
             valid_matches = [i for i in best_matches if i not in recently_used[-5:]]
             if valid_matches:
                 selected_index = random.choice(valid_matches)
-            elif preferences and len(preferences) > 0:
-                # Topik sangat diinginkan tapi tidak ada yang cocok di database (best_score == 0 atau semuanya recently used)
-                # Mari kita ciptakan topik baru!
+            elif best_matches:
+                # Ada topik yang cocok, hanya saja baru dipakai. Pakai topik
+                # cocok lain di luar 2 terakhir — JANGAN langsung bikin topik baru.
+                cadangan = [i for i in best_matches if i not in recently_used[-2:]] or best_matches
+                selected_index = random.choice(cadangan)
+            elif preferences and random.random() < 0.15:
+                # Benar-benar tidak ada topik yang cocok. Baru di sini boleh
+                # menciptakan topik baru, dan itu pun jarang.
+                #
+                # Dulu generator dipanggil setiap kali kandidat kebetulan sudah
+                # dipakai belakangan. Akibatnya topics.json membengkak 101 -> 199
+                # dengan 63 pasang topik yang kemiripannya >=50% (beberapa
+                # identik). Efek sampingnya fatal: hampir tiap postingan memakai
+                # topik unik, sehingga tidak ada topik yang pernah mengumpulkan
+                # cukup sampel untuk dipelajari.
                 top_keyword = preferences[0]
                 new_topic = self._generate_dynamic_topic(top_keyword)
                 if new_topic:
-                    self.topics.append(new_topic)
-                    selected_index = len(self.topics) - 1
-                    print(f"   🌟 Successfully generated and injected new topic: {new_topic['headline']}")
-                    # Save to topics.json permanently
-                    try:
-                        with open(Path(__file__).parent / 'data' / 'topics.json', 'w', encoding='utf-8') as f:
-                            json.dump(self.topics, f, indent=4)
-                    except Exception as e:
-                        print(f"   ⚠️ Failed to save new topic to topics.json: {e}")
+                    kembar = self._cari_topik_serupa(new_topic.get('headline'))
+                    if kembar is not None:
+                        selected_index = kembar
+                        print(f"   ♻️  Topik serupa sudah ada, memakai yang lama: "
+                              f"{self.topics[kembar]['headline'][:50]}")
+                    else:
+                        self.topics.append(new_topic)
+                        selected_index = len(self.topics) - 1
+                        print(f"   🌟 Topik baru dibuat: {new_topic['headline'][:50]}")
+                        try:
+                            with open(Path(__file__).parent / 'data' / 'topics.json', 'w', encoding='utf-8') as f:
+                                json.dump(self.topics, f, indent=4)
+                        except Exception as e:
+                            print(f"   ⚠️ Gagal menyimpan topik baru: {redact(e)}")
 
         # Get topic
         topic = self.topics[selected_index].copy()
