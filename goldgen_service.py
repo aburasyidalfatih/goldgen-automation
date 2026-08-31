@@ -119,6 +119,26 @@ class GoldGenService:
         except Exception:
             return []
 
+    def _get_topic_keywords(self, page_id=None, limit=10):
+        """Preferensi yang benar-benar TOPIK, bukan label hook.
+
+        `topic_preferences` mencampur dua hal yang fungsinya berbeda:
+        - "hook: secret" -> gaya pembuka caption
+        - "black sand indicators" -> isi konten
+
+        Karena hook disarankan ulang hampir tiap siklus riset, skornya menumpuk
+        dan mendominasi. Pemeriksaan produksi menemukan preferensi ketiga page
+        100% berisi label hook — nol topik nyata. Akibatnya:
+        - pencocokan topik sebenarnya membandingkan kata "fact"/"secret" saja
+        - generator topik dinamis diberi kata kunci "hook: fact", sehingga
+          hanya sanggup menghasilkan judul generik yang berulang
+
+        Fungsi ini memisahkan keduanya supaya masing-masing dipakai sesuai
+        perannya.
+        """
+        return [p for p in self._get_audience_preferences(page_id, limit=limit * 3)
+                if not p.lower().startswith('hook:')][:limit]
+
     def _get_latest_insights(self, page_id=None):
         """Ambil insight terdalam terbaru dari analisis komentar"""
         try:
@@ -683,8 +703,11 @@ Do not include any other text, markdown blocks, or quotes. Just the raw JSON.
         else:
             current_index = 0
 
-        # Cek audience preferences dari analisis komentar
-        preferences = self._get_audience_preferences(page_id)
+        # Cek audience preferences dari analisis komentar.
+        # Khusus untuk memilih TOPIK, label hook dibuang — hook mengatur gaya
+        # pembuka caption, bukan isi konten. Mencampur keduanya membuat
+        # pencocokan topik cuma membandingkan kata "fact"/"secret".
+        preferences = self._get_topic_keywords(page_id)
 
         selected_index = current_index
         explore_mode = False
@@ -741,6 +764,8 @@ Do not include any other text, markdown blocks, or quotes. Just the raw JSON.
                 cadangan = [i for i in best_matches if i not in recently_used[-2:]] or best_matches
                 selected_index = random.choice(cadangan)
             elif preferences and random.random() < 0.15:
+                # preferences di sini sudah bebas label hook, jadi generator
+                # menerima kata kunci topik yang benar-benar bermakna
                 # Benar-benar tidak ada topik yang cocok. Baru di sini boleh
                 # menciptakan topik baru, dan itu pun jarang.
                 #

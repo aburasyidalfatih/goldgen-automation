@@ -571,7 +571,13 @@ TEXT COMMENTS:
 {comments_text}
 
 Extract any preferred visual/image styles mentioned by the audience. Also suggest improvements for the AI prompt (for text or image generation) based on their complaints, questions, or engagement.
-Evaluate which HOOK generated the most engagement or best quality comments. Add the best performing hook to 'suggested_topics' as a meta-topic (e.g. "Hook: Fear").
+Evaluate which HOOK generated the most engagement or best quality comments, and report it in 'best_hook' (ONE word only: Fear, Secret, Mythbuster, Challenge, Story, Fact, or News).
+
+CRITICAL — 'suggested_topics' MUST contain actual SUBJECT MATTER the audience
+wants to learn about (e.g. "black sand indicators", "reading bedrock cracks",
+"telling gold from pyrite"). Do NOT put hook styles there — the hook belongs in
+'best_hook'. Give at least 2 concrete subject topics drawn from what people
+actually asked about or reacted to.
 
 IMPORTANT INSTRUCTION FOR EMOTIONAL REACTIONS:
 - If a hook receives high 'Haha' reactions, it means the audience loves humor/memes. Suggest visual styles that are funny or absurd.
@@ -586,8 +592,10 @@ REPLY ONLY WITH THIS EXACT JSON FORMAT:
     "top_keywords": ["keyword1", "keyword2"],
     "requested_topics": ["topic audience wants to learn"],
     "sentiment": "positive/neutral/negative",
+    "best_hook": "Secret",
     "suggested_topics": [
-        {{"topic": "Hook: Secret", "reason": "Generated high curiosity"}}
+        {{"topic": "reading bedrock cracks", "reason": "Ditanyakan berulang di komentar"}},
+        {{"topic": "telling gold from pyrite", "reason": "Reaksi Wow paling tinggi"}}
     ],
     "avoid_patterns": ["complaints, boring things, or patterns that triggered Angry/Sad reactions"],
     "preferred_visual_styles": ["realistic", "macro", "infographic"],
@@ -640,8 +648,16 @@ REPLY ONLY WITH THIS EXACT JSON FORMAT:
             json.dumps(analysis)
         ))
 
+        # best_hook disimpan sebagai preferensi hook tersendiri. Dulu hook
+        # diminta ikut masuk 'suggested_topics', sehingga skornya menumpuk
+        # tiap siklus dan menenggelamkan topik konten yang sesungguhnya.
+        hook_terbaik = normalize_hook(analysis.get('best_hook'))
+        daftar = list(analysis.get('suggested_topics') or [])
+        if hook_terbaik:
+            daftar.append({'topic': f'hook: {hook_terbaik}'})
+
         # Update topic_preferences berdasarkan suggested topics
-        for item in analysis.get('suggested_topics', []):
+        for item in daftar:
             if not isinstance(item, dict):
                 continue
             topic_kw = (item.get('topic') or '').lower().strip()
