@@ -83,6 +83,11 @@ class GoldGenService:
             self.layouts = []
             self.topics = []
 
+        # Layout yang sudah terbukti merugikan tidak ikut diundi lagi. Ia tetap
+        # disimpan di layouts.json (bukan dihapus) supaya keputusan ini bisa
+        # ditinjau ulang dan komposisi promptnya tidak hilang.
+        self.active_layouts = [l for l in self.layouts if not l.get('retired')]
+
     def _get_audience_preferences(self, page_id=None, limit=10):
         """Ambil top topic preferences dari analisis komentar.
 
@@ -353,12 +358,12 @@ class GoldGenService:
 
         Eksplorasi muncul dari ketidakpastian itu sendiri, tidak perlu slot acak.
         """
-        if not self.layouts:
+        if not self.active_layouts:
             return None, 'no-layout'
 
         perf = self._get_layout_performance(page_id)
         if not perf:
-            return self.layouts[fallback_index % len(self.layouts)], "rotasi (belum ada data)"
+            return self.active_layouts[fallback_index % len(self.active_layouts)], "rotasi (belum ada data)"
 
         page_mean, page_sd = self._get_page_engagement_stats(page_id)
         if page_mean <= 0:
@@ -374,13 +379,20 @@ class GoldGenService:
         obs_precision_unit = 1.0 / (sigma ** 2)
 
         best_layout, best_sample, best_note = None, float('-inf'), ''
-        for layout in self.layouts:
+        for layout in self.active_layouts:
             d = perf.get(layout['name'])
             n = d['n'] if d else 0
-            mean = d['avg'] if d else page_mean
+
+            # Prior tidak selalu "rata-rata page". Bukti gabungan lintas page
+            # bisa memberi tahu sebelumnya bahwa sebuah layout cenderung di bawah
+            # rata-rata; prior_factor menuliskan pengetahuan itu, sehingga layout
+            # tersebut harus benar-benar membuktikan diri untuk naik lagi —
+            # bukan mulai dari titik netral seolah kita belum tahu apa-apa.
+            prior_mean = page_mean * layout.get('prior_factor', 1.0)
+            mean = d['avg'] if d else prior_mean
 
             precision = prior_precision + n * obs_precision_unit
-            post_mean = (page_mean * prior_precision + mean * n * obs_precision_unit) / precision
+            post_mean = (prior_mean * prior_precision + mean * n * obs_precision_unit) / precision
             post_sd = (1.0 / precision) ** 0.5
 
             sample = random.gauss(post_mean, post_sd)
@@ -395,7 +407,7 @@ class GoldGenService:
                                  f"-> perkiraan wajar {post_mean:.0f}, undian {sample:.0f}")
 
         if not best_layout:
-            return self.layouts[fallback_index % len(self.layouts)], "rotasi (fallback)"
+            return self.active_layouts[fallback_index % len(self.active_layouts)], "rotasi (fallback)"
 
         return best_layout, best_note
 
@@ -683,7 +695,7 @@ Do not include any other text, markdown blocks, or quotes. Just the raw JSON.
             if news_topic:
                 print(f"   🚨 Found breaking news: {news_topic['headline']}")
                 # Layout tetap dipilih berdasarkan performa page, bukan acak murni
-                layout, why = self._choose_layout(page_id, random.randint(0, len(self.layouts) - 1))
+                layout, why = self._choose_layout(page_id, random.randrange(len(self.active_layouts) or 1))
                 if layout:
                     news_topic['layout'] = layout['name']
                     news_topic['composition'] = layout['composition']
@@ -702,6 +714,15 @@ Do not include any other text, markdown blocks, or quotes. Just the raw JSON.
                 current_index = state.get('current_topic_index', 0)
         else:
             current_index = 0
+
+        if not self.topics:
+            return None
+
+        # Indeks rotasi disimpan di file dan bertahan lintas restart, sementara
+        # kolam topik bisa menyusut (pembersihan duplikat, pembuangan topik
+        # cacat). Tanpa dilipat, indeks lama menunjuk ke luar batas dan
+        # menggagalkan seluruh siklus posting dengan IndexError.
+        current_index %= len(self.topics)
 
         # Cek audience preferences dari analisis komentar.
         # Khusus untuk memilih TOPIK, label hook dibuang — hook mengatur gaya

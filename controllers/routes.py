@@ -323,17 +323,22 @@ def get_topic_info():
         else:
             current_index = 0
         
-        # Get current and next topics
+        if not service.topics:
+            return jsonify({'error': 'Kolam topik kosong'}), 500
+
+        # Indeks tersimpan bisa menunjuk ke luar batas setelah topik dirapikan
+        # (mis. pembersihan duplikat), jadi selalu dilipat dulu.
+        current_index = current_index % len(service.topics)
         current_topic = service.topics[current_index]
         next_index = (current_index + 1) % len(service.topics)
         next_topic = service.topics[next_index]
-        
-        # Get layout info
-        current_layout_idx = current_index % len(service.layouts)
-        next_layout_idx = next_index % len(service.layouts)
-        current_layout = service.layouts[current_layout_idx]
-        next_layout = service.layouts[next_layout_idx]
-        
+
+        # Hanya layout aktif yang ditampilkan — layout yang sudah dipensiunkan
+        # tidak akan pernah benar-benar dipakai, jadi memajangnya menyesatkan.
+        pool = service.active_layouts or service.layouts
+        current_layout = pool[current_index % len(pool)]
+        next_layout = pool[next_index % len(pool)]
+
         return jsonify({
             'current': {
                 'id': current_topic['id'],
@@ -350,7 +355,7 @@ def get_topic_info():
                 'index': next_index
             },
             'total_topics': len(service.topics),
-            'total_layouts': len(service.layouts)
+            'total_layouts': len(pool)
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
