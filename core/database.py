@@ -176,49 +176,6 @@ def init_db():
         )
     ''')
 
-    # View tunggal yang dipakai SEMUA perhitungan pembelajaran.
-    #
-    # Aturannya: pakai snapshot 48 jam kalau ada; kalau belum ada, pakai
-    # engagement_cache HANYA bila pengukurannya berada di JENDELA 36-96 jam.
-    #
-    # Batas atas itu penting dan sempat terlewat. Syarat awal cuma ">= 48 jam",
-    # padahal engagement_cache rata-rata diukur 231 jam setelah tayang. Akibatnya
-    # view mencampur pengukuran umur 48 jam dengan umur 10 hari, dan selisihnya
-    # bukan main: untuk SETIAP layout, baris cache tampak 2-7x lebih tinggi
-    # daripada baris snapshot (mis. FIELD SIGNS GRID 264 vs 37). Post baru yang
-    # dinilai lewat snapshot otomatis kalah dari post lama yang diukur belakangan
-    # — bias yang sama, hanya bergeser batasnya.
-    cursor.execute('DROP VIEW IF EXISTS post_engagement')
-    cursor.execute('''
-        CREATE VIEW post_engagement AS
-        SELECT p.id            AS post_id,
-               p.page_id       AS page_id,
-               p.page_name     AS page_name,
-               p.timestamp     AS timestamp,
-               p.layout_name   AS layout_name,
-               p.hook_type     AS hook_type,
-               p.requested_hook AS requested_hook,
-               p.editor_score  AS editor_score,
-               p.topic_id      AS topic_id,
-               p.topic_headline AS topic_headline,
-               p.content       AS content,
-               p.fb_post_id    AS fb_post_id,
-               s.clicks        AS clicks,
-               COALESCE(s.likes + s.comments, ec.likes + ec.comments) AS engagement,
-               CASE WHEN s.fb_post_id IS NOT NULL THEN 'snapshot48' ELSE 'cache' END AS source
-        FROM posts p
-        LEFT JOIN engagement_snapshots s
-               ON s.fb_post_id = p.fb_post_id AND s.age_hours = 48
-        LEFT JOIN engagement_cache ec
-               ON ec.fb_post_id = p.fb_post_id
-        WHERE p.status = 'success'
-          AND (
-                s.fb_post_id IS NOT NULL
-                OR (ec.fb_post_id IS NOT NULL
-                    AND (julianday(ec.cached_at) - julianday(p.timestamp)) * 24 BETWEEN 36 AND 96)
-              )
-    ''')
-
     # === Auto Migration: Cek & Tambahkan Kolom yang Belum Ada ===
     migrations = [
         ('topic_preferences', 'last_updated', 'DATETIME'),
@@ -246,6 +203,11 @@ def init_db():
         # tapi buta terhadap topik, padahal itu isi kontennya
         ('posts', 'topic_id', 'INTEGER'),
         ('posts', 'topic_headline', 'TEXT'),
+        # Caption punya juri sejak lama, gambar tidak — padahal pengukuran
+        # menunjukkan layout gambar justru penentu terbesar. Skornya disimpan
+        # supaya kritikus gambar sendiri bisa diaudit terhadap engagement nyata,
+        # persis seperti yang akhirnya kita lakukan pada editor caption.
+        ('posts', 'image_score', 'REAL'),
     ]
     for table, col, col_type in migrations:
         try:
@@ -291,6 +253,54 @@ def init_db():
             cursor.execute("UPDATE post_queue SET scheduled_time = created_at WHERE scheduled_time IS NULL")
     except Exception as e:
         print(f"WARNING: DB Migration post_queue: {e}")
+
+    # View tunggal yang dipakai SEMUA perhitungan pembelajaran.
+    #
+    # Aturannya: pakai snapshot 48 jam kalau ada; kalau belum ada, pakai
+    # engagement_cache HANYA bila pengukurannya berada di JENDELA 36-96 jam.
+    #
+    # Batas atas itu penting dan sempat terlewat. Syarat awal cuma ">= 48 jam",
+    # padahal engagement_cache rata-rata diukur 231 jam setelah tayang. Akibatnya
+    # view mencampur pengukuran umur 48 jam dengan umur 10 hari, dan selisihnya
+    # bukan main: untuk SETIAP layout, baris cache tampak 2-7x lebih tinggi
+    # daripada baris snapshot (mis. FIELD SIGNS GRID 264 vs 37). Post baru yang
+    # dinilai lewat snapshot otomatis kalah dari post lama yang diukur belakangan
+    # — bias yang sama, hanya bergeser batasnya.
+    # View dibuat SETELAH migrasi kolom, bukan sebelumnya. Kalau dibalik, view
+    # yang menyebut kolom hasil migrasi (mis. posts.image_score) akan lolos saat
+    # dibuat tapi gagal saat dibaca, karena SQLite baru memeriksa nama kolom
+    # ketika view itu dipakai.
+    cursor.execute('DROP VIEW IF EXISTS post_engagement')
+    cursor.execute('''
+        CREATE VIEW post_engagement AS
+        SELECT p.id            AS post_id,
+               p.page_id       AS page_id,
+               p.page_name     AS page_name,
+               p.timestamp     AS timestamp,
+               p.layout_name   AS layout_name,
+               p.hook_type     AS hook_type,
+               p.requested_hook AS requested_hook,
+               p.editor_score  AS editor_score,
+               p.topic_id      AS topic_id,
+               p.topic_headline AS topic_headline,
+               p.content       AS content,
+               p.image_score   AS image_score,
+               p.fb_post_id    AS fb_post_id,
+               s.clicks        AS clicks,
+               COALESCE(s.likes + s.comments, ec.likes + ec.comments) AS engagement,
+               CASE WHEN s.fb_post_id IS NOT NULL THEN 'snapshot48' ELSE 'cache' END AS source
+        FROM posts p
+        LEFT JOIN engagement_snapshots s
+               ON s.fb_post_id = p.fb_post_id AND s.age_hours = 48
+        LEFT JOIN engagement_cache ec
+               ON ec.fb_post_id = p.fb_post_id
+        WHERE p.status = 'success'
+          AND (
+                s.fb_post_id IS NOT NULL
+                OR (ec.fb_post_id IS NOT NULL
+                    AND (julianday(ec.cached_at) - julianday(p.timestamp)) * 24 BETWEEN 36 AND 96)
+              )
+    ''')
 
     conn.commit()
     conn.close()

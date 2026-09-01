@@ -22,7 +22,7 @@ def _fetch_posts_with_engagement(page_id=None):
     # (>=48 jam) atau snapshot umur seragam, supaya perbandingannya adil.
     query = '''
         SELECT page_id, page_name, timestamp, layout_name, hook_type,
-               editor_score, topic_id, topic_headline, content,
+               editor_score, image_score, topic_id, topic_headline, content,
                clicks, engagement, source
         FROM post_engagement
         WHERE 1=1
@@ -126,6 +126,47 @@ def editor_report(page_id=None, min_samples=12):
         {'skor': s, 'engagement': e, 'pembuka': c.strip().split('\n')[0][:90]} for s, e, c in rendah_ramai
     ]
     return result
+
+
+def image_critic_report(page_id=None, min_samples=10):
+    """Apakah skor kritikus gambar meramalkan engagement?
+
+    Dibuat berbarengan dengan kritikusnya sendiri, karena pelajaran dari editor
+    caption: juri yang tidak pernah diperiksa bisa berbulan-bulan memaksakan
+    selera yang justru berlawanan dengan audiens. Skor gambar ikut disimpan
+    sejak awal supaya pertanyaan itu bisa dijawab dengan angka, bukan dugaan.
+    """
+    rows = _fetch_posts_with_engagement(page_id)
+    pairs = [(float(r['image_score']), float(r['engagement'] or 0))
+             for r in rows if r['image_score'] is not None]
+
+    n = len(pairs)
+    hasil = {'n': n, 'r': None, 'avg_high': None, 'avg_low': None, 'verdict': ''}
+    if n < min_samples:
+        hasil['verdict'] = f'data belum cukup ({n}/{min_samples} post punya skor gambar)'
+        return hasil
+
+    xs = [a for a, _ in pairs]
+    ys = [b for _, b in pairs]
+    mx, my = sum(xs) / n, sum(ys) / n
+    num = sum((x - mx) * (y - my) for x, y in pairs)
+    dx = sum((x - mx) ** 2 for x in xs) ** 0.5
+    dy = sum((y - my) ** 2 for y in ys) ** 0.5
+    r = (num / (dx * dy)) if dx > 0 and dy > 0 else 0.0
+
+    tinggi = [y for x, y in pairs if x >= 8]
+    rendah = [y for x, y in pairs if x < 8]
+    hasil['r'] = round(r, 3)
+    hasil['avg_high'] = round(sum(tinggi) / len(tinggi), 1) if tinggi else None
+    hasil['avg_low'] = round(sum(rendah) / len(rendah), 1) if rendah else None
+
+    if r >= 0.2:
+        hasil['verdict'] = 'BERGUNA — gambar yang dinilai bagus memang lebih disukai'
+    elif r <= -0.2:
+        hasil['verdict'] = 'MENYESATKAN — selera kritikus berlawanan dengan audiens'
+    else:
+        hasil['verdict'] = 'TIDAK BERPENGARUH — skor gambar acak terhadap hasil'
+    return hasil
 
 
 def hook_compliance_report(page_id):
@@ -390,6 +431,7 @@ def full_report(fanspages):
             'schedule_hours': page.get('schedule_hours', []),
             'layouts': layout_report(pid),
             'editor': editor_report(pid),
+            'image_critic': image_critic_report(pid),
             'hook_compliance': hook_compliance_report(pid),
             'audience': audience_report(pid),
             'topics': topic_report(pid),

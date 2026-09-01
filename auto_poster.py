@@ -117,6 +117,77 @@ class GoldGenAutoPoster:
             return caption, topic
     
     
+    def _review_image(self, image_path, topic, fanspage_name=None):
+        """Nilai gambar sebelum tayang, memakai Gemini Vision.
+
+        Caption sudah lama punya juri; gambar tidak. Padahal pengukuran atas 53
+        postingan (semuanya pada usia 48 jam) menunjukkan justru layout gambar
+        yang paling menentukan: layout bergaya daftar berada di 0.64x dengan
+        selang 0.41-0.87 — seluruhnya di bawah rata-rata. Caption kita bahkan
+        menyuruh pembaca melihat gambarnya.
+
+        Rubriknya sengaja memeriksa hal yang benar-benar sering rusak pada
+        infografis buatan AI: teks kacau, komposisi tidak sesuai layout yang
+        diminta, dan cacat bentuk.
+
+        Mengembalikan (skor, catatan). Kalau Vision gagal, sengaja LOLOS
+        (skor None) — juri yang mogok tidak boleh menghentikan jadwal posting.
+        """
+        import re
+        if not image_path or not os.path.exists(str(image_path)):
+            return None, 'file gambar tidak ada'
+
+        layout = topic.get('layout', '-')
+        komposisi = (topic.get('composition') or '')[:300]
+        judul = topic.get('headline', '')
+
+        prompt = f"""You are a ruthless art director reviewing a vertical (9:16) infographic before it is published to a gold prospecting Facebook page.
+
+INTENDED TOPIC: {judul}
+INTENDED LAYOUT: {layout}
+INTENDED COMPOSITION: {komposisi}
+
+Score the image 1-10 against these criteria, in order of importance:
+1. TEXT LEGIBILITY — is every word real, correctly spelled and readable on a phone? Garbled or nonsense lettering is the single worst defect.
+2. LAYOUT MATCH — does the composition actually deliver the intended layout above? A cross-section must really show a cut through the ground.
+3. SUBJECT CORRECTNESS — is this genuinely about gold prospecting geology, not a generic landscape or unrelated mining scene?
+4. ARTEFACTS — malformed hands, impossible tools, duplicated limbs, melted objects.
+5. WATERMARK — a small text watermark reading "{fanspage_name or ''}" should sit in a corner, never across the centre.
+
+Reply ONLY with JSON:
+{{"score": <1-10>, "verdict": "<one short sentence>", "worst_problem": "<the single most damaging flaw, or 'none'>"}}"""
+
+        try:
+            with open(str(image_path), 'rb') as f:
+                encoded = base64.b64encode(f.read()).decode('utf-8')
+
+            url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
+                   f"{self.text_model}:generateContent?key={self.gemini_api_key}")
+            payload = {"contents": [{"parts": [
+                {"text": prompt},
+                {"inlineData": {"mimeType": "image/png", "data": encoded}}
+            ]}]}
+            response = requests.post(url, json=payload, timeout=90)
+            data = response.json()
+
+            if 'candidates' not in data:
+                err = (data.get('error') or {}).get('message', str(data)[:150])
+                print(f"   ⚠️  Kritikus gambar tidak bisa menilai: {redact(err)[:160]}")
+                return None, 'vision gagal'
+
+            teks = data['candidates'][0]['content']['parts'][0]['text']
+            match = re.search(r'\{.*\}', teks, re.DOTALL)
+            if not match:
+                return None, 'jawaban juri tidak terbaca'
+
+            hasil = json.loads(match.group(0))
+            skor = float(hasil.get('score'))
+            catatan = str(hasil.get('worst_problem') or hasil.get('verdict') or '')[:200]
+            return skor, catatan
+        except Exception as e:
+            print(f"   ⚠️  Kritikus gambar error: {type(e).__name__}: {redact(e)}")
+            return None, 'error juri'
+
     def generate_image(self, topic, fanspage_name=None, page_id=None):
         """Generate educational infographic using Gemini image model"""
         # Prompt dibangun di luar blok retry supaya retry tidak crash karena
@@ -130,7 +201,14 @@ class GoldGenAutoPoster:
         if fanspage_name:
             image_prompt += f"\n\nIMPORTANT INSTRUCTION: Add a subtle text watermark that says '{fanspage_name}' placed clearly in one of the corners of the image (e.g. bottom-right or bottom-left corner). Do NOT put the watermark in the center of the image."
 
-        max_attempts = 2
+        prompt_saat_ini = image_prompt
+        # Satu kali gambar ulang kalau juri menolak. Gambar 2K mahal dan lambat,
+        # jadi jatahnya sengaja lebih ketat daripada siklus tulis-ulang caption.
+        AMBANG_GAMBAR = 7.0
+        max_attempts = 3
+        gambar_terbaik = None  # (skor, path)
+        topic['image_score'] = None
+
         for attempt in range(max_attempts):
             try:
                 from google.genai import types
@@ -141,7 +219,7 @@ class GoldGenAutoPoster:
                 client = genai.Client(api_key=self.gemini_api_key)
                 response = client.models.generate_content(
                     model=self.image_model,
-                    contents=image_prompt,
+                    contents=prompt_saat_ini,
                     config=types.GenerateContentConfig(
                         response_modalities=['TEXT', 'IMAGE'],
                         image_config=types.ImageConfig(
@@ -151,23 +229,64 @@ class GoldGenAutoPoster:
                     )
                 )
 
+                image_path = None
                 for part in response.parts:
                     if image := part.as_image():
-                        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_') + str(attempt)
                         image_path = IMAGES_DIR / f"gold_prospecting_{timestamp}.png"
                         image.save(str(image_path))
                         print(f"   ✅ Image generated with {label}")
-                        return image_path
+                        break
 
-                print(f"   ⚠️  No image in response, using PIL fallback...")
-                return self._generate_fallback_image(topic, fanspage_name)
+                if image_path is None:
+                    print(f"   ⚠️  No image in response, using PIL fallback...")
+                    return self._generate_fallback_image(topic, fanspage_name)
+
+                skor, catatan = self._review_image(image_path, topic, fanspage_name)
+                if skor is None:
+                    # Juri tidak bisa menilai — jangan tahan postingannya.
+                    topic['image_score'] = None
+                    return image_path
+
+                print(f"   🖼️  Kritikus Gambar (percobaan {attempt+1}): {skor:.0f}/10 — {catatan}")
+                if gambar_terbaik is None or skor > gambar_terbaik[0]:
+                    gambar_terbaik = (skor, image_path)
+
+                if skor >= AMBANG_GAMBAR or attempt == max_attempts - 1:
+                    skor_pakai, path_pakai = gambar_terbaik
+                    if path_pakai != image_path:
+                        print(f"   ↩️  Memakai gambar terbaik (skor {skor_pakai:.0f}), "
+                              f"bukan percobaan terakhir (skor {skor:.0f})")
+                    topic['image_score'] = skor_pakai
+                    return path_pakai
+
+                print(f"   🎨 Gambar ditolak, membuat ulang — perbaiki: {catatan}")
+                prompt_saat_ini = (image_prompt +
+                                   f"\n\nTHE PREVIOUS ATTEMPT WAS REJECTED BY THE ART DIRECTOR.\n"
+                                   f"Worst problem: {catatan}\n"
+                                   f"Fix that specific problem. Keep all text short, real and "
+                                   f"perfectly spelled, and make the composition unmistakably "
+                                   f"match the intended layout.")
 
             except Exception as e:
                 if attempt < max_attempts - 1:
                     print(f"   ⚠️  Gemini error: {redact(e)}, retrying in 30s...")
                     time.sleep(30)
+                elif gambar_terbaik:
+                    # Percobaan terakhir gagal, tapi gambar sebelumnya sudah ada.
+                    # Gambar Gemini yang belum sempurna tetap jauh lebih baik
+                    # daripada fallback PIL.
+                    skor_pakai, path_pakai = gambar_terbaik
+                    print(f"   ↩️  Percobaan terakhir gagal; memakai gambar sebelumnya (skor {skor_pakai:.0f})")
+                    topic['image_score'] = skor_pakai
+                    return path_pakai
                 else:
                     print(f"   ⚠️  Gemini retry failed: {redact(e)}, using PIL fallback...")
+
+        if gambar_terbaik:
+            skor_pakai, path_pakai = gambar_terbaik
+            topic['image_score'] = skor_pakai
+            return path_pakai
 
         return self._generate_fallback_image(topic, fanspage_name)
     
@@ -488,15 +607,15 @@ class GoldGenAutoPoster:
 
         return None, f"GAGAL MENGIRIM: batas percobaan ({max_retries}x) habis tanpa respons sukses dari Facebook"
     
-    def log_post(self, fanspage, content, image_path, fb_post_id, status, error_message=None, layout_name=None, hook_type=None, editor_score=None, requested_hook=None, topic_id=None, topic_headline=None):
+    def log_post(self, fanspage, content, image_path, fb_post_id, status, error_message=None, layout_name=None, hook_type=None, editor_score=None, requested_hook=None, topic_id=None, topic_headline=None, image_score=None):
         """Log post to database"""
         from datetime import timezone, timedelta
         now_wib = datetime.now(timezone(timedelta(hours=7)))
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute('''
-            INSERT INTO posts (timestamp, page_id, page_name, content, image_path, fb_post_id, status, error_message, layout_name, hook_type, editor_score, requested_hook, topic_id, topic_headline)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO posts (timestamp, page_id, page_name, content, image_path, fb_post_id, status, error_message, layout_name, hook_type, editor_score, requested_hook, topic_id, topic_headline, image_score)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             now_wib.isoformat(),
             fanspage['page_id'],
@@ -511,7 +630,8 @@ class GoldGenAutoPoster:
             editor_score,
             requested_hook,
             topic_id,
-            topic_headline
+            topic_headline,
+            image_score
         ))
         conn.commit()
         conn.close()
@@ -697,11 +817,11 @@ class GoldGenAutoPoster:
                 
                 if fb_post_id:
                     print(f"   ✅ Success! Post ID: {fb_post_id}")
-                    self.log_post(fanspage, content, image_path, fb_post_id, 'success', layout_name=topic.get('layout'), hook_type=topic.get('hook_type'), editor_score=topic.get('editor_score'), requested_hook=topic.get('requested_hook'), topic_id=topic.get('id'), topic_headline=topic.get('headline'))
+                    self.log_post(fanspage, content, image_path, fb_post_id, 'success', layout_name=topic.get('layout'), hook_type=topic.get('hook_type'), editor_score=topic.get('editor_score'), requested_hook=topic.get('requested_hook'), topic_id=topic.get('id'), topic_headline=topic.get('headline'), image_score=topic.get('image_score'))
                     posted_count += 1
                 else:
                     print(f"   ❌ Failed: {error}")
-                    self.log_post(fanspage, content, image_path, None, 'failed', error, layout_name=topic.get('layout'), hook_type=topic.get('hook_type'), editor_score=topic.get('editor_score'), requested_hook=topic.get('requested_hook'), topic_id=topic.get('id'), topic_headline=topic.get('headline'))
+                    self.log_post(fanspage, content, image_path, None, 'failed', error, layout_name=topic.get('layout'), hook_type=topic.get('hook_type'), editor_score=topic.get('editor_score'), requested_hook=topic.get('requested_hook'), topic_id=topic.get('id'), topic_headline=topic.get('headline'), image_score=topic.get('image_score'))
                 
                 print()
 
@@ -779,7 +899,7 @@ class GoldGenAutoPoster:
             
             if fb_post_id:
                 print(f"   ✅ Success! Post ID: {fb_post_id}")
-                self.log_post(target_fanspage, caption, image_path, fb_post_id, 'success', layout_name=topic.get('layout'), hook_type=topic.get('hook_type'), editor_score=topic.get('editor_score'), requested_hook=topic.get('requested_hook'), topic_id=topic.get('id'), topic_headline=topic.get('headline'))
+                self.log_post(target_fanspage, caption, image_path, fb_post_id, 'success', layout_name=topic.get('layout'), hook_type=topic.get('hook_type'), editor_score=topic.get('editor_score'), requested_hook=topic.get('requested_hook'), topic_id=topic.get('id'), topic_headline=topic.get('headline'), image_score=topic.get('image_score'))
                 self.update_last_post_time(target_fanspage['page_id'])
                 
                 next_index = (base_topic_index + 1) % len(self.goldgen.topics)
@@ -790,7 +910,7 @@ class GoldGenAutoPoster:
                 return True, fb_post_id
             else:
                 print(f"   ❌ Failed: {error}")
-                self.log_post(target_fanspage, caption, image_path, None, 'failed', error, layout_name=topic.get('layout'), hook_type=topic.get('hook_type'), editor_score=topic.get('editor_score'), requested_hook=topic.get('requested_hook'), topic_id=topic.get('id'), topic_headline=topic.get('headline'))
+                self.log_post(target_fanspage, caption, image_path, None, 'failed', error, layout_name=topic.get('layout'), hook_type=topic.get('hook_type'), editor_score=topic.get('editor_score'), requested_hook=topic.get('requested_hook'), topic_id=topic.get('id'), topic_headline=topic.get('headline'), image_score=topic.get('image_score'))
                 return False, error
                 
         except Exception as e:

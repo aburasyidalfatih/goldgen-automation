@@ -90,6 +90,15 @@ def main():
                 for c in e['contoh_skor_rendah_ramai']:
                     print(f"      [{c['skor']:.0f}/10, eng {c['engagement']:.0f}] {c['pembuka']}")
 
+        # --- Kritikus gambar ---
+        g = page.get('image_critic') or {}
+        print(f"\n🖼️  KRITIKUS GAMBAR — {g.get('verdict', 'belum ada data')}")
+        if g.get('r') is not None:
+            print(f"   korelasi skor gambar vs engagement: {g['r']:+.2f} (dari {g['n']} post)")
+            if g.get('avg_high') is not None and g.get('avg_low') is not None:
+                print(f"   gambar skor >=8 : {g['avg_high']:.0f} engagement")
+                print(f"   gambar skor <8  : {g['avg_low']:.0f} engagement")
+
         # --- Audiens & jangkauan ---
         a = page['audience']
         if a['pengikut_terkini']:
