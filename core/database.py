@@ -266,6 +266,15 @@ def init_db():
     # daripada baris snapshot (mis. FIELD SIGNS GRID 264 vs 37). Post baru yang
     # dinilai lewat snapshot otomatis kalah dari post lama yang diukur belakangan
     # — bias yang sama, hanya bergeser batasnya.
+    # CATATAN PENTING soal kolom 'source'. Jendela 36-96 jam membuat pengukuran
+    # cache setara secara UMUR, tapi tidak setara secara ERA. Contoh nyata di
+    # Putri Kejora: hook Mythbuster tampak 272 rata-rata, padahal itu 5 postingan
+    # Juli (398) bercampur 3 postingan Agustus (62) — sementara hook Fact hanya
+    # punya baris Agustus (37). Engagement page memang runtuh antar bulan, jadi
+    # membandingkan pilihan yang diuji di bulan berbeda menghukum yang baru.
+    # Karena itu SEMUA pembelajar menyaring source = 'snapshot48'; baris cache
+    # tetap disediakan view untuk dasbor dan analisis riwayat.
+    #
     # View dibuat SETELAH migrasi kolom, bukan sebelumnya. Kalau dibalik, view
     # yang menyebut kolom hasil migrasi (mis. posts.image_score) akan lolos saat
     # dibuat tapi gagal saat dibaca, karena SQLite baru memeriksa nama kolom

@@ -18,14 +18,14 @@ from core.database import get_db_connection
 
 def _fetch_posts_with_engagement(page_id=None):
     """Ambil post sukses yang sudah punya angka engagement"""
-    # Semua perhitungan memakai view post_engagement: hanya pengukuran matang
-    # (>=48 jam) atau snapshot umur seragam, supaya perbandingannya adil.
+    # Semua perhitungan memakai snapshot 48 jam saja, supaya laporan memakai
+    # dasar yang persis sama dengan yang dipakai bot untuk mengambil keputusan.
     query = '''
         SELECT page_id, page_name, timestamp, layout_name, hook_type,
                editor_score, image_score, topic_id, topic_headline, content,
                clicks, engagement, source
         FROM post_engagement
-        WHERE 1=1
+        WHERE source = 'snapshot48'
     '''
     params = []
     if page_id:
@@ -167,6 +167,40 @@ def image_critic_report(page_id=None, min_samples=10):
     else:
         hasil['verdict'] = 'TIDAK BERPENGARUH — skor gambar acak terhadap hasil'
     return hasil
+
+
+def hook_report(page_id, min_samples=2):
+    """Engagement nyata per gaya hook — dasar pemilihan hook sekarang.
+
+    Dikelompokkan menurut hook yang BENAR-BENAR keluar (hook_type), bukan yang
+    diminta, dan dinormalkan ke daftar resmi supaya label bebas dari editor
+    ('Contrast', 'Mystery') tidak tercecer jadi kategori sendiri.
+    """
+    from comment_analyzer import normalize_hook
+    rows = _fetch_posts_with_engagement(page_id)
+
+    kumpul = {}
+    for r in rows:
+        h = normalize_hook(r['hook_type']) if r['hook_type'] else None
+        if h:
+            kumpul.setdefault(h, []).append(float(r['engagement'] or 0))
+
+    semua = [e for v in kumpul.values() for e in v]
+    rata_page = (sum(semua) / len(semua)) if semua else 0
+
+    hasil = []
+    for h, v in kumpul.items():
+        if len(v) < min_samples:
+            continue
+        avg = sum(v) / len(v)
+        hasil.append({
+            'hook': h,
+            'n': len(v),
+            'avg': round(avg, 1),
+            'relatif': round(avg / rata_page, 2) if rata_page else None,
+            'confident_score': round(_wilson_lower_bound(avg, len(v)), 1),
+        })
+    return sorted(hasil, key=lambda x: -x['confident_score'])
 
 
 def hook_compliance_report(page_id):
@@ -432,6 +466,7 @@ def full_report(fanspages):
             'layouts': layout_report(pid),
             'editor': editor_report(pid),
             'image_critic': image_critic_report(pid),
+            'hooks': hook_report(pid),
             'hook_compliance': hook_compliance_report(pid),
             'audience': audience_report(pid),
             'topics': topic_report(pid),

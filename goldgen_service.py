@@ -176,15 +176,16 @@ class GoldGenService:
         try:
             from core.database import get_db_connection
             conn = get_db_connection()
-            # View post_engagement hanya memuat pengukuran yang matang (>=48 jam)
-            # atau snapshot umur seragam, sehingga layout yang kebetulan baru
-            # dipakai tidak dihukum karena engagement-nya belum sempat tumbuh.
+            # Hanya snapshot 48 jam: umur pengukuran seragam DAN era-nya
+            # berdekatan. Baris cache berasal dari Juni-Juli, saat engagement
+            # page memang jauh lebih tinggi, sehingga ikut menghukum apa pun
+            # yang baru diuji belakangan.
             rows = conn.execute('''
                 SELECT layout_name AS layout,
                        SUM(engagement) AS total_eng,
                        COUNT(*) AS n
                 FROM post_engagement
-                WHERE page_id = ?
+                WHERE page_id = ? AND source = 'snapshot48'
                   AND layout_name IS NOT NULL
                   AND layout_name != ''
                 GROUP BY layout_name
@@ -201,6 +202,99 @@ class GoldGenService:
             print(f"   ⚠️ Gagal membaca performa layout: {e}")
             return {}
 
+    def _get_hook_performance(self, page_id):
+        """Engagement nyata per gaya hook untuk SATU page.
+
+        Dikelompokkan menurut hook_type — gaya yang BENAR-BENAR keluar, bukan
+        yang diminta. Label editor dinormalkan dulu ke daftar resmi supaya
+        'Contrast', 'Mystery' dan 'Curiosity' tidak tercecer sebagai gaya
+        tersendiri yang tak pernah bisa dipilih ulang.
+        """
+        if not page_id:
+            return {}
+        try:
+            from core.database import get_db_connection
+            from comment_analyzer import normalize_hook
+            conn = get_db_connection()
+            rows = conn.execute('''
+                SELECT hook_type, engagement
+                FROM post_engagement
+                WHERE page_id = ? AND source = 'snapshot48'
+                  AND hook_type IS NOT NULL
+                  AND hook_type != ''
+            ''', (page_id,)).fetchall()
+            conn.close()
+
+            kumpul = {}
+            for r in rows:
+                kanonik = normalize_hook(r['hook_type'])
+                if not kanonik:
+                    continue
+                kumpul.setdefault(kanonik, []).append(float(r['engagement'] or 0))
+            return {k: {'avg': sum(v) / len(v), 'n': len(v)} for k, v in kumpul.items() if v}
+        except Exception as e:
+            print(f"   ⚠️ Gagal membaca performa hook: {e}")
+            return {}
+
+    def _choose_hook(self, page_id, preferred=None):
+        """Pilih gaya hook dengan Thompson Sampling, dipandu preferensi audiens.
+
+        Sebelumnya hook dipilih SERAKAH: ambil boost_score tertinggi dari
+        analisis komentar, selesai. Dua masalah dengan itu.
+
+        Pertama, boost_score adalah PENDAPAT model saat membaca komentar, bukan
+        hasil terukur — ia menumpuk tiap siklus riset tanpa pernah diadu dengan
+        engagement. Kedua, karena serakah, satu hook langsung mengunci page
+        selamanya: Putri Kejora meminta 'fact' 11 dari 11 kali, padahal di page
+        yang sama 'mythbuster' mencetak 1.44x sementara 'fact' hanya 0.87x.
+        Satu-satunya alasan 'mythbuster' pernah terukur di sana adalah karena
+        penulisnya membangkang — penjajakan yang terjadi secara tidak sengaja.
+
+        Sekarang keduanya dipakai pada perannya masing-masing: preferensi
+        audiens menaikkan PRIOR (apa yang mereka bilang mereka mau), engagement
+        memperbarui POSTERIOR (apa yang mereka benar-benar sukai).
+        """
+        from comment_analyzer import CANONICAL_HOOKS
+
+        perf = self._get_hook_performance(page_id)
+        if not perf:
+            # Belum ada bukti sama sekali — ikuti saja preferensi audiens.
+            return preferred, 'belum ada bukti engagement'
+
+        page_mean, page_sd = self._get_page_engagement_stats(page_id)
+        if page_mean <= 0:
+            nilai = [d['avg'] for d in perf.values() if d['avg'] > 0]
+            page_mean = (sum(nilai) / len(nilai)) if nilai else 1.0
+        sigma = max(page_sd, page_mean * 0.5, 1.0)
+        tau = max(sigma * 0.5, 1.0)
+        prior_precision = 1.0 / (tau ** 2)
+        obs_precision_unit = 1.0 / (sigma ** 2)
+
+        # Hanya hook yang punya contoh di HOOK_PLAYBOOK yang boleh dipilih —
+        # meminta gaya yang tidak punya contoh sama saja menyuruh AI menebak.
+        kandidat = [h for h in CANONICAL_HOOKS if h in HOOK_PLAYBOOK]
+        terbaik, skor_terbaik, catatan = None, float('-inf'), ''
+
+        for hook in kandidat:
+            d = perf.get(hook)
+            n = d['n'] if d else 0
+            prior = page_mean * (1.3 if hook == preferred else 1.0)
+            mean = d['avg'] if d else prior
+
+            precision = prior_precision + n * obs_precision_unit
+            post_mean = (prior * prior_precision + mean * n * obs_precision_unit) / precision
+            sample = random.gauss(post_mean, (1.0 / precision) ** 0.5)
+
+            if sample > skor_terbaik:
+                skor_terbaik = sample
+                terbaik = hook
+                catatan = (f"rata-rata {mean:.0f} dari {n} post -> perkiraan wajar {post_mean:.0f}"
+                           if n else "belum pernah diukur (prior)")
+                if hook == preferred:
+                    catatan += ", diminta audiens"
+
+        return (terbaik or preferred), catatan
+
     def _get_page_engagement_stats(self, page_id):
         """Rata-rata & simpangan baku engagement page — dipakai sebagai prior.
 
@@ -211,7 +305,8 @@ class GoldGenService:
             from core.database import get_db_connection
             conn = get_db_connection()
             rows = conn.execute(
-                'SELECT engagement AS eng FROM post_engagement WHERE page_id = ?', (page_id,)
+                "SELECT engagement AS eng FROM post_engagement "
+                "WHERE page_id = ? AND source = 'snapshot48'", (page_id,)
             ).fetchall()
             conn.close()
             values = [float(r['eng'] or 0) for r in rows]
@@ -259,7 +354,8 @@ class GoldGenService:
                        SUM(engagement) AS total_eng,
                        COUNT(*) AS n
                 FROM post_engagement
-                WHERE page_id = ? AND topic_headline IS NOT NULL AND topic_headline != ''
+                WHERE page_id = ? AND source = 'snapshot48'
+                  AND topic_headline IS NOT NULL AND topic_headline != ''
                 GROUP BY topic_headline
             ''', (page_id,)).fetchall()
             conn.close()
@@ -491,7 +587,7 @@ REPLY ONLY WITH THIS EXACT JSON FORMAT:
             query = '''
                 SELECT editor_score AS score, engagement AS eng
                 FROM post_engagement
-                WHERE editor_score IS NOT NULL
+                WHERE editor_score IS NOT NULL AND source = 'snapshot48'
             '''
             params = []
             if page_id:
@@ -891,22 +987,26 @@ Do not include any other text, markdown blocks, or quotes. Just the raw JSON.
         if "MINI-GAME" in topic['headline']:
             minigame_instruction = "IMPORTANT GAMIFICATION INSTRUCTION: This is a 'Find the Hidden Gold' mini-game! You MUST write an exciting, challenging caption. Ask the audience to spot the hidden nugget in the picture, circle it, and post their screenshot in the comments. Promise them you will personally check their answers in the comments!\n"
 
-        # Check for winning hook in preferences.
-        # Hanya hook yang dikenali sistem yang dipakai — label seperti
-        # "unknown (high engagement outliers)" tidak bisa dieksekusi AI dan
-        # dulu justru diperintahkan sebagai gaya hook wajib.
+        # Tentukan gaya hook. Hanya hook yang dikenali sistem yang dipakai —
+        # label seperti "unknown (high engagement outliers)" tidak bisa
+        # dieksekusi AI dan dulu justru diperintahkan sebagai gaya wajib.
         from comment_analyzer import normalize_hook
         prefs = self._get_audience_preferences(page_id)
         winning_hook_instruction = ""
         winning_hooks = [h for h in (normalize_hook(p) for p in prefs if p.startswith("hook:")) if h]
-        requested_hook = winning_hooks[0] if winning_hooks else None
+        # Preferensi audiens tidak lagi menentukan langsung — ia jadi prior,
+        # lalu engagement nyata yang memutuskan. Lihat _choose_hook.
+        preferred_hook = winning_hooks[0] if winning_hooks else None
+        requested_hook, hook_note = self._choose_hook(page_id, preferred_hook)
+        if requested_hook:
+            print(f"   🎯 Hook: {requested_hook} ({hook_note})")
         topic['requested_hook'] = requested_hook
 
         if requested_hook:
             best_hook = requested_hook.upper()
             winning_hook_instruction = (
-                f"\n🔥 CRITICAL INSTRUCTION: Based on real engagement data from THIS page, the "
-                f"'{best_hook}' hook style performs best. Your opening MUST be a '{best_hook}' hook. "
+                f"\n🔥 CRITICAL INSTRUCTION: The required hook style for this post is '{best_hook}'. "
+                f"Your opening MUST be a '{best_hook}' hook. "
                 f"An editor will check this and reject the draft if the hook is any other style.\n"
             )
             # Hanya tampilkan template untuk gaya yang diminta. Menampilkan daftar

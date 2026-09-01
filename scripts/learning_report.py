@@ -49,6 +49,17 @@ def main():
             for t in page['topics']:
                 print(f"   {t['topik'][:45]:<46}{t['avg']:>8.0f}{t['n']:>8}{t['confident_score']:>8.0f}")
 
+        # --- Hook ---
+        print("\n🎣 HOOK — gaya pembuka yang benar-benar berbuah di page ini")
+        if not page.get('hooks'):
+            print("   belum ada data")
+        else:
+            print(f"   {'HOOK':<16}{'RATA2':>8}{'SAMPEL':>8}{'RELATIF':>10}{'YAKIN':>8}")
+            for h in page['hooks']:
+                rel = f"{h['relatif']:.2f}x" if h['relatif'] is not None else '-'
+                print(f"   {h['hook']:<16}{h['avg']:>8.0f}{h['n']:>8}{rel:>10}{h['confident_score']:>8.0f}")
+            print("   * hook kini diundi Thompson Sampling, bukan dipilih serakah")
+
         # --- Rasio klik ---
         k = page['clicks']
         print("\n🖱️  KLIK — daya tarik yang sudah dinormalkan terhadap paparan")
