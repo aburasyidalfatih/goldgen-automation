@@ -990,6 +990,13 @@ Requirements:
         topic['hook_type'] = "Unknown"
         topic['editor_score'] = None
 
+        # Draf terbaik sejauh ini. Menulis ulang tidak dijamin membaik — pada
+        # 1 September percobaan berturut-turut menghasilkan 4/10 lalu 2/10 lalu
+        # 2/10, dan versi 2/10 itulah yang tayang hanya karena kebetulan
+        # terakhir. Kita simpan yang terbaik dan pakai itu kalau tidak ada satu
+        # pun yang lolos ambang.
+        draf_terbaik = None  # (skor, caption, hook_type)
+
         for attempt in range(max_retries + 1):
             import time
             try:
@@ -1010,18 +1017,35 @@ Requirements:
                 raw_hook = review.get('hook_type', 'Unknown')
                 canonical = normalize_hook(raw_hook)
                 if canonical:
-                    topic['hook_type'] = canonical.capitalize()
+                    hook_label = canonical.capitalize()
                     if canonical not in str(raw_hook).lower():
                         print(f"   🔤 Label editor '{raw_hook}' dipetakan ke '{canonical}'")
                 else:
-                    topic['hook_type'] = raw_hook
+                    hook_label = raw_hook
                 try:
-                    topic['editor_score'] = float(review.get('score')) if review.get('score') is not None else None
+                    skor = float(review.get('score')) if review.get('score') is not None else None
                 except (TypeError, ValueError):
-                    topic['editor_score'] = None
+                    skor = None
 
-                if review.get('score', 0) >= 8 or attempt == max_retries:
+                # Skor dan label hook harus menggambarkan caption yang BENAR-BENAR
+                # tayang, bukan percobaan terakhir. Kalau tidak, data pembelajaran
+                # kita salah label.
+                if draf_terbaik is None or (skor or 0) > draf_terbaik[0]:
+                    draf_terbaik = ((skor or 0), caption, hook_label, skor)
+
+                if review.get('score', 0) >= 8:
+                    topic['hook_type'] = hook_label
+                    topic['editor_score'] = skor
                     final_caption = caption
+                    break
+                elif attempt == max_retries:
+                    _, caption_terbaik, hook_terbaik, skor_terbaik = draf_terbaik
+                    if caption_terbaik is not caption:
+                        print(f"   ↩️  Tidak ada draf yang lolos; memakai yang terbaik "
+                              f"(skor {skor_terbaik}) alih-alih percobaan terakhir (skor {skor})")
+                    topic['hook_type'] = hook_terbaik
+                    topic['editor_score'] = skor_terbaik
+                    final_caption = caption_terbaik
                     break
                 else:
                     print(f"   ✏️  Editor demanded rewrite: {review.get('feedback')}")
@@ -1032,6 +1056,16 @@ Requirements:
                 print(f"   ⚠️  Gemini text error: {redact(e)}")
                 if attempt < max_retries:
                     time.sleep(4)
+                elif draf_terbaik:
+                    # Percobaan terakhir gagal, tapi draf sebelumnya masih layak.
+                    # Membuangnya berarti melewatkan satu jadwal posting tanpa
+                    # alasan yang perlu.
+                    _, caption_terbaik, hook_terbaik, skor_terbaik = draf_terbaik
+                    print(f"   ↩️  Percobaan terakhir gagal; memakai draf sebelumnya (skor {skor_terbaik})")
+                    topic['hook_type'] = hook_terbaik
+                    topic['editor_score'] = skor_terbaik
+                    final_caption = caption_terbaik
+                    break
                 else:
                     raise
 
