@@ -23,7 +23,7 @@ def _fetch_posts_with_engagement(page_id=None):
     query = '''
         SELECT page_id, page_name, timestamp, layout_name, hook_type,
                editor_score, image_score, topic_id, topic_headline, content,
-               clicks, engagement, source
+               clicks, engagement, rel_engagement, source
         FROM post_engagement
         WHERE source = 'snapshot48'
     '''
@@ -38,39 +38,58 @@ def _fetch_posts_with_engagement(page_id=None):
     return rows
 
 
-def _wilson_lower_bound(mean, n, z=1.96):
-    """Batas bawah interval kepercayaan untuk rata-rata cacah.
+def _confident_lower_bound(values, z=1.96, sd_prior=0.9):
+    """Batas bawah interval kepercayaan untuk rata-rata sekumpulan nilai.
 
     Dipakai agar layout dengan 1 post tidak disamakan dengan layout 10 post:
     makin sedikit sampel, makin besar potongannya. Ini yang membedakan
     "kelihatan bagus" dari "terbukti bagus".
+
+    Versi sebelumnya memakai perkiraan Poisson (se = akar(mean/n)) yang hanya
+    sah untuk data CACAH. Setelah engagement dinormalkan jadi rasio di sekitar
+    1.0, perkiraan itu keliru dan hasilnya terjepit ke nol: 0.29x dan 0.53x
+    sama-sama menjadi 0.00, sehingga urutan laporan jadi sembarang. Simpangan
+    baku sampel sah di skala apa pun, jadi itu yang dipakai sekarang.
+
+    Untuk n = 1 simpangan baku tidak terdefinisi; dipakai sd_prior sebagai
+    perkiraan konservatif — satu sampel memang tidak membuktikan banyak.
     """
-    if n <= 0:
+    n = len(values)
+    if n == 0:
         return 0.0
-    # Perkiraan standard error untuk data cacah (Poisson): sqrt(mean / n)
-    se = (mean / n) ** 0.5 if mean > 0 else 0.0
-    return max(0.0, mean - z * se)
+    mean = sum(values) / n
+    if n == 1:
+        sd = sd_prior
+    else:
+        sd = (sum((v - mean) ** 2 for v in values) / (n - 1)) ** 0.5
+        # Jangan terlalu yakin hanya karena beberapa sampel kebetulan seragam
+        sd = max(sd, sd_prior * 0.3)
+    return mean - z * sd / (n ** 0.5)
 
 
 def layout_report(page_id):
     """Performa layout untuk satu page, diurut dari yang paling terbukti"""
     rows = [r for r in _fetch_posts_with_engagement(page_id) if r['layout_name']]
 
+    # Diurut memakai engagement RELATIF — dasar yang sama dengan yang dipakai
+    # bot saat memilih. Angka mentah tetap ditampilkan agar mudah dibaca.
     grouped = {}
     for r in rows:
         g = grouped.setdefault(r['layout_name'], [])
-        g.append(float(r['engagement'] or 0))
+        g.append((float(r['engagement'] or 0), float(r['rel_engagement'] or 0)))
 
     report = []
     for layout, values in grouped.items():
         n = len(values)
-        mean = sum(values) / n
+        mean = sum(v[0] for v in values) / n
+        rel = sum(v[1] for v in values) / n
         report.append({
             'layout': layout,
             'n': n,
             'avg': round(mean, 1),
-            'confident_score': round(_wilson_lower_bound(mean, n), 1),
-            'best': round(max(values), 1),
+            'relatif': round(rel, 2),
+            'confident_score': round(_confident_lower_bound([v[1] for v in values]), 2),
+            'best': round(max(v[0] for v in values), 1),
         })
 
     report.sort(key=lambda x: -x['confident_score'])
@@ -183,22 +202,20 @@ def hook_report(page_id, min_samples=2):
     for r in rows:
         h = normalize_hook(r['hook_type']) if r['hook_type'] else None
         if h:
-            kumpul.setdefault(h, []).append(float(r['engagement'] or 0))
-
-    semua = [e for v in kumpul.values() for e in v]
-    rata_page = (sum(semua) / len(semua)) if semua else 0
+            kumpul.setdefault(h, []).append((float(r['engagement'] or 0), float(r['rel_engagement'] or 0)))
 
     hasil = []
     for h, v in kumpul.items():
         if len(v) < min_samples:
             continue
-        avg = sum(v) / len(v)
+        avg = sum(x[0] for x in v) / len(v)
+        rel = sum(x[1] for x in v) / len(v)
         hasil.append({
             'hook': h,
             'n': len(v),
             'avg': round(avg, 1),
-            'relatif': round(avg / rata_page, 2) if rata_page else None,
-            'confident_score': round(_wilson_lower_bound(avg, len(v)), 1),
+            'relatif': round(rel, 2),
+            'confident_score': round(_confident_lower_bound([x[1] for x in v]), 2),
         })
     return sorted(hasil, key=lambda x: -x['confident_score'])
 
@@ -266,7 +283,7 @@ def timing_report(page_id):
             'hour': hour,
             'n': n,
             'avg': round(mean, 1),
-            'confident_score': round(_wilson_lower_bound(mean, n), 1),
+            'confident_score': round(_confident_lower_bound(values), 1),
         })
     return report
 
@@ -289,17 +306,20 @@ def topic_report(page_id, limit=8):
 
     grouped = {}
     for r in rows:
-        grouped.setdefault(r['topic_headline'], []).append(float(r['engagement'] or 0))
+        grouped.setdefault(r['topic_headline'], []).append(
+            (float(r['engagement'] or 0), float(r['rel_engagement'] or 0)))
 
     report = []
     for judul, values in grouped.items():
         n = len(values)
-        mean = sum(values) / n
+        mean = sum(v[0] for v in values) / n
+        rel = sum(v[1] for v in values) / n
         report.append({
             'topik': judul,
             'n': n,
             'avg': round(mean, 1),
-            'confident_score': round(_wilson_lower_bound(mean, n), 1),
+            'relatif': round(rel, 2),
+            'confident_score': round(_confident_lower_bound([v[1] for v in values]), 2),
         })
     report.sort(key=lambda x: -x['confident_score'])
     return report[:limit]

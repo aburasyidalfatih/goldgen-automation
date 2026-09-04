@@ -15,12 +15,12 @@
         "name": "STEP-BY-STEP PROCESS",
         "composition": "Vintage Field Guide aesthetic. Aged parchment paper texture background. Hand-drawn scientific illustration of a 'rotten' quartz vein with iron oxide stains versus a sterile white quartz chunk. Typography looks like an old manual.",
         "retired": true,
-        "retired_reason": "0.49x (n=5) — format daftar, terbukti di bawah rata-rata"
+        "retired_reason": "0.52x relatif (n=5, CI 0.25-0.79) — kalah meyakinkan"
     },
     {
         "name": "FIELD SIGNS GRID",
         "composition": "Dark Rock Macro style. Extreme close-up of a rusty, oxidized rock surface. The red and orange iron stains contrast with the dark rock matrix. A small vein of gold is visible within the rust. High contrast lighting.",
-        "prior_factor": 0.66
+        "prior_factor": 0.85
     },
     {
         "name": "THE GOLDEN PATH",
@@ -30,7 +30,7 @@
         "name": "THE MAGNIFYING GLASS",
         "composition": "Extreme macro zoom style. Show a magnified view through a circular lens of rock texture with microscopic gold inclusions, sulfide crystals, or mineral grains. The magnifying glass frame is visible at edges. Ultra-detailed texture.",
         "retired": true,
-        "retired_reason": "0.39x (n=3) — merugikan 2,5x, terburuk dari semua layout"
+        "retired_reason": "0.49x relatif (n=4, CI 0.23-0.76) — kalah meyakinkan"
     },
     {
         "name": "BEFORE & AFTER",
@@ -46,9 +46,7 @@
     },
     {
         "name": "THE PROSPECTOR'S MAP",
-        "composition": "Topographic map view from above. Contour lines showing elevation, blue lines for streams, X marks for sample locations. Legend box in corner. Looks like a technical treasure map with grid coordinates.",
-        "retired": true,
-        "retired_reason": "0.58x (n=4) — peta dari atas, tidak memperlihatkan struktur bawah tanah"
+        "composition": "Topographic map view from above. Contour lines showing elevation, blue lines for streams, X marks for sample locations. Legend box in corner. Looks like a technical treasure map with grid coordinates."
     },
     {
         "name": "TOOLKIT FLATLAY",

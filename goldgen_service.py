@@ -169,6 +169,10 @@ class GoldGenService:
 
         Sumber data: tabel posts (layout_name) di-join dengan engagement_cache
         yang diisi oleh comment_analyzer setiap siklus riset.
+        Skalanya RELATIF: 1.0 berarti sebaik rata-rata page pada periode yang
+        sama. Dengan begitu layout yang diuji saat jangkauan sedang turun tidak
+        divonis buruk hanya karena lebih sedikit orang melihatnya.
+
         Return: {layout_name: {'avg': float, 'n': int, 'total': float}}
         """
         if not page_id:
@@ -182,10 +186,11 @@ class GoldGenService:
             # yang baru diuji belakangan.
             rows = conn.execute('''
                 SELECT layout_name AS layout,
-                       SUM(engagement) AS total_eng,
+                       SUM(rel_engagement) AS total_eng,
                        COUNT(*) AS n
                 FROM post_engagement
                 WHERE page_id = ? AND source = 'snapshot48'
+                  AND rel_engagement IS NOT NULL
                   AND layout_name IS NOT NULL
                   AND layout_name != ''
                 GROUP BY layout_name
@@ -217,9 +222,10 @@ class GoldGenService:
             from comment_analyzer import normalize_hook
             conn = get_db_connection()
             rows = conn.execute('''
-                SELECT hook_type, engagement
+                SELECT hook_type, rel_engagement AS engagement
                 FROM post_engagement
                 WHERE page_id = ? AND source = 'snapshot48'
+                  AND rel_engagement IS NOT NULL
                   AND hook_type IS NOT NULL
                   AND hook_type != ''
             ''', (page_id,)).fetchall()
@@ -288,7 +294,7 @@ class GoldGenService:
             if sample > skor_terbaik:
                 skor_terbaik = sample
                 terbaik = hook
-                catatan = (f"rata-rata {mean:.0f} dari {n} post -> perkiraan wajar {post_mean:.0f}"
+                catatan = (f"rata-rata {mean:.2f}x dari {n} post -> perkiraan wajar {post_mean:.2f}x"
                            if n else "belum pernah diukur (prior)")
                 if hook == preferred:
                     catatan += ", diminta audiens"
@@ -296,7 +302,10 @@ class GoldGenService:
         return (terbaik or preferred), catatan
 
     def _get_page_engagement_stats(self, page_id):
-        """Rata-rata & simpangan baku engagement page — dipakai sebagai prior.
+        """Rata-rata & simpangan baku engagement RELATIF page — dipakai sebagai prior.
+
+        Karena setiap postingan sudah dibandingkan dengan tetangga waktunya,
+        rata-ratanya mendekati 1.0; yang penting di sini simpangan bakunya.
 
         Simpangan baku penting: itulah ukuran 'seberapa berisik' engagement page
         ini, yang menentukan seberapa besar sebuah sampel kecil boleh dipercaya.
@@ -305,8 +314,9 @@ class GoldGenService:
             from core.database import get_db_connection
             conn = get_db_connection()
             rows = conn.execute(
-                "SELECT engagement AS eng FROM post_engagement "
-                "WHERE page_id = ? AND source = 'snapshot48'", (page_id,)
+                "SELECT rel_engagement AS eng FROM post_engagement "
+                "WHERE page_id = ? AND source = 'snapshot48' "
+                "AND rel_engagement IS NOT NULL", (page_id,)
             ).fetchall()
             conn.close()
             values = [float(r['eng'] or 0) for r in rows]
@@ -351,10 +361,11 @@ class GoldGenService:
             conn = get_db_connection()
             rows = conn.execute('''
                 SELECT topic_headline AS judul,
-                       SUM(engagement) AS total_eng,
+                       SUM(rel_engagement) AS total_eng,
                        COUNT(*) AS n
                 FROM post_engagement
                 WHERE page_id = ? AND source = 'snapshot48'
+                  AND rel_engagement IS NOT NULL
                   AND topic_headline IS NOT NULL AND topic_headline != ''
                 GROUP BY topic_headline
             ''', (page_id,)).fetchall()
@@ -421,7 +432,7 @@ class GoldGenService:
             return None
 
         i, judul, n, mean = terbaik
-        asal = f"rata-rata {mean:.0f} dari {n} post" if n else "belum pernah dipakai"
+        asal = f"rata-rata {mean:.2f}x dari {n} post" if n else "belum pernah dipakai"
         print(f"   📚 Topik dipilih dari performa: {judul[:44]} ({asal})")
         return i
 
@@ -499,8 +510,8 @@ class GoldGenService:
                 if n == 0:
                     best_note = "belum pernah dicoba (prior)"
                 else:
-                    best_note = (f"rata-rata {mean:.0f} dari {n} post "
-                                 f"-> perkiraan wajar {post_mean:.0f}, undian {sample:.0f}")
+                    best_note = (f"rata-rata {mean:.2f}x dari {n} post "
+                                 f"-> perkiraan wajar {post_mean:.2f}x, undian {sample:.2f}")
 
         if not best_layout:
             return self.active_layouts[fallback_index % len(self.active_layouts)], "rotasi (fallback)"
@@ -585,9 +596,10 @@ REPLY ONLY WITH THIS EXACT JSON FORMAT:
             from core.database import get_db_connection
             conn = get_db_connection()
             query = '''
-                SELECT editor_score AS score, engagement AS eng
+                SELECT editor_score AS score, rel_engagement AS eng
                 FROM post_engagement
                 WHERE editor_score IS NOT NULL AND source = 'snapshot48'
+                  AND rel_engagement IS NOT NULL
             '''
             params = []
             if page_id:

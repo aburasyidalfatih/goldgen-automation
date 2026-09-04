@@ -266,6 +266,22 @@ def init_db():
     # daripada baris snapshot (mis. FIELD SIGNS GRID 264 vs 37). Post baru yang
     # dinilai lewat snapshot otomatis kalah dari post lama yang diukur belakangan
     # — bias yang sama, hanya bergeser batasnya.
+    # PENTING: kolom rel_engagement dan alasannya.
+    #
+    # Menyaring snapshot48 menyamakan CARA mengukur, tapi tidak menyamakan
+    # KONDISI. Awal September jangkauan ketiga page runtuh: klik per postingan
+    # Putri Kejora jatuh 539 -> 14 dalam dua hari, kunjungan halaman 261 -> 69
+    # dalam enam hari, sementara rasio engagement/klik tetap datar di 19-25%.
+    # Kontennya sama menariknya; yang berkurang orang yang melihatnya.
+    #
+    # Selama pembelajar memakai engagement MENTAH, setiap pilihan yang kebetulan
+    # diuji minggu ini divonis buruk dibanding pilihan yang diuji minggu lalu —
+    # bias era yang sama, hanya berpindah ke dalam jendela snapshot48.
+    #
+    # rel_engagement membandingkan tiap postingan dengan rata-rata page di
+    # sekitar waktunya sendiri, sehingga pergeseran jangkauan hilang dari
+    # perbandingan dan yang tersisa benar-benar mutu pilihannya.
+
     # CATATAN PENTING soal kolom 'source'. Jendela 36-96 jam membuat pengukuran
     # cache setara secara UMUR, tapi tidak setara secara ERA. Contoh nyata di
     # Putri Kejora: hook Mythbuster tampak 272 rata-rata, padahal itu 5 postingan
@@ -297,7 +313,29 @@ def init_db():
                p.fb_post_id    AS fb_post_id,
                s.clicks        AS clicks,
                COALESCE(s.likes + s.comments, ec.likes + ec.comments) AS engagement,
-               CASE WHEN s.fb_post_id IS NOT NULL THEN 'snapshot48' ELSE 'cache' END AS source
+               CASE WHEN s.fb_post_id IS NOT NULL THEN 'snapshot48' ELSE 'cache' END AS source,
+               -- Rata-rata engagement page di sekitar waktu posting ini (+/- 7 hari).
+               -- Inilah pembanding yang adil: seberapa baik postingan ini dibanding
+               -- postingan lain yang menghadapi kondisi jangkauan yang sama.
+               (SELECT AVG(s2.likes + s2.comments)
+                  FROM posts p2
+                  JOIN engagement_snapshots s2
+                    ON s2.fb_post_id = p2.fb_post_id AND s2.age_hours = 48
+                 WHERE p2.page_id = p.page_id
+                   AND p2.status = 'success'
+                   AND ABS(julianday(p2.timestamp) - julianday(p.timestamp)) <= 7
+               ) AS page_window_mean,
+               -- Engagement relatif: 1.0 berarti sebaik rata-rata page pada
+               -- periode itu. Angka inilah yang dipakai semua pembelajar.
+               COALESCE(s.likes + s.comments, ec.likes + ec.comments) * 1.0 / NULLIF(
+                 (SELECT AVG(s2.likes + s2.comments)
+                    FROM posts p2
+                    JOIN engagement_snapshots s2
+                      ON s2.fb_post_id = p2.fb_post_id AND s2.age_hours = 48
+                   WHERE p2.page_id = p.page_id
+                     AND p2.status = 'success'
+                     AND ABS(julianday(p2.timestamp) - julianday(p.timestamp)) <= 7
+                 ), 0) AS rel_engagement
         FROM posts p
         LEFT JOIN engagement_snapshots s
                ON s.fb_post_id = p.fb_post_id AND s.age_hours = 48

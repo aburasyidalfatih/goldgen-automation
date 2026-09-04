@@ -34,20 +34,21 @@ def main():
         if not page['layouts']:
             print("   belum ada data")
         else:
-            scale = max((l['avg'] for l in page['layouts']), default=1) / 25 or 1
-            print(f"   {'LAYOUT':<26}{'RATA2':>8}{'SAMPEL':>8}{'SKOR YAKIN':>12}")
+            print(f"   {'LAYOUT':<26}{'RATA2':>8}{'SAMPEL':>8}{'RELATIF':>10}{'YAKIN':>8}")
             for l in page['layouts'][:8]:
-                print(f"   {l['layout'][:25]:<26}{l['avg']:>8.0f}{l['n']:>8}{l['confident_score']:>12.0f}  {bar(l['confident_score'], scale)}")
-            print("   * skor yakin = rata-rata dipotong sesuai ketidakpastian sampel kecil")
+                print(f"   {l['layout'][:25]:<26}{l['avg']:>8.0f}{l['n']:>8}"
+                      f"{l['relatif']:>9.2f}x{l['confident_score']:>8.2f}  {bar(l['confident_score'], 0.05)}")
+            print("   * relatif 1.00x = sebaik rata-rata page pada periode yang sama")
+            print("   * skor yakin = relatif dipotong sesuai ketidakpastian sampel kecil")
 
         # --- Topik ---
         print("\n📚 TOPIK — isi konten yang paling disukai audiens page ini")
         if not page['topics']:
             print("   belum ada data (topik baru mulai dicatat pada postingan berikutnya)")
         else:
-            print(f"   {'TOPIK':<46}{'RATA2':>8}{'SAMPEL':>8}{'YAKIN':>8}")
+            print(f"   {'TOPIK':<46}{'RATA2':>8}{'SAMPEL':>8}{'RELATIF':>10}")
             for t in page['topics']:
-                print(f"   {t['topik'][:45]:<46}{t['avg']:>8.0f}{t['n']:>8}{t['confident_score']:>8.0f}")
+                print(f"   {t['topik'][:45]:<46}{t['avg']:>8.0f}{t['n']:>8}{t['relatif']:>9.2f}x")
 
         # --- Hook ---
         print("\n🎣 HOOK — gaya pembuka yang benar-benar berbuah di page ini")
@@ -57,7 +58,7 @@ def main():
             print(f"   {'HOOK':<16}{'RATA2':>8}{'SAMPEL':>8}{'RELATIF':>10}{'YAKIN':>8}")
             for h in page['hooks']:
                 rel = f"{h['relatif']:.2f}x" if h['relatif'] is not None else '-'
-                print(f"   {h['hook']:<16}{h['avg']:>8.0f}{h['n']:>8}{rel:>10}{h['confident_score']:>8.0f}")
+                print(f"   {h['hook']:<16}{h['avg']:>8.0f}{h['n']:>8}{rel:>10}{h['confident_score']:>8.2f}")
             print("   * hook kini diundi Thompson Sampling, bukan dipilih serakah")
 
         # --- Rasio klik ---
