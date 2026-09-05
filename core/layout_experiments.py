@@ -20,6 +20,9 @@ def pending(page_id, layouts):
             if {0,1}.issubset(done):
                 continue
             payload = json.loads(plan['payload'])
+            from core.topic_catalog import allowed, MARKETING
+            if not allowed(payload['topic']) or MARKETING.search(payload['topic'].get('approved_caption','')):
+                return None
             if any(name not in active for name in payload['layouts']):
                 return None  # A retired layout must never be resurrected.
             arm = 1 if 0 in done else 0
@@ -35,7 +38,7 @@ def pending(page_id, layouts):
 
 def enroll(page_id, topic, caption, layouts):
     """Every eight successful scheduled opportunities, at most one two-post pair."""
-    if not page_id or topic.get('id') is None or topic.get('caption_approved') is not True:
+    if not page_id or topic.get('id') is None or topic.get('caption_approved') is not True or topic.get('experimental_topic'):
         return topic
     # A quiz or a procedural caption may require a specific composition.
     excluded = ('QUIZ','GAME','PROCESS','STEP-BY-STEP','BEFORE')

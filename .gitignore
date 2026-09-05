@@ -11,6 +11,7 @@ ENV/
 # Sensitive data
 data/config.json
 data/config.json.backup.*
+data/topics.json.backup_*
 *.log
 logs/
 .env

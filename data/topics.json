@@ -5,11 +5,12 @@
         "subtitle": "Test your prospector eyes! Can you spot the hidden nugget?",
         "list_header": "HOW TO PLAY",
         "list_points": [
-            "Look closely at the image",
-            "Find the hidden gold nugget",
-            "Circle it and post your screenshot in the comments",
-            "I'll confirm if you found the real paydirt!"
-        ]
+            "Inspect the labeled illustration.",
+            "Explain which visual clue you noticed.",
+            "Include the explanation in this post.",
+            "An illustration cannot confirm a real mineral specimen."
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 1,
@@ -21,19 +22,23 @@
             "Behind large boulders (Eddies)",
             "Bedrock cracks (Natural Riffles)",
             "Moss roots (Fine Gold Traps)"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 2,
         "headline": "BEDROCK TRAPS",
-        "subtitle": "Nature's own sluice box.",
-        "list_header": "TRAP TYPES",
+        "subtitle": "Bedrock Cracks: Places to Test, Not Promises of Gold",
+        "list_header": "OBSERVE, TEST, AND COMPARE",
         "list_points": [
-            "Vertical crevices (Deep catchers)",
-            "Boiler holes (Swirling traps)",
-            "Rough slate edges (Natural Riffles)",
-            "Limestone pockets (Chemical traps)"
-        ]
+            "Describe cracks, depressions and rough bedrock as possible physical traps.",
+            "Explain the local geometry without inventing chemical-trap mechanisms.",
+            "Compare small accessible samples and record the observations.",
+            "A promising shape does not establish gold presence."
+        ],
+        "editorial_angle": "Bedrock Cracks: Places to Test, Not Promises of Gold",
+        "reference_url": "https://www.fs.usda.gov/Internet/FSE_DOCUMENTS/stelprdb5274730.pdf",
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 3,
@@ -45,7 +50,8 @@
             "Boxwork texture (Honeycombed)",
             "Sulfide presence (Pyrite/Arsenopyrite)",
             "Fractured structure (Not solid white)"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 4,
@@ -57,31 +63,38 @@
             "Orange Limonite crusts",
             "Black Manganese coatings",
             "Gossan caps on veins"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 5,
         "headline": "BLACK SAND SECRETS",
-        "subtitle": "Heavy minerals lead the way.",
-        "list_header": "COMPOSITION",
+        "subtitle": "Black Sand but No Gold: What Should You Check Next?",
+        "list_header": "OBSERVE, TEST, AND COMPARE",
         "list_points": [
-            "Magnetite (Magnetic)",
-            "Hematite (Non-magnetic red)",
-            "Ilmenite (Titanium iron)",
-            "Gold (Heaviest of all)"
-        ]
+            "Black sands can contain several heavy minerals, not only magnetite.",
+            "Magnetic separation does not identify every mineral in the remaining concentrate.",
+            "Black sand is a reason to sample, not proof of gold.",
+            "Keep samples labeled and compare observations before drawing a conclusion."
+        ],
+        "editorial_angle": "Black Sand but No Gold: What Should You Check Next?",
+        "reference_url": "https://www.fs.usda.gov/Internet/FSE_DOCUMENTS/stelprdb5274730.pdf",
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 6,
         "headline": "GOLD VS PYRITE",
-        "subtitle": "The hammer never lies.",
-        "list_header": "FIELD TEST",
+        "subtitle": "Is It Gold, Pyrite, or Mica? What a Photo Cannot Prove",
+        "list_header": "OBSERVE, TEST, AND COMPARE",
         "list_points": [
-            "Gold: Dents / Malleable",
-            "Pyrite: Shatters / Brittle",
-            "Gold: Yellow in shade",
-            "Pyrite: Greenish-grey in shade"
-        ]
+            "Pyrite, chalcopyrite and weathered mica can resemble gold.",
+            "Appearance in a picture is a clue, not a confirmed identification.",
+            "Gold is malleable; brittle look-alikes behave differently under appropriate physical tests.",
+            "For uncertain or valuable specimens, seek qualified identification rather than a confident photo diagnosis."
+        ],
+        "editorial_angle": "Is It Gold, Pyrite, or Mica? What a Photo Cannot Prove",
+        "reference_url": "https://www.usgs.gov/faqs/what-fools-gold",
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 7,
@@ -93,7 +106,8 @@
             "Flat distinct terraces above river",
             "Color change in soil layers",
             "Old vegetation lines"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 8,
@@ -105,7 +119,8 @@
             "Lode: Jagged & Rough (Near source)",
             "Placer: Riverbeds & Benches",
             "Lode: Veins & Hard Rock"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 9,
@@ -117,7 +132,8 @@
             "Glassy luster",
             "Often dodecahedral shape",
             "Found with black sand"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 10,
@@ -129,7 +145,8 @@
             "Blue or grey color often",
             "Gold sits ON TOP of it",
             "Don't dig through it!"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 11,
@@ -141,7 +158,8 @@
             "Arsenopyrite (Arsenic-iron sulfide)",
             "Chalcopyrite (Copper-iron sulfide)",
             "Pyrrhotite (Magnetic iron sulfide)"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 12,
@@ -153,7 +171,8 @@
             "Porous boxwork texture",
             "Sits above sulfide zone",
             "Limonite and hematite rich"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 13,
@@ -165,7 +184,8 @@
             "Limestone-granite boundaries",
             "Dike-host rock interfaces",
             "Metamorphic grade changes"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 14,
@@ -177,7 +197,8 @@
             "Quartz veins along fault",
             "Slickensides (Polished surfaces)",
             "Clay gouge (Fault filling)"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 15,
@@ -189,7 +210,8 @@
             "Epidote (Green alteration)",
             "Magnetite (Black magnetic)",
             "Calcite replacement zones"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 16,
@@ -201,7 +223,8 @@
             "Disseminated sulfides",
             "Potassic alteration (Pink)",
             "Large intrusive body"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 17,
@@ -213,7 +236,8 @@
             "Bladed calcite (After boiling)",
             "Colloform banding",
             "Platy calcite pseudomorphs"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 18,
@@ -225,7 +249,8 @@
             "Chlorite-rich (Green color)",
             "Shear zone hosted",
             "Archean age rocks"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 19,
@@ -237,7 +262,8 @@
             "Quartz veins cutting slate",
             "Coarse gold common",
             "Historic mining areas"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 20,
@@ -249,7 +275,8 @@
             "Fine flour gold",
             "Erratic gold distribution",
             "Moraine deposits"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 21,
@@ -261,7 +288,8 @@
             "Wind classification",
             "Desert pavement indicators",
             "Arroyo concentrations"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 22,
@@ -273,7 +301,8 @@
             "Storm berms",
             "Bedrock outcrops",
             "Tidal concentration zones"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 23,
@@ -285,7 +314,8 @@
             "Still near source vein",
             "Weathered host rock",
             "Hillside deposits"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 24,
@@ -297,7 +327,8 @@
             "Gold enrichment at depth",
             "Tropical weathering",
             "Iron-rich surface"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 25,
@@ -309,7 +340,8 @@
             "Magnetite: 5.2 g/cm\u00b3",
             "Quartz: 2.65 g/cm\u00b3",
             "Water: 1.0 g/cm\u00b3"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 26,
@@ -321,7 +353,8 @@
             "Chalcopyrite: Greenish-black streak",
             "Pyrite: Greenish-black streak",
             "Use unglazed porcelain"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 27,
@@ -333,7 +366,8 @@
             "Garlic smell when struck",
             "Often gold-bearing",
             "Orthorhombic crystals"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 28,
@@ -345,7 +379,8 @@
             "Lead-gray metallic",
             "Often with silver and gold",
             "Heavy mineral"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 29,
@@ -357,7 +392,8 @@
             "Hematite: Red-brown, non-magnetic",
             "Magnetite: Fe3O4",
             "Hematite: Fe2O3"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 30,
@@ -369,7 +405,8 @@
             "Slippery feel",
             "Altered ultramafic rock",
             "Often with chromite"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 31,
@@ -381,7 +418,8 @@
             "Quartz: No reaction",
             "Calcite: Softer (H=3)",
             "Quartz: Harder (H=7)"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 32,
@@ -393,7 +431,8 @@
             "Iron oxide framework",
             "Former sulfide location",
             "Porous structure"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 33,
@@ -405,7 +444,8 @@
             "Lattice bladed texture",
             "Colloform banding",
             "Crustiform layering"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 34,
@@ -417,7 +457,8 @@
             "Shallow bedrock",
             "Detector targets",
             "Erratic distribution"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 35,
@@ -429,7 +470,8 @@
             "Follow old channels",
             "Bedrock irregularities",
             "Concentrated heavy minerals"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 36,
@@ -441,7 +483,8 @@
             "Skim bars (Surface gold)",
             "Moss and root mats",
             "Flood debris piles"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 37,
@@ -453,7 +496,8 @@
             "Snuffer bottle",
             "Bedrock cracks",
             "Exposed bedrock areas"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 38,
@@ -465,7 +509,8 @@
             "Wash overburden away",
             "Expose bedrock",
             "Historic method"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 39,
@@ -477,7 +522,8 @@
             "Forms gold amalgam",
             "Historic use in mining",
             "Environmental contamination"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 40,
@@ -489,19 +535,22 @@
             "Inside bends = low energy = gold drops",
             "Bedrock steps create hydraulic jumps",
             "Flood events redistribute entire paystreaks"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 41,
         "headline": "DETECTOR GROUND BALANCE",
-        "subtitle": "The setting that finds more gold.",
-        "list_header": "GROUND BALANCE SECRETS",
+        "subtitle": "Ground Balance: Follow Your Detector and Site Conditions",
+        "list_header": "OBSERVE, TEST, AND COMPARE",
         "list_points": [
-            "Mineralized soil masks gold signals",
-            "Manual balance beats auto in hot ground",
-            "Salt ground vs iron ground response",
-            "Threshold tone reveals hidden targets"
-        ]
+            "Mineralized ground can affect detector response.",
+            "Follow the manual for the specific detector and ground-balance mode.",
+            "Check the response on appropriate test ground before interpreting targets.",
+            "Do not claim manual balance always outperforms automatic balance."
+        ],
+        "editorial_angle": "Ground Balance: Follow Your Detector and Site Conditions",
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 42,
@@ -513,7 +562,8 @@
             "Visible sulfide blebs in quartz",
             "Chlorite alteration halos (green rock)",
             "Ribbon quartz = repeated fluid pulses"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 43,
@@ -525,7 +575,8 @@
             "Green = chlorite = hydrothermal alteration",
             "White bleached = silica flooding",
             "Black = manganese = mineralized zone"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 44,
@@ -537,7 +588,8 @@
             "Rounded quartz pebbles",
             "Pyrite and uraninite",
             "Ancient river deposits"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 45,
@@ -549,7 +601,8 @@
             "Pipe-like structure",
             "Hydrothermal alteration",
             "Gold in matrix"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 46,
@@ -561,7 +614,8 @@
             "Quartz veins parallel to shear",
             "Mylonite texture",
             "Linear structural trend"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 47,
@@ -573,7 +627,8 @@
             "Dilation and fracturing",
             "Quartz vein concentration",
             "Gold enrichment"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 48,
@@ -585,7 +640,8 @@
             "Saddle-shaped quartz body",
             "Bedding-parallel veins",
             "Classic Victorian goldfields"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 49,
@@ -597,7 +653,8 @@
             "Crosscutting veins",
             "Disseminated gold",
             "Porphyry and epithermal systems"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 50,
@@ -609,7 +666,8 @@
             "Iron-rich surface layer",
             "Gold enrichment at base",
             "Tropical climate formation"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 51,
@@ -621,19 +679,23 @@
             "Ground balance settings",
             "Discrimination modes",
             "Coil selection for gold"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 52,
         "headline": "SLUICE BOXES",
-        "subtitle": "Gravity does the work.",
-        "list_header": "SLUICE SETUP",
+        "subtitle": "Your Sluice Is Packing Up: What to Observe Before Adjusting It",
+        "list_header": "OBSERVE, TEST, AND COMPARE",
         "list_points": [
-            "Proper angle (5-7 degrees)",
-            "Water flow rate",
-            "Riffle types and spacing",
-            "Matting and carpet choice"
-        ]
+            "Observe material movement, feed consistency and buildup.",
+            "Use setup guidance for the specific sluice rather than one universal angle.",
+            "Change one setting at a time and compare retained output material.",
+            "A small test cannot establish perfect recovery or guaranteed yield."
+        ],
+        "editorial_angle": "Your Sluice Is Packing Up: What to Observe Before Adjusting It",
+        "reference_url": "https://www.fs.usda.gov/Internet/FSE_DOCUMENTS/stelprdb5274730.pdf",
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 53,
@@ -645,7 +707,8 @@
             "Garnet-rich black sand = heavy mineral concentration",
             "Almandine garnet most common gold companion",
             "Deep red color visible even in murky water"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 54,
@@ -657,7 +720,8 @@
             "Magnet test reveals concentration zones",
             "Black sand layers = natural sluice effect",
             "Magnetite-rich bedrock pockets trap nuggets"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 55,
@@ -669,19 +733,23 @@
             "Moves heavy material",
             "Creates new deposits",
             "Cleans out crevices"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 56,
         "headline": "SAMPLING STRATEGIES",
-        "subtitle": "Smart testing saves time.",
-        "list_header": "SAMPLING METHODS",
+        "subtitle": "Two Sample Spots, Same Amount of Material: How to Compare Fairly",
+        "list_header": "OBSERVE, TEST, AND COMPARE",
         "list_points": [
-            "Grid pattern sampling",
-            "Systematic spacing",
-            "Consistent sample size",
-            "Record GPS coordinates"
-        ]
+            "Label each location and compare similar sample volumes.",
+            "Use a consistent panning method and note sampling conditions.",
+            "Record observed gold separately from other heavy minerals.",
+            "Two pans are an initial comparison, not proof of a continuous or economic paystreak."
+        ],
+        "editorial_angle": "Two Sample Spots, Same Amount of Material: How to Compare Fairly",
+        "reference_url": "https://www.fs.usda.gov/Internet/FSE_DOCUMENTS/stelprdb5274730.pdf",
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 57,
@@ -693,7 +761,8 @@
             "Online buyers",
             "Pawn shops (lowest price)",
             "Direct to jewelers"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 58,
@@ -705,19 +774,23 @@
             "Technology left gold behind",
             "Maps reveal patterns",
             "Tailings hold value"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 59,
         "headline": "NO GOLD FOUND",
-        "subtitle": "Troubleshooting dry holes.",
-        "list_header": "COMMON MISTAKES",
+        "subtitle": "No Gold Yet: Compare Your Samples Before Blaming Your Technique",
+        "list_header": "OBSERVE, TEST, AND COMPARE",
         "list_points": [
-            "Wrong location in stream",
-            "Not reaching bedrock",
-            "Overburden too deep",
-            "Upstream source missing"
-        ]
+            "An empty test pan can reflect location, sampling variation or technique.",
+            "Compare similarly sized samples and record where they came from.",
+            "Check technique using retained practice material in a collecting tub.",
+            "Neither quartz nor black sand guarantees a productive deposit."
+        ],
+        "editorial_angle": "No Gold Yet: Compare Your Samples Before Blaming Your Technique",
+        "reference_url": "https://www.fs.usda.gov/Internet/FSE_DOCUMENTS/stelprdb5274730.pdf",
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 60,
@@ -729,7 +802,8 @@
             "Shared knowledge",
             "Group outings",
             "Equipment loans"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 61,
@@ -741,7 +815,8 @@
             "Riffles vs smooth",
             "Green or black color",
             "Plastic vs metal"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 62,
@@ -753,7 +828,8 @@
             "Apply nitric acid",
             "Gold won't react",
             "Pyrite dissolves"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 63,
@@ -765,7 +841,8 @@
             "Commercial licenses",
             "Environmental clearance",
             "Water rights"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 64,
@@ -777,19 +854,23 @@
             "Exposed bedrock",
             "Changed stream course",
             "Fresh concentrations"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 65,
         "headline": "FINE GOLD RECOVERY",
-        "subtitle": "Capturing flour gold.",
-        "list_header": "FINE GOLD TECHNIQUES",
+        "subtitle": "Fine Gold Cleanup: Why the Last Spoonful Is Difficult",
+        "list_header": "OBSERVE, TEST, AND COMPARE",
         "list_points": [
-            "Blue bowl concentrator",
-            "Miller table",
-            "Spiral panning",
-            "Chemical recovery"
-        ]
+            "Separate initial concentration from the slower final cleanup.",
+            "Work with manageable portions and retain material for rechecking.",
+            "Compare mechanical cleanup methods appropriate to particle size and equipment.",
+            "Do not recommend mercury, chemical extraction or guaranteed recovery percentages."
+        ],
+        "editorial_angle": "Fine Gold Cleanup: Why the Last Spoonful Is Difficult",
+        "reference_url": "https://www.fs.usda.gov/Internet/FSE_DOCUMENTS/stelprdb5274730.pdf",
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 66,
@@ -801,7 +882,8 @@
             "XRF analysis",
             "ICP testing",
             "Sample preparation"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 67,
@@ -813,7 +895,8 @@
             "Hand of Faith (27kg)",
             "Pepita Cana\u00e3 (60kg)",
             "Great Triangle (36kg)"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 68,
@@ -825,7 +908,8 @@
             "Purity percentage",
             "Buyer's premium",
             "Specimen vs melt value"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 69,
@@ -837,19 +921,22 @@
             "Sluice riffle loss",
             "Pan cracks",
             "Pump failures"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 70,
         "headline": "TAILINGS",
-        "subtitle": "Old dumps, new gold.",
-        "list_header": "TAILINGS POTENTIAL",
+        "subtitle": "Old Tailings Are a Sampling Question, Not Guaranteed Gold",
+        "list_header": "OBSERVE, TEST, AND COMPARE",
         "list_points": [
-            "Old tech missed fine gold",
-            "Modern recovery better",
-            "Already crushed material",
-            "Known gold presence"
-        ]
+            "Historical recovery methods and deposits differed.",
+            "Do not assume all older equipment missed fine gold.",
+            "Compare documented samples before claiming material has recoverable gold.",
+            "New equipment alone does not establish that a site is productive."
+        ],
+        "editorial_angle": "Old Tailings Are a Sampling Question, Not Guaranteed Gold",
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 71,
@@ -861,7 +948,8 @@
             "Nozzle size selection",
             "Sluice box design",
             "Legal restrictions"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 72,
@@ -873,7 +961,8 @@
             "Restore disturbed areas",
             "Protect fish habitat",
             "Proper waste disposal"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 73,
@@ -885,7 +974,8 @@
             "Spotting outcrops",
             "Access scouting",
             "Thermal imaging"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 74,
@@ -897,7 +987,8 @@
             "Tailings piles",
             "Equipment remains",
             "Historical records"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 75,
@@ -909,19 +1000,26 @@
             "Attached quartz matrix",
             "Aesthetic appeal",
             "Worth more than melt"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 76,
         "headline": "GOLD VS PYRITE",
-        "subtitle": "The test that saves you from fool's gold.",
-        "list_header": "FIELD IDENTIFICATION",
+        "subtitle": "Is It Gold, Pyrite, or Mica? What a Photo Cannot Prove",
+        "list_header": "OBSERVE, TEST, AND COMPARE",
         "list_points": [
-            "Streak test: Gold = yellow, Pyrite = greenish-black",
-            "Hardness: Gold dents, Pyrite shatters",
-            "Shape: Gold irregular, Pyrite cubic crystals",
-            "Weight: Gold much heavier in hand"
-        ]
+            "Pyrite, chalcopyrite and weathered mica can resemble gold.",
+            "Appearance in a picture is a clue, not a confirmed identification.",
+            "Gold is malleable; brittle look-alikes behave differently under appropriate physical tests.",
+            "For uncertain or valuable specimens, seek qualified identification rather than a confident photo diagnosis."
+        ],
+        "retired": true,
+        "canonical_topic_id": 6,
+        "retired_reason": "Judul duplikat; riwayat dipertahankan",
+        "editorial_angle": "Is It Gold, Pyrite, or Mica? What a Photo Cannot Prove",
+        "reference_url": "https://www.usgs.gov/faqs/what-fools-gold",
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 77,
@@ -933,7 +1031,8 @@
             "Magnet test (gold is non-magnetic)",
             "Float test (gold sinks fast)",
             "Scratch test on unglazed ceramic"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 78,
@@ -945,7 +1044,8 @@
             "Chalcopyrite \u2014 brassy yellow, iridescent",
             "Mica \u2014 flaky, lightweight",
             "Magnetite \u2014 black, magnetic"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 79,
@@ -957,7 +1057,8 @@
             "Lode/vein deposits (hard rock)",
             "Alluvial fans (ancient waterways)",
             "Residual deposits (weathered bedrock)"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 80,
@@ -969,7 +1070,8 @@
             "Greenstone belts (ancient volcanic)",
             "Shear zones (fault-related gold)",
             "Intrusive contacts (granite margins)"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 81,
@@ -981,7 +1083,8 @@
             "Vibration mimics water flow",
             "Static electricity catches fine gold",
             "Requires bone-dry dirt"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 82,
@@ -993,7 +1096,8 @@
             "DD: Better in mineralized ground",
             "Small coils: Great for tiny nuggets/crevices",
             "Large coils: Max depth for big targets"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 83,
@@ -1005,7 +1109,8 @@
             "Use a bulb snifter or hand dredge",
             "Fanning away sand to expose bedrock",
             "Look into deep cracks others miss"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 84,
@@ -1017,7 +1122,8 @@
             "Prevents large rocks from washing gold out",
             "Speeds up panning significantly",
             "Use 1/4 or 1/2 inch mesh screens"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 85,
@@ -1029,7 +1135,8 @@
             "Blue bowl concentrators",
             "Miller tables for fine separation",
             "Tapping the pan to walk gold up"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 86,
@@ -1041,7 +1148,8 @@
             "Built-in grizzly classifying screen",
             "Continuous feeding without bending",
             "Processes 10x more than a pan"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 87,
@@ -1053,7 +1161,8 @@
             "Pump coil over clean ground to set",
             "Re-balance when soil color changes",
             "Crucial for hearing faint nugget signals"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 88,
@@ -1065,7 +1174,8 @@
             "Detectors can find nuggets they threw out",
             "Often safe, public access areas",
             "Look for quartz piles and crushed rock"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 89,
@@ -1077,7 +1187,8 @@
             "Tree roots slow water during floods",
             "Carefully pluck moss and wash in bucket",
             "Often yields very fine 'flour gold'"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 90,
@@ -1089,7 +1200,8 @@
             "Over 6 times heavier than typical gravel",
             "Will sink through shaking and vibration",
             "Never stops until it hits bedrock or clay"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 91,
@@ -1101,7 +1213,8 @@
             "Traps ancient gold deposits tightly",
             "Requires picks, hammers, or soaking",
             "Often confused with barren bedrock"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 92,
@@ -1113,7 +1226,8 @@
             "Expanded Metal: Catches fine flour gold",
             "V-Matting: Great for early stage catching",
             "Angle matters more than riffle type"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 93,
@@ -1125,7 +1239,8 @@
             "Excellent discrimination against iron junk",
             "Highly sensitive to tiny nuggets",
             "Struggles in extremely mineralized ground"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 94,
@@ -1137,7 +1252,8 @@
             "Achieves extreme depth penetration",
             "Must dig almost every signal (low discrimination)",
             "The choice of professional prospectors"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 95,
@@ -1149,7 +1265,8 @@
             "Tilt at a 30-degree angle to the water",
             "Wash lighter sands off the front lip",
             "Keep gold safely in the back corner"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 96,
@@ -1161,7 +1278,8 @@
             "Look for new gravel bars after high water",
             "Skim panning surface layers",
             "Gold is usually small and flat (flakes)"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 97,
@@ -1173,7 +1291,8 @@
             "Check BLM or local government databases",
             "Noting 'No Trespassing' or claim signs",
             "Always ask permission if unsure"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 98,
@@ -1185,7 +1304,8 @@
             "Looks like silver-coated gold or dull beads",
             "Never heat or burn it in open air",
             "Store in water and dispose as hazmat"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 99,
@@ -1197,7 +1317,8 @@
             "Pan a small sample from top, middle, bottom",
             "Follow the best color count",
             "Saves hours of wasted energy"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
         "id": 100,
@@ -1209,6 +1330,39 @@
             "Pack out all your trash (and others')",
             "Don't dig into live tree roots or banks",
             "Preserve access for future generations"
-        ]
+        ],
+        "catalog_revision": "us-prospecting-2026-09-v1"
+    },
+    {
+        "id": 10001,
+        "curation_key": "sluice-output-check",
+        "headline": "CHECK YOUR SLUICE TAILINGS",
+        "subtitle": "Check retained output before guessing whether gold is being lost.",
+        "list_header": "A PRACTICAL CHECK",
+        "list_points": [
+            "Collect a manageable representative portion of processed output for checking.",
+            "Keep test material labeled so different settings are not mixed.",
+            "Change one setting at a time, following the equipment manual.",
+            "A limited test does not establish a recovery percentage or perfect capture."
+        ],
+        "research_source": "https://www.reddit.com/r/Prospecting/comments/1w4rpzp/looking_for_good_sluice_box_recommendations_for/",
+        "catalog_revision": "us-prospecting-2026-09-v1",
+        "experimental_topic": true
+    },
+    {
+        "id": 10002,
+        "curation_key": "home-panning-practice",
+        "headline": "PRACTICE PANNING IN A CATCH TUB",
+        "subtitle": "Practice with retained material instead of losing track of your mistakes.",
+        "list_header": "PRACTICE AND RECHECK",
+        "list_points": [
+            "Use a stable collecting tub so practice material can be recovered.",
+            "Work with manageable portions and repeat the same technique.",
+            "Recheck collected material to understand what was washed out.",
+            "Do not release practice material into streams or equate practice success with finding a deposit."
+        ],
+        "research_source": "https://www.reddit.com/r/Prospecting/comments/1hiwmrm/",
+        "catalog_revision": "us-prospecting-2026-09-v1",
+        "experimental_topic": true
     }
 ]

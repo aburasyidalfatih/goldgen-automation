@@ -76,8 +76,9 @@ class GoldGenService:
         try:
             with open(Path(__file__).parent / 'data' / 'layouts.json', 'r', encoding='utf-8') as f:
                 self.layouts = json.load(f)
-            with open(Path(__file__).parent / 'data' / 'topics.json', 'r', encoding='utf-8') as f:
-                self.topics = json.load(f)
+            from core.topic_catalog import load_catalog, allowed
+            self.source_topics, self.catalog_topics = load_catalog(Path(__file__).parent / 'data' / 'topics.json')
+            self.topics = [t for t in self.catalog_topics if allowed(t)]
         except Exception as e:
             print(f'Warning: Could not load layouts or topics. Fallback to empty lists. Error: {e}')
             self.layouts = []
@@ -254,7 +255,8 @@ class GoldGenService:
                 json.dump({
                     'current_topic_index': (current_index + 1) % max(len(self.topics), 1),
                     'last_updated': datetime.now().isoformat(),
-                    'recently_used': recently_used
+                    'recently_used': recently_used,
+                    'catalog_ids': [t['id'] for t in self.topics]
                 }, f)
         except Exception as e:
             print(f"   ⚠️ Gagal menyimpan state topik: {redact(e)}")
@@ -679,6 +681,9 @@ Format the output EXACTLY as this JSON format, nothing else:
     ]
 }}
 Do not include any other text, markdown blocks, or quotes. Just the raw JSON.
+Only teach field prospecting. Never turn audience analytics, engagement, hooks,
+virality or content marketing into a topic. No chemical recovery, guaranteed
+deposits, invented statistics, or universal equipment settings.
 """
             response = self.client.models.generate_content(
                 model=self.model,
@@ -691,7 +696,10 @@ Do not include any other text, markdown blocks, or quotes. Just the raw JSON.
             if match:
                 new_topic = json.loads(match.group(0))
                 # Generate unique ID
-                new_id = max([t.get('id', 0) for t in self.topics]) + 1 if self.topics else 1
+                from core.topic_catalog import allowed
+                if not allowed(new_topic) or not all(new_topic.get(k) for k in ('headline','subtitle','list_header','list_points')):
+                    return None
+                new_id = max([t.get('id', 0) for t in getattr(self, 'catalog_topics', self.topics)], default=0) + 1
                 new_topic['id'] = new_id
                 return new_topic
             return None
@@ -706,7 +714,8 @@ Do not include any other text, markdown blocks, or quotes. Just the raw JSON.
         if random.random() < 0.2:
             print("   🕵️‍♂️ Running News Espionage...")
             news_topic = self._get_breaking_news()
-            if news_topic:
+            from core.topic_catalog import allowed
+            if news_topic and allowed(news_topic):
                 print(f"   🚨 Found breaking news: {news_topic['headline']}")
                 # Layout tetap dipilih berdasarkan performa page, bukan acak murni
                 layout, why = self._choose_layout(page_id, random.randrange(len(self.active_layouts) or 1))
@@ -736,7 +745,9 @@ Do not include any other text, markdown blocks, or quotes. Just the raw JSON.
         # kolam topik bisa menyusut (pembersihan duplikat, pembuangan topik
         # cacat). Tanpa dilipat, indeks lama menunjuk ke luar batas dan
         # menggagalkan seluruh siklus posting dengan IndexError.
-        current_index %= len(self.topics)
+        from core.topic_catalog import remap_state
+        state = remap_state(state, getattr(self, 'source_topics', self.topics), self.topics)
+        current_index = state['current_topic_index'] % len(self.topics)
 
         # Cek audience preferences dari analisis komentar.
         # Khusus untuk memilih TOPIK, label hook dibuang — hook mengatur gaya
@@ -820,11 +831,12 @@ Do not include any other text, markdown blocks, or quotes. Just the raw JSON.
                               f"{self.topics[kembar]['headline'][:50]}")
                     else:
                         self.topics.append(new_topic)
+                        self.catalog_topics.append(new_topic)
                         selected_index = len(self.topics) - 1
                         print(f"   🌟 Topik baru dibuat: {new_topic['headline'][:50]}")
                         try:
                             with open(Path(__file__).parent / 'data' / 'topics.json', 'w', encoding='utf-8') as f:
-                                json.dump(self.topics, f, indent=4)
+                                json.dump(self.catalog_topics, f, indent=4)
                         except Exception as e:
                             print(f"   ⚠️ Gagal menyimpan topik baru: {redact(e)}")
 
@@ -840,20 +852,7 @@ Do not include any other text, markdown blocks, or quotes. Just the raw JSON.
             topic['composition'] = layout['composition']
             print(f"   🎨 Layout: {layout['name']} ({why})")
 
-        # Update state
-        next_index = (current_index + 1) % len(self.topics)
-        recently_used = state.get('recently_used', [])
-        recently_used.append(selected_index)
-        if len(recently_used) > 20:
-            recently_used = recently_used[-20:]
-
-        state_file.parent.mkdir(parents=True, exist_ok=True)
-        with open(state_file, 'w') as f:
-            json.dump({
-                'current_topic_index': next_index,
-                'last_updated': datetime.now().isoformat(),
-                'recently_used': recently_used
-            }, f)
+        self._simpan_state(state_file, state, current_index, selected_index)
 
         return topic
     
@@ -927,6 +926,7 @@ Do not include any other text, markdown blocks, or quotes. Just the raw JSON.
         from core.content_quality import FACT_CONTEXT
         base_prompt = f"""Write a practical educational caption for this gold prospecting page.
 TOPIC: {topic['headline']}
+EDITORIAL ANGLE: {topic.get('editorial_angle', topic['headline'])}
 SUBTITLE: {topic['subtitle']}
 TOPIC NOTES (unverified ideas; omit questionable claims):
 {list_text}
@@ -1043,6 +1043,7 @@ Use it only when consistent with the requirements above:
 
 TOPIC: {topic['headline']}
 SUBTITLE: {topic['subtitle']}
+EDITORIAL ANGLE: {topic.get('editorial_angle', topic['headline'])}
 
 KEY INFORMATION TO VISUALIZE:
 {list_text}
