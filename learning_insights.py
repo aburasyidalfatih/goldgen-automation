@@ -26,6 +26,7 @@ def _fetch_posts_with_engagement(page_id=None):
                clicks, engagement, rel_engagement, source
         FROM post_engagement
         WHERE source = 'snapshot48' AND rel_engagement IS NOT NULL
+          AND julianday(timestamp) BETWEEN julianday('now','-60 days') AND julianday('now')
     '''
     params = []
     if page_id:
@@ -92,8 +93,8 @@ def layout_report(page_id):
             'best': round(max(v[0] for v in values), 1),
         })
 
-    report.sort(key=lambda x: -x['confident_score'])
-    return report
+    from core.audience_learning import update_rankings
+    return update_rankings(report, page_id, 'layout_name', 'layout')
 
 
 def editor_report(page_id=None, min_samples=12):
@@ -217,7 +218,8 @@ def hook_report(page_id, min_samples=2):
             'relatif': round(rel, 2),
             'confident_score': round(_confident_lower_bound([x[1] for x in v]), 2),
         })
-    return sorted(hasil, key=lambda x: -x['confident_score'])
+    from core.audience_learning import update_rankings
+    return update_rankings(hasil, page_id, 'hook_type', 'hook', normalize_hook)
 
 
 def hook_compliance_report(page_id):
@@ -321,8 +323,8 @@ def topic_report(page_id, limit=8):
             'relatif': round(rel, 2),
             'confident_score': round(_confident_lower_bound([v[1] for v in values]), 2),
         })
-    report.sort(key=lambda x: -x['confident_score'])
-    return report[:limit]
+    from core.audience_learning import update_rankings
+    return update_rankings(report, page_id, 'topic_headline', 'topik')[:limit]
 
 
 def click_report(page_id):
@@ -477,11 +479,15 @@ def audience_report(page_id):
 def full_report(fanspages):
     """Laporan lengkap untuk semua page — dipakai dashboard & CLI"""
     out = []
+    from core.audience_learning import report as evidence_report
+    from core.layout_experiments import report as experiment_report
     for page in fanspages:
         pid = page.get('page_id')
         out.append({
             'page_name': page.get('name'),
             'page_id': pid,
+            'recent_evidence': evidence_report(pid),
+            'layout_experiments': experiment_report(pid),
             'schedule_hours': page.get('schedule_hours', []),
             'layouts': layout_report(pid),
             'editor': editor_report(pid),

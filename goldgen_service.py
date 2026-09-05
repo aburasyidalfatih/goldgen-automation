@@ -165,82 +165,13 @@ class GoldGenService:
             return {}
 
     def _get_layout_performance(self, page_id):
-        """Performa tiap layout untuk SATU page.
-
-        Sumber data: tabel posts (layout_name) di-join dengan engagement_cache
-        yang diisi oleh comment_analyzer setiap siklus riset.
-        Skalanya RELATIF: 1.0 berarti sebaik rata-rata page pada periode yang
-        sama. Dengan begitu layout yang diuji saat jangkauan sedang turun tidak
-        divonis buruk hanya karena lebih sedikit orang melihatnya.
-
-        Return: {layout_name: {'avg': float, 'n': int, 'total': float}}
-        """
-        if not page_id:
-            return {}
-        try:
-            from core.database import get_db_connection
-            conn = get_db_connection()
-            # Hanya snapshot 48 jam: umur pengukuran seragam DAN era-nya
-            # berdekatan. Baris cache berasal dari Juni-Juli, saat engagement
-            # page memang jauh lebih tinggi, sehingga ikut menghukum apa pun
-            # yang baru diuji belakangan.
-            rows = conn.execute('''
-                SELECT layout_name AS layout,
-                       SUM(rel_engagement) AS total_eng,
-                       COUNT(*) AS n
-                FROM post_engagement
-                WHERE page_id = ? AND source = 'snapshot48'
-                  AND rel_engagement IS NOT NULL
-                  AND layout_name IS NOT NULL
-                  AND layout_name != ''
-                GROUP BY layout_name
-            ''', (page_id,)).fetchall()
-            conn.close()
-            result = {}
-            for r in rows:
-                total = float(r['total_eng'] or 0)
-                n = int(r['n'] or 0)
-                if n > 0:
-                    result[r['layout']] = {'avg': total / n, 'n': n, 'total': total}
-            return result
-        except Exception as e:
-            print(f"   ⚠️ Gagal membaca performa layout: {e}")
-            return {}
+        from core.audience_learning import performance
+        return performance(page_id, 'layout_name')
 
     def _get_hook_performance(self, page_id):
-        """Engagement nyata per gaya hook untuk SATU page.
-
-        Dikelompokkan menurut hook_type — gaya yang BENAR-BENAR keluar, bukan
-        yang diminta. Label editor dinormalkan dulu ke daftar resmi supaya
-        'Contrast', 'Mystery' dan 'Curiosity' tidak tercecer sebagai gaya
-        tersendiri yang tak pernah bisa dipilih ulang.
-        """
-        if not page_id:
-            return {}
-        try:
-            from core.database import get_db_connection
-            from comment_analyzer import normalize_hook
-            conn = get_db_connection()
-            rows = conn.execute('''
-                SELECT hook_type, rel_engagement AS engagement
-                FROM post_engagement
-                WHERE page_id = ? AND source = 'snapshot48'
-                  AND rel_engagement IS NOT NULL
-                  AND hook_type IS NOT NULL
-                  AND hook_type != ''
-            ''', (page_id,)).fetchall()
-            conn.close()
-
-            kumpul = {}
-            for r in rows:
-                kanonik = normalize_hook(r['hook_type'])
-                if not kanonik:
-                    continue
-                kumpul.setdefault(kanonik, []).append(float(r['engagement'] or 0))
-            return {k: {'avg': sum(v) / len(v), 'n': len(v)} for k, v in kumpul.items() if v}
-        except Exception as e:
-            print(f"   ⚠️ Gagal membaca performa hook: {e}")
-            return {}
+        from core.audience_learning import performance
+        from comment_analyzer import normalize_hook
+        return performance(page_id, 'hook_type', normalize_hook)
 
     def _choose_hook(self, page_id, preferred=None):
         """Pilih gaya hook dengan Thompson Sampling, dipandu preferensi audiens.
@@ -291,8 +222,9 @@ class GoldGenService:
             prior = page_mean * (1.3 if hook == preferred else 1.0)
             mean = d['avg'] if d else prior
 
-            precision = prior_precision + n * obs_precision_unit
-            post_mean = (prior * prior_precision + mean * n * obs_precision_unit) / precision
+            evidence = d.get('effective_n', n) if d else 0
+            precision = prior_precision + evidence * obs_precision_unit
+            post_mean = (prior * prior_precision + mean * evidence * obs_precision_unit) / precision
             sample = random.gauss(post_mean, (1.0 / precision) ** 0.5)
 
             if sample > skor_terbaik:
@@ -306,33 +238,9 @@ class GoldGenService:
         return (terbaik or preferred), catatan
 
     def _get_page_engagement_stats(self, page_id):
-        """Rata-rata & simpangan baku engagement RELATIF page — dipakai sebagai prior.
-
-        Karena setiap postingan sudah dibandingkan dengan tetangga waktunya,
-        rata-ratanya mendekati 1.0; yang penting di sini simpangan bakunya.
-
-        Simpangan baku penting: itulah ukuran 'seberapa berisik' engagement page
-        ini, yang menentukan seberapa besar sebuah sampel kecil boleh dipercaya.
-        """
-        try:
-            from core.database import get_db_connection
-            conn = get_db_connection()
-            rows = conn.execute(
-                "SELECT rel_engagement AS eng FROM post_engagement "
-                "WHERE page_id = ? AND source = 'snapshot48' "
-                "AND rel_engagement IS NOT NULL", (page_id,)
-            ).fetchall()
-            conn.close()
-            values = [float(r['eng'] or 0) for r in rows]
-            if not values:
-                return 0.0, 0.0
-            mean = sum(values) / len(values)
-            if len(values) < 2:
-                return mean, max(mean, 1.0)
-            var = sum((v - mean) ** 2 for v in values) / (len(values) - 1)
-            return mean, var ** 0.5
-        except Exception:
-            return 0.0, 0.0
+        from core.audience_learning import page_rows, summarize
+        stats = summarize(page_rows(page_id))
+        return stats['avg'], stats['sd']
 
     def _simpan_state(self, state_file, state, current_index, selected_index):
         """Simpan rotasi & daftar topik yang baru dipakai (anti pengulangan)"""
@@ -352,33 +260,8 @@ class GoldGenService:
             print(f"   ⚠️ Gagal menyimpan state topik: {redact(e)}")
 
     def _get_topic_performance(self, page_id):
-        """Rata-rata engagement tiap topik untuk SATU page.
-
-        Sebelumnya topik tidak pernah disimpan per postingan, jadi bot bisa
-        belajar layout dan hook tapi buta terhadap ISI kontennya — padahal
-        topik justru penentu terbesar apakah audiens suka atau tidak.
-        """
-        if not page_id:
-            return {}
-        try:
-            from core.database import get_db_connection
-            conn = get_db_connection()
-            rows = conn.execute('''
-                SELECT topic_headline AS judul,
-                       SUM(rel_engagement) AS total_eng,
-                       COUNT(*) AS n
-                FROM post_engagement
-                WHERE page_id = ? AND source = 'snapshot48'
-                  AND rel_engagement IS NOT NULL
-                  AND topic_headline IS NOT NULL AND topic_headline != ''
-                GROUP BY topic_headline
-            ''', (page_id,)).fetchall()
-            conn.close()
-            return {r['judul']: {'avg': float(r['total_eng'] or 0) / r['n'], 'n': r['n']}
-                    for r in rows if r['n']}
-        except Exception as e:
-            print(f"   ⚠️ Gagal membaca performa topik: {redact(e)}")
-            return {}
+        from core.audience_learning import performance
+        return performance(page_id, 'topic_headline')
 
     def _choose_topic_by_performance(self, page_id, preferences, recently_used):
         """Pilih topik dengan Thompson Sampling, dipandu preferensi audiens.
@@ -424,8 +307,9 @@ class GoldGenService:
                 if any(self._topic_match_score(p, teks) > 0 for p in preferences):
                     prior = page_mean * 1.3
 
-            precision = prior_precision + n * obs_precision_unit
-            post_mean = (prior * prior_precision + mean * n * obs_precision_unit) / precision
+            evidence = d.get('effective_n', n) if d else 0
+            precision = prior_precision + evidence * obs_precision_unit
+            post_mean = (prior * prior_precision + mean * evidence * obs_precision_unit) / precision
             sample = random.gauss(post_mean, (1.0 / precision) ** 0.5)
 
             if sample > skor_terbaik:
@@ -502,8 +386,9 @@ class GoldGenService:
             prior_mean = page_mean * layout.get('prior_factor', 1.0)
             mean = d['avg'] if d else prior_mean
 
-            precision = prior_precision + n * obs_precision_unit
-            post_mean = (prior_mean * prior_precision + mean * n * obs_precision_unit) / precision
+            evidence = d.get('effective_n', n) if d else 0
+            precision = prior_precision + evidence * obs_precision_unit
+            post_mean = (prior_mean * prior_precision + mean * evidence * obs_precision_unit) / precision
             post_sd = (1.0 / precision) ** 0.5
 
             sample = random.gauss(post_mean, post_sd)

@@ -26,6 +26,9 @@ def main():
 
     for page in full_report(config.get('fanspages', [])):
         print("=" * 78)
+
+        print('Pembelajaran: maksimal 60 hari; bobot turun setengah setiap 14 hari.')
+        print('Skor peringkat bersifat observasional, bukan bukti penyebab atau jaminan pemenang.')
         print(f"📘 {page['page_name']}   (jadwal saat ini: {page['schedule_hours']})")
         print("=" * 78)
 
@@ -40,6 +43,8 @@ def main():
                       f"{l['relatif']:>9.2f}x{l['confident_score']:>8.2f}  {bar(l['confident_score'], 0.05)}")
             print("   * relatif 1.00x = sebaik rata-rata page pada periode yang sama")
             print("   * skor yakin = relatif dipotong sesuai ketidakpastian sampel kecil")
+            for item in page['layouts'][:8]:
+                print(f"   {item['layout']}: bobot sampel {item.get('effective_n', 0):.1f}, bukti {item.get('evidence', 'belum cukup')}")
 
         # --- Topik ---
         print("\n📚 TOPIK — isi konten yang paling disukai audiens page ini")

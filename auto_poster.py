@@ -93,12 +93,20 @@ class GoldGenAutoPoster:
         self.goldgen = GoldGenService(self.gemini_api_key, model=self.text_model)
     
 
-    def generate_content(self, page_id=None):
+    def generate_content(self, page_id=None, allow_experiment=False):
         """Generate educational content about gold prospecting"""
         topic = None
         try:
+            if allow_experiment:
+                from core.layout_experiments import pending
+                topic = pending(page_id, self.goldgen.active_layouts)
+                if topic:
+                    return topic['approved_caption'], topic
             topic = self.goldgen.get_next_topic(page_id)
             caption = self.goldgen.generate_caption(topic, page_id)
+            if allow_experiment:
+                from core.layout_experiments import enroll
+                topic = enroll(page_id, topic, caption, self.goldgen.active_layouts)
             return caption, topic
         except Exception as e:
             # The caller records the failure; never bypass the quality review.
@@ -608,7 +616,7 @@ Reply ONLY with JSON:
 
         return None, f"GAGAL MENGIRIM: batas percobaan ({max_retries}x) habis tanpa respons sukses dari Facebook"
     
-    def log_post(self, fanspage, content, image_path, fb_post_id, status, error_message=None, layout_name=None, hook_type=None, editor_score=None, requested_hook=None, topic_id=None, topic_headline=None, image_score=None):
+    def log_post(self, fanspage, content, image_path, fb_post_id, status, error_message=None, layout_name=None, hook_type=None, editor_score=None, requested_hook=None, topic_id=None, topic_headline=None, image_score=None, experiment_id=None, experiment_arm=None):
         """Log post to database"""
         from datetime import timezone, timedelta
         now_wib = datetime.now(timezone(timedelta(hours=7)))
@@ -634,6 +642,9 @@ Reply ONLY with JSON:
             topic_headline,
             image_score
         ))
+        if experiment_id:
+            cursor.execute('UPDATE posts SET experiment_id=?,experiment_arm=? WHERE id=?',
+                           (experiment_id,experiment_arm,cursor.lastrowid))
         conn.commit()
         conn.close()
     
@@ -804,7 +815,7 @@ Reply ONLY with JSON:
 
                 # Generate content with offset topic (different for each fanspage)
                 # Bikin caption & prompt pake GoldGen AI (sekarang sudah terisolasi per-page)
-                content, topic = self.generate_content(page_id=fanspage['page_id'])
+                content, topic = self.generate_content(page_id=fanspage['page_id'], allow_experiment=True)
                 topic['approved_caption'] = content
                 print(f"   Topic: {topic['headline']}")
                 print(f"   Layout: {topic['layout']}")
@@ -821,11 +832,11 @@ Reply ONLY with JSON:
                 
                 if fb_post_id:
                     print(f"   ✅ Success! Post ID: {fb_post_id}")
-                    self.log_post(fanspage, content, image_path, fb_post_id, 'success', layout_name=topic.get('layout'), hook_type=topic.get('hook_type'), editor_score=topic.get('editor_score'), requested_hook=topic.get('requested_hook'), topic_id=topic.get('id'), topic_headline=topic.get('headline'), image_score=topic.get('image_score'))
+                    self.log_post(fanspage, content, image_path, fb_post_id, 'success', layout_name=topic.get('layout'), hook_type=topic.get('hook_type'), editor_score=topic.get('editor_score'), requested_hook=topic.get('requested_hook'), topic_id=topic.get('id'), topic_headline=topic.get('headline'), image_score=topic.get('image_score'), experiment_id=topic.get('experiment_id'), experiment_arm=topic.get('experiment_arm'))
                     posted_count += 1
                 else:
                     print(f"   ❌ Failed: {error}")
-                    self.log_post(fanspage, content, image_path, None, 'failed', error, layout_name=topic.get('layout'), hook_type=topic.get('hook_type'), editor_score=topic.get('editor_score'), requested_hook=topic.get('requested_hook'), topic_id=topic.get('id'), topic_headline=topic.get('headline'), image_score=topic.get('image_score'))
+                    self.log_post(fanspage, content, image_path, None, 'failed', error, layout_name=topic.get('layout'), hook_type=topic.get('hook_type'), editor_score=topic.get('editor_score'), requested_hook=topic.get('requested_hook'), topic_id=topic.get('id'), topic_headline=topic.get('headline'), image_score=topic.get('image_score'), experiment_id=topic.get('experiment_id'), experiment_arm=topic.get('experiment_arm'))
                 
                 print()
 

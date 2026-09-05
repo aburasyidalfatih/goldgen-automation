@@ -83,6 +83,10 @@ def init_db():
     ''')
     cursor.execute(LAST_POST_TIME_SQL)
     cursor.execute(POST_QUEUE_SQL)
+    cursor.execute('''CREATE TABLE IF NOT EXISTS layout_experiments (
+        id TEXT PRIMARY KEY, page_id TEXT NOT NULL, created_at TEXT NOT NULL,
+        payload TEXT NOT NULL
+    )''')
     # === Learning / ML Research tables ===
     # Tabel insight dari analisis komentar & engagement
     cursor.execute('''
@@ -208,6 +212,8 @@ def init_db():
         # supaya kritikus gambar sendiri bisa diaudit terhadap engagement nyata,
         # persis seperti yang akhirnya kita lakukan pada editor caption.
         ('posts', 'image_score', 'REAL'),
+        ('posts', 'experiment_id', 'TEXT'),
+        ('posts', 'experiment_arm', 'INTEGER'),
     ]
     for table, col, col_type in migrations:
         try:
