@@ -101,20 +101,8 @@ class GoldGenAutoPoster:
             caption = self.goldgen.generate_caption(topic, page_id)
             return caption, topic
         except Exception as e:
-            print(f"   ⚠️  GoldGen caption error: {e}, using fallback...")
-            # Fallback using the fetched topic, or default to first if get_next_topic failed
-            if not topic:
-                topic = self.goldgen.topics[0]
-            list_text = "\n".join([f"• {point}" for point in topic['list_points']])
-            caption = f"""{topic['headline']}
-
-{topic['subtitle']}
-
-{topic['list_header']}:
-{list_text}
-
-#GoldProspecting #PlacerGold #ProspectingTips"""
-            return caption, topic
+            # The caller records the failure; never bypass the quality review.
+            raise
     
     
     def _review_image(self, image_path, topic, fanspage_name=None):
@@ -130,8 +118,8 @@ class GoldGenAutoPoster:
         infografis buatan AI: teks kacau, komposisi tidak sesuai layout yang
         diminta, dan cacat bentuk.
 
-        Mengembalikan (skor, catatan). Kalau Vision gagal, sengaja LOLOS
-        (skor None) — juri yang mogok tidak boleh menghentikan jadwal posting.
+        Mengembalikan (skor, catatan). Vision gagal menghasilkan skor None;
+        pemeriksaan akhir publikasi akan menahan gambar yang belum dinilai.
         """
         import re
         if not image_path or not os.path.exists(str(image_path)):
@@ -141,11 +129,14 @@ class GoldGenAutoPoster:
         komposisi = (topic.get('composition') or '')[:300]
         judul = topic.get('headline', '')
 
-        prompt = f"""You are a ruthless art director reviewing a vertical (9:16) infographic before it is published to a gold prospecting Facebook page.
+        from core.content_quality import FACT_CONTEXT
+        prompt = f"""You are a careful art director reviewing a vertical (9:16) infographic before publication.
 
 INTENDED TOPIC: {judul}
 INTENDED LAYOUT: {layout}
 INTENDED COMPOSITION: {komposisi}
+CAPTION TO ILLUSTRATE: {topic.get('approved_caption', '')}
+FACTUAL LIMITS: {FACT_CONTEXT}
 
 Score the image 1-10 against these criteria, in order of importance:
 1. TEXT LEGIBILITY — is every word real, correctly spelled and readable on a phone? Garbled or nonsense lettering is the single worst defect.
@@ -153,6 +144,9 @@ Score the image 1-10 against these criteria, in order of importance:
 3. SUBJECT CORRECTNESS — is this genuinely about gold prospecting geology, not a generic landscape or unrelated mining scene?
 4. ARTEFACTS — malformed hands, impossible tools, duplicated limbs, melted objects.
 5. WATERMARK — a small text watermark reading "{fanspage_name or ''}" should sit in a corner, never across the centre.
+6. FACTUAL ALIGNMENT — flag unsupported recovery percentages, guaranteed finds,
+dangerous chemical instructions, misleading geology, and contradiction with the caption.
+If any factual defect is present, or text is unreadable, score at most 6.
 
 Reply ONLY with JSON:
 {{"score": <1-10>, "verdict": "<one short sentence>", "worst_problem": "<the single most damaging flaw, or 'none'>"}}"""
@@ -181,7 +175,8 @@ Reply ONLY with JSON:
                 return None, 'jawaban juri tidak terbaca'
 
             hasil = json.loads(match.group(0))
-            skor = float(hasil.get('score'))
+            from core.content_quality import valid_score
+            skor = valid_score(hasil.get('score'))
             catatan = str(hasil.get('worst_problem') or hasil.get('verdict') or '')[:200]
             return skor, catatan
         except Exception as e:
@@ -190,10 +185,16 @@ Reply ONLY with JSON:
 
     def generate_image(self, topic, fanspage_name=None, page_id=None):
         """Generate educational infographic using Gemini image model"""
+        topic['image_score'] = None
         # Prompt dibangun di luar blok retry supaya retry tidak crash karena
         # variabel yang belum sempat terbentuk saat error terjadi di sini.
         try:
             image_prompt = self.goldgen.generate_image_prompt(topic, page_id)
+            image_prompt += ("\nFACTUAL REQUIREMENTS: Illustrate the approved caption below. "
+                             "Do not invent recovery percentages, guaranteed deposits, or chemical "
+                             "extraction instructions. Label schematic illustrations as illustrative. "
+                             "Quiz panels must explain the same question and answer as the caption.\n"
+                             + topic.get('approved_caption', ''))
         except Exception as e:
             print(f"   ⚠️  Gagal membangun image prompt: {e}, using PIL fallback...")
             return self._generate_fallback_image(topic, fanspage_name)
@@ -804,12 +805,15 @@ Reply ONLY with JSON:
                 # Generate content with offset topic (different for each fanspage)
                 # Bikin caption & prompt pake GoldGen AI (sekarang sudah terisolasi per-page)
                 content, topic = self.generate_content(page_id=fanspage['page_id'])
+                topic['approved_caption'] = content
                 print(f"   Topic: {topic['headline']}")
                 print(f"   Layout: {topic['layout']}")
                 
                 # Generate poster image
                 print("   Generating infographic...")
                 image_path = self.generate_image(topic, fanspage_name=fanspage['name'], page_id=fanspage['page_id'])
+                from core.content_quality import require_publishable
+                require_publishable(topic)
                 
                 # Post to Facebook
                 print("   Posting to Facebook...")
@@ -889,10 +893,13 @@ Reply ONLY with JSON:
             # 3. Generate Content
             print(f"   📝 Generating content with Gemini...")
             caption, topic = self.generate_content(page_id=page_id)
+            topic['approved_caption'] = caption
             
             # 4. Generate Image
             print(f"   🎨 Generating image...")
             image_path = self.generate_image(topic, fanspage_name=page_name, page_id=page_id)
+            from core.content_quality import require_publishable
+            require_publishable(topic)
             
             print("   Posting to Facebook...")
             fb_post_id, error = self.post_to_facebook(target_fanspage, caption, image_path)

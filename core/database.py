@@ -254,47 +254,9 @@ def init_db():
     except Exception as e:
         print(f"WARNING: DB Migration post_queue: {e}")
 
-    # View tunggal yang dipakai SEMUA perhitungan pembelajaran.
-    #
-    # Aturannya: pakai snapshot 48 jam kalau ada; kalau belum ada, pakai
-    # engagement_cache HANYA bila pengukurannya berada di JENDELA 36-96 jam.
-    #
-    # Batas atas itu penting dan sempat terlewat. Syarat awal cuma ">= 48 jam",
-    # padahal engagement_cache rata-rata diukur 231 jam setelah tayang. Akibatnya
-    # view mencampur pengukuran umur 48 jam dengan umur 10 hari, dan selisihnya
-    # bukan main: untuk SETIAP layout, baris cache tampak 2-7x lebih tinggi
-    # daripada baris snapshot (mis. FIELD SIGNS GRID 264 vs 37). Post baru yang
-    # dinilai lewat snapshot otomatis kalah dari post lama yang diukur belakangan
-    # — bias yang sama, hanya bergeser batasnya.
-    # PENTING: kolom rel_engagement dan alasannya.
-    #
-    # Menyaring snapshot48 menyamakan CARA mengukur, tapi tidak menyamakan
-    # KONDISI. Awal September jangkauan ketiga page runtuh: klik per postingan
-    # Putri Kejora jatuh 539 -> 14 dalam dua hari, kunjungan halaman 261 -> 69
-    # dalam enam hari, sementara rasio engagement/klik tetap datar di 19-25%.
-    # Kontennya sama menariknya; yang berkurang orang yang melihatnya.
-    #
-    # Selama pembelajar memakai engagement MENTAH, setiap pilihan yang kebetulan
-    # diuji minggu ini divonis buruk dibanding pilihan yang diuji minggu lalu —
-    # bias era yang sama, hanya berpindah ke dalam jendela snapshot48.
-    #
-    # rel_engagement membandingkan tiap postingan dengan rata-rata page di
-    # sekitar waktunya sendiri, sehingga pergeseran jangkauan hilang dari
-    # perbandingan dan yang tersisa benar-benar mutu pilihannya.
-
-    # CATATAN PENTING soal kolom 'source'. Jendela 36-96 jam membuat pengukuran
-    # cache setara secara UMUR, tapi tidak setara secara ERA. Contoh nyata di
-    # Putri Kejora: hook Mythbuster tampak 272 rata-rata, padahal itu 5 postingan
-    # Juli (398) bercampur 3 postingan Agustus (62) — sementara hook Fact hanya
-    # punya baris Agustus (37). Engagement page memang runtuh antar bulan, jadi
-    # membandingkan pilihan yang diuji di bulan berbeda menghukum yang baru.
-    # Karena itu SEMUA pembelajar menyaring source = 'snapshot48'; baris cache
-    # tetap disediakan view untuk dasbor dan analisis riwayat.
-    #
-    # View dibuat SETELAH migrasi kolom, bukan sebelumnya. Kalau dibalik, view
-    # yang menyebut kolom hasil migrasi (mis. posts.image_score) akan lolos saat
-    # dibuat tapi gagal saat dibaca, karena SQLite baru memeriksa nama kolom
-    # ketika view itu dipakai.
+    # Learning uses actual capture ages 48–50h. Historical data is retained.
+    # Relative outcomes use at least three earlier same-page posts in 14 days.
+    # This reduces temporal confounding but does not measure reach or prove causality.
     cursor.execute('DROP VIEW IF EXISTS post_engagement')
     cursor.execute('''
         CREATE VIEW post_engagement AS
@@ -314,31 +276,36 @@ def init_db():
                s.clicks        AS clicks,
                COALESCE(s.likes + s.comments, ec.likes + ec.comments) AS engagement,
                CASE WHEN s.fb_post_id IS NOT NULL THEN 'snapshot48' ELSE 'cache' END AS source,
-               -- Rata-rata engagement page di sekitar waktu posting ini (+/- 7 hari).
-               -- Inilah pembanding yang adil: seberapa baik postingan ini dibanding
-               -- postingan lain yang menghadapi kondisi jangkauan yang sama.
-               (SELECT AVG(s2.likes + s2.comments)
+               -- At least three earlier same-page observations from the preceding 14 days.
+               (SELECT CASE WHEN COUNT(*) >= 3 THEN AVG(s2.likes + s2.comments) END
                   FROM posts p2
                   JOIN engagement_snapshots s2
                     ON s2.fb_post_id = p2.fb_post_id AND s2.age_hours = 48
                  WHERE p2.page_id = p.page_id
                    AND p2.status = 'success'
-                   AND ABS(julianday(p2.timestamp) - julianday(p.timestamp)) <= 7
+                   AND p2.id != p.id
+                   AND julianday(p2.timestamp) < julianday(p.timestamp)
+                   AND julianday(p2.timestamp) >= julianday(p.timestamp, '-14 days')
+                   AND (julianday(s2.captured_at)-julianday(p2.timestamp))*24 BETWEEN 48 AND 50
                ) AS page_window_mean,
                -- Engagement relatif: 1.0 berarti sebaik rata-rata page pada
                -- periode itu. Angka inilah yang dipakai semua pembelajar.
                COALESCE(s.likes + s.comments, ec.likes + ec.comments) * 1.0 / NULLIF(
-                 (SELECT AVG(s2.likes + s2.comments)
+                 (SELECT CASE WHEN COUNT(*) >= 3 THEN AVG(s2.likes + s2.comments) END
                     FROM posts p2
                     JOIN engagement_snapshots s2
                       ON s2.fb_post_id = p2.fb_post_id AND s2.age_hours = 48
                    WHERE p2.page_id = p.page_id
                      AND p2.status = 'success'
-                     AND ABS(julianday(p2.timestamp) - julianday(p.timestamp)) <= 7
+                     AND p2.id != p.id
+                     AND julianday(p2.timestamp) < julianday(p.timestamp)
+                     AND julianday(p2.timestamp) >= julianday(p.timestamp, '-14 days')
+                     AND (julianday(s2.captured_at)-julianday(p2.timestamp))*24 BETWEEN 48 AND 50
                  ), 0) AS rel_engagement
         FROM posts p
         LEFT JOIN engagement_snapshots s
                ON s.fb_post_id = p.fb_post_id AND s.age_hours = 48
+                  AND (julianday(s.captured_at)-julianday(p.timestamp))*24 BETWEEN 48 AND 50
         LEFT JOIN engagement_cache ec
                ON ec.fb_post_id = p.fb_post_id
         WHERE p.status = 'success'

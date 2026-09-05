@@ -1,13 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Pisahkan dua sebab yang gampang tertukar saat engagement turun:
-jangkauan yang menyusut, atau konten yang kurang menarik.
-
-Caranya: bandingkan KLIK (berapa orang yang melihat lalu tertarik membuka)
-dengan RASIO engagement/klik (dari yang membuka, berapa yang menyukai atau
-berkomentar). Kalau klik runtuh sementara rasionya tetap, masalahnya ada di
-distribusi — bukan di mutu konten. Kalau rasionya yang turun, sebaliknya.
+Ringkasan klik dan interaksi untuk diagnosis awal.
+Klik bukan jangkauan atau jumlah orang unik. Rasio engagement/klik bukan
+conversion rate dan tidak memisahkan penyebab distribusi dari kualitas konten.
 
 Pakai:
     python scripts/reach_check.py
@@ -46,7 +42,7 @@ def main():
             print('     %s n=%s klik=%6.0f eng=%5.1f %s' % (
                 r['hari'], r['n'], r['k'] or 0, r['e'] or 0, bar))
 
-    print('\n=== RASIO ENGAGEMENT/KLIK — apakah MUTU yang turun? ===')
+    print('\n=== PERBANDINGAN ENGAGEMENT/KLIK — bukan conversion rate atau bukti penyebab ===')
     for r in c.execute(
             "SELECT date(timestamp) hari, sum(engagement) e, sum(clicks) k "
             "FROM post_engagement WHERE source='snapshot48' AND clicks IS NOT NULL "

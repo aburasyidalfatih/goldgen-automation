@@ -40,6 +40,18 @@ def job_auto_replier():
         except Exception as e:
             logger.error(f"[WORKER] Error pada Auto Reply Comments: {e}", exc_info=True)
 
+def job_engagement_snapshots():
+    with ProcessLock('engagement_snapshots') as lock:
+        if not lock.acquired:
+            return
+        try:
+            from comment_analyzer import CommentAnalyzer
+            CommentAnalyzer().capture_due_snapshots()
+        except Exception as exc:
+            from core.safe_log import redact
+            logger.error('Snapshot collection failed: %s', redact(exc))
+
+
 def start_worker():
     """Memulai Internal Job Worker (Background Scheduler)"""
     scheduler = BackgroundScheduler(timezone=pytz.timezone('Asia/Jakarta'))
@@ -57,6 +69,9 @@ def start_worker():
     scheduler.add_job(job_auto_replier, 'cron', minute='*/10', id='auto_reply_job',
                       jitter=180, max_instances=1, coalesce=True, misfire_grace_time=300)
 
+    scheduler.add_job(job_engagement_snapshots, 'cron', minute='*/15',
+                      id='engagement_snapshots_job', max_instances=1,
+                      coalesce=True, misfire_grace_time=300)
     scheduler.start()
     logger.info("✅ [WORKER] Internal Job Worker (APScheduler) berhasil dinyalakan! (dengan human-like jitter)")
     return scheduler

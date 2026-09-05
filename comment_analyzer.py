@@ -94,6 +94,51 @@ class CommentAnalyzer:
         """Initialize database (skema tunggal ada di core/database.py)"""
         init_db()
 
+    def capture_due_snapshots(self):
+        """Collect once at 48–50 hours, independently of content generation."""
+        fields = ('id,comments.limit(0).summary(true),'
+                  'reactions.type(LIKE).limit(0).summary(total_count).as(like_count),'
+                  'reactions.type(LOVE).limit(0).summary(total_count).as(love),'
+                  'reactions.type(HAHA).limit(0).summary(total_count).as(haha),'
+                  'reactions.type(WOW).limit(0).summary(total_count).as(wow)')
+        for page in self.fanspages:
+            conn = get_db_connection()
+            rows = conn.execute('''
+                SELECT p.fb_post_id FROM posts p
+                LEFT JOIN engagement_snapshots s ON s.fb_post_id=p.fb_post_id AND s.age_hours=48
+                WHERE p.page_id=? AND p.status='success' AND p.fb_post_id IS NOT NULL
+                  AND s.fb_post_id IS NULL
+                  AND (julianday('now')-julianday(p.timestamp))*24 BETWEEN 48 AND 50
+                ORDER BY julianday(p.timestamp) LIMIT 20
+            ''', (page['page_id'],)).fetchall()
+            conn.close()
+            for row in rows:
+                try:
+                    post_id = row['fb_post_id']
+                    response = requests.get(f'https://graph.facebook.com/v18.0/{post_id}',
+                                            params={'fields': fields, 'access_token': page['access_token']},
+                                            timeout=30)
+                    response.raise_for_status()
+                    data = response.json()
+                    values = [data.get(k, {}).get('summary', {}).get('total_count')
+                              for k in ('like_count', 'love', 'haha', 'wow', 'comments')]
+                    if any(type(v) is not int or v < 0 for v in values):
+                        raise ValueError('Metrik snapshot tidak lengkap; akan dicoba kembali')
+                    clicks = self.fetch_post_clicks(post_id, page['access_token'])
+                    conn = get_db_connection()
+                    try:
+                        with conn:
+                            conn.execute('''INSERT OR IGNORE INTO engagement_snapshots
+                                (fb_post_id,age_hours,likes,comments,clicks)
+                                SELECT ?,48,?,?,? WHERE EXISTS (
+                                  SELECT 1 FROM posts WHERE fb_post_id=?
+                                  AND (julianday('now')-julianday(timestamp))*24 BETWEEN 48 AND 50)
+                            ''', (post_id, sum(values[:4]), values[4], clicks, post_id))
+                    finally:
+                        conn.close()
+                except Exception as exc:
+                    print(f'Snapshot {row["fb_post_id"]} gagal: {redact(exc)}')
+
     def _get_hook_types(self, fb_post_ids):
         """Ambil hook_type untuk banyak post sekaligus (1 query, bukan 1 koneksi per post)"""
         if not fb_post_ids:
@@ -166,20 +211,7 @@ class CommentAnalyzer:
             return None
 
     def fetch_post_clicks(self, fb_post_id, access_token):
-        """Ambil jumlah klik sebuah postingan (butuh scope read_insights).
-
-        Catatan penting: `post_impressions` dan `post_impressions_unique`
-        SUDAH DIHAPUS Meta — dites langsung dengan token ber-read_insights dan
-        tetap ditolak "(#100) must be a valid insights metric". Jadi reach asli
-        memang tidak bisa lagi diambil lewat API.
-
-        `post_clicks` masih hidup dan jadi pengganti terbaik: ia menghitung
-        berapa orang benar-benar mengklik postingan (buka foto, "lihat
-        selengkapnya"). Berbeda dengan like/komentar yang butuh niat lebih
-        besar, klik mendekati ukuran "berapa banyak yang benar-benar melihat
-        lalu tertarik" — cukup untuk memisahkan konten lemah dari jangkauan
-        yang menyempit.
-        """
+        """Read post clicks when available. Clicks are not reach or unique viewers."""
         try:
             r = requests.get(
                 f"https://graph.facebook.com/v18.0/{fb_post_id}/insights",
@@ -269,7 +301,6 @@ class CommentAnalyzer:
         metrics = []
         engagement_samples = []  # untuk update baseline
         perf_rows = []           # performa per-post untuk pembelajaran layout
-        snapshot_rows = []       # snapshot pada umur 48 jam (perbandingan yang adil)
         hook_types = self._get_hook_types([p['id'] for p in posts])
 
         for post in posts:
@@ -292,16 +323,6 @@ class CommentAnalyzer:
             total = likes + shares + love + haha + wow + angry + sad
             engagement_samples.append(total)
 
-            # Rekam snapshot begitu postingan melewati 48 jam. INSERT OR IGNORE
-            # membuat pengukuran PERTAMA setelah 48 jam yang dipakai selamanya,
-            # sehingga tiap post dinilai pada tingkat kematangan yang sama.
-            try:
-                age_hours = (datetime.utcnow() - post_time).total_seconds() / 3600
-                if age_hours >= 48:
-                    klik = self.fetch_post_clicks(post['id'], access_token)
-                    snapshot_rows.append((post['id'], likes + love + haha + wow, comments_count, klik))
-            except Exception:
-                pass
 
             # Simpan performa per-post supaya pemilihan LAYOUT bisa belajar dari
             # data nyata. Sebelumnya angka ini cuma dipakai sesaat lalu dibuang,
@@ -341,21 +362,6 @@ class CommentAnalyzer:
                     'message_preview': message[:120]
                 })
 
-        # Simpan snapshot umur-48-jam — dasar semua perbandingan yang adil
-        if snapshot_rows:
-            try:
-                conn = get_db_connection()
-                conn.executemany('''
-                    INSERT OR IGNORE INTO engagement_snapshots (fb_post_id, age_hours, likes, comments, clicks)
-                    VALUES (?, 48, ?, ?, ?)
-                ''', snapshot_rows)
-                baru = conn.total_changes
-                conn.commit()
-                conn.close()
-                if baru:
-                    print(f"   📸 {baru} snapshot engagement 48 jam terekam")
-            except Exception as e:
-                print(f"   ⚠️ Gagal menyimpan snapshot engagement: {redact(e)}")
 
         # Simpan performa per-post ke engagement_cache — inilah bahan bakar
         # pembelajaran layout di goldgen_service._get_layout_performance()

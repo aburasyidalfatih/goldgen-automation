@@ -25,7 +25,7 @@ def _fetch_posts_with_engagement(page_id=None):
                editor_score, image_score, topic_id, topic_headline, content,
                clicks, engagement, rel_engagement, source
         FROM post_engagement
-        WHERE source = 'snapshot48'
+        WHERE source = 'snapshot48' AND rel_engagement IS NOT NULL
     '''
     params = []
     if page_id:
