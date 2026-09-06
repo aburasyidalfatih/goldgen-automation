@@ -6,7 +6,7 @@ Simple Flask API to serve dashboard data
 
 from flask import (
     Flask, jsonify, request, session, redirect, url_for,
-    render_template, send_from_directory
+    render_template, send_from_directory, send_file
 )
 from flask_cors import CORS
 import sqlite3
@@ -20,6 +20,11 @@ bp = Blueprint('api', __name__)
 
 from core.config import BASE_DIR, DB_PATH, IMAGES_DIR, DATA_DIR, CONFIG_PATH, DASHBOARD_PIN
 from core.database import get_db_connection
+from core.motion_studio import create_job, list_jobs, list_topics, update_job
+from core.motion_assets import search_assets, scan_existing_images
+from core.motion_renderer import default_manifest, render_manifest
+from core.motion_tts import generate_voiceover
+from core.motion_qa import validate_render
 
 
 def require_pin(f):
@@ -50,6 +55,107 @@ def login_page():
 @require_pin
 def serve_dashboard():
     return render_template("dashboard_schedule.html")
+
+@bp.route("/motion-studio")
+@require_pin
+def serve_motion_studio():
+    """Serve the isolated Motion Studio UI."""
+    return render_template("motion_studio.html", topics=list_topics(), jobs=list_jobs())
+
+@bp.route('/api/motion/jobs', methods=['GET', 'POST'])
+@require_pin
+def motion_jobs():
+    if request.method == 'GET':
+        return jsonify({'success': True, 'jobs': list_jobs()})
+    data = request.get_json(silent=True) or {}
+    try:
+        topic_id = int(data.get('topic_id'))
+        return jsonify({'success': True, 'job': create_job(topic_id)}), 201
+    except (TypeError, ValueError) as exc:
+        return jsonify({'success': False, 'error': str(exc)}), 400
+
+@bp.route('/api/motion/assets', methods=['GET'])
+@require_pin
+def motion_assets():
+    return jsonify({'success': True, 'assets': search_assets(
+        request.args.get('q', ''), request.args.get('type'),
+        request.args.get('approved') == '1'
+    )})
+
+@bp.route('/api/motion/assets/scan', methods=['POST'])
+@require_pin
+def scan_motion_assets():
+    registered = scan_existing_images(IMAGES_DIR)
+    return jsonify({'success': True, 'registered_count': len(registered)})
+
+@bp.route('/api/motion/readiness', methods=['GET'])
+@require_pin
+def motion_readiness():
+    import os
+    from core.motion_renderer import ffmpeg_path
+    from core.motion_tts import _configured_api_key
+    return jsonify({
+        'success': True,
+        'ready_for_local_render': bool(ffmpeg_path()),
+        'ffmpeg': bool(ffmpeg_path()),
+        'gemini_tts_configured': bool(_configured_api_key()),
+        'automatic_publishing_enabled': os.getenv('MOTION_AUTO_PUBLISH_ENABLED', 'false').lower() == 'true',
+        'manual_export_enabled': True,
+    })
+
+@bp.route('/api/motion/jobs/<job_id>/render', methods=['POST'])
+@require_pin
+def render_motion_job(job_id):
+    job = next((item for item in list_jobs(100) if item['id'] == job_id), None)
+    if not job:
+        return jsonify({'success': False, 'error': 'Motion job tidak ditemukan'}), 404
+    topic = next((item for item in list_topics() if item['id'] == job['topic_id']), None)
+    try:
+        update_job(job_id, status='rendering', error_message=None)
+        from core.motion_studio import MOTION_RENDERS_DIR
+        audio_path = MOTION_RENDERS_DIR / f'{job_id}.wav'
+        result = render_manifest(job_id, default_manifest(topic), audio_path=audio_path)
+        qa = validate_render(result['output_path'], result['manifest_path'])
+        if not qa['ok']:
+            update_job(job_id, status='failed', output_path=result['output_path'], error_message='; '.join(qa['errors']))
+            return jsonify({'success': False, 'error': 'Video gagal QA', 'qa': qa}), 422
+        updated = update_job(job_id, status='ready', output_path=result['output_path'])
+        return jsonify({'success': True, 'job': updated, 'render': result, 'qa': qa})
+    except (OSError, RuntimeError) as exc:
+        update_job(job_id, status='failed', error_message=str(exc))
+        return jsonify({'success': False, 'error': str(exc)}), 503
+
+@bp.route('/api/motion/jobs/<job_id>/voiceover', methods=['POST'])
+@require_pin
+def motion_voiceover(job_id):
+    job = next((item for item in list_jobs(100) if item['id'] == job_id), None)
+    if not job:
+        return jsonify({'success': False, 'error': 'Motion job tidak ditemukan'}), 404
+    data = request.get_json(silent=True) or {}
+    text = str(data.get('text') or job['topic_headline']).strip()
+    if not text:
+        return jsonify({'success': False, 'error': 'Naskah voice-over kosong'}), 400
+    try:
+        path = generate_voiceover(job_id, text, str(data.get('voice') or 'Kore'))
+        return jsonify({'success': True, 'audio_path': path})
+    except (OSError, RuntimeError) as exc:
+        return jsonify({'success': False, 'error': str(exc)}), 503
+
+@bp.route('/api/motion/jobs/<job_id>/download', methods=['GET'])
+@require_pin
+def download_motion_job(job_id):
+    job = next((item for item in list_jobs(100) if item['id'] == job_id), None)
+    if not job or job.get('status') != 'ready' or not job.get('output_path'):
+        return jsonify({'success': False, 'error': 'Video belum siap diunduh'}), 404
+    return send_file(job['output_path'], as_attachment=True, download_name=f"goldgen-motion-{job['topic_id']}.mp4")
+
+@bp.route('/api/motion/jobs/<job_id>/preview', methods=['GET'])
+@require_pin
+def preview_motion_job(job_id):
+    job = next((item for item in list_jobs(100) if item['id'] == job_id), None)
+    if not job or job.get('status') != 'ready' or not job.get('output_path'):
+        return jsonify({'success': False, 'error': 'Video belum siap dipreview'}), 404
+    return send_file(job['output_path'], mimetype='video/mp4', as_attachment=False)
 
 
 

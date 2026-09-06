@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   goldgen-bot:
     build:
@@ -20,7 +18,27 @@ services:
       - PYTHONUNBUFFERED=1
       - TZ=Asia/Jakarta
 
+  goldgen-motion-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: goldgen-automation:latest
+    container_name: goldgen-motion-worker
+    command: ["python", "motion_worker.py"]
+    restart: unless-stopped
+    volumes:
+      - goldgen_data:/app/data
+      - goldgen_images:/app/generated_images
+      - goldgen_logs:/app/logs
+      - goldgen_motion:/app/motion_studio
+      - goldgen_motion:/app/motion_studio
+    environment:
+      - PYTHONUNBUFFERED=1
+      - TZ=Asia/Jakarta
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+
 volumes:
   goldgen_data:
   goldgen_images:
   goldgen_logs:
+  goldgen_motion:

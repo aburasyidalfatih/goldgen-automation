@@ -12,6 +12,7 @@ data/config.json
 data/config.json.backup.*
 generated_images/
 logs/
+motion_studio/
 .env
 .env.example
 *.db

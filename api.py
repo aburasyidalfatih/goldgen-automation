@@ -12,6 +12,7 @@ from flask_cors import CORS
 from controllers.routes import bp
 from core.config import SECRET_KEY
 from core.database import init_db
+from core.motion_studio import init_motion_storage
 
 app = Flask(__name__)
 CORS(app, supports_credentials=True)
@@ -21,6 +22,7 @@ app.register_blueprint(bp)
 
 # Initialize database tables
 init_db()
+init_motion_storage()
 
 # Start internal job worker (APScheduler)
 from core.worker import start_worker
