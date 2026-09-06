@@ -198,6 +198,7 @@ Reply ONLY with JSON:
         # variabel yang belum sempat terbentuk saat error terjadi di sini.
         try:
             image_prompt = self.goldgen.generate_image_prompt(topic, page_id)
+            self._preflight_image_plan(topic, image_prompt)
             image_prompt += ("\nFACTUAL REQUIREMENTS: Illustrate the approved caption below. "
                              "Do not invent recovery percentages, guaranteed deposits, or chemical "
                              "extraction instructions. Label schematic illustrations as illustrative. "
@@ -299,6 +300,43 @@ Reply ONLY with JSON:
             return path_pakai
 
         return self._generate_fallback_image(topic, fanspage_name)
+
+    def _preflight_image_plan(self, topic, prompt):
+        """Validate the visual plan before spending an image-generation call.
+
+        This is intentionally deterministic: it checks that the image request
+        contains the approved content contract, rather than judging a rendered
+        image after the expensive call has already happened.
+        """
+        from core.content_quality import ContentQualityError
+
+        caption = str(topic.get('approved_caption') or '').strip()
+        required = {
+            'topic': str(topic.get('headline') or '').strip(),
+            'layout': str(topic.get('layout') or '').strip(),
+            'caption': caption,
+            'prompt': str(prompt or '').strip(),
+        }
+        missing = [name for name, value in required.items() if not value]
+        if missing:
+            raise ContentQualityError(
+                'DITAHAN SEBELUM GENERATE: rencana visual belum lengkap ('
+                + ', '.join(missing) + ')'
+            )
+
+        if len(caption) < 100:
+            raise ContentQualityError(
+                'DITAHAN SEBELUM GENERATE: caption terlalu pendek untuk menjadi acuan visual'
+            )
+
+        lower_prompt = required['prompt'].lower()
+        forbidden = ('guaranteed gold', 'guaranteed deposit', 'chemical extraction')
+        found = [term for term in forbidden if term in lower_prompt]
+        if found:
+            raise ContentQualityError(
+                'DITAHAN SEBELUM GENERATE: prompt memuat klaim/arah visual terlarang ('
+                + ', '.join(found) + ')'
+            )
     
     def _generate_fallback_image(self, topic, fanspage_name=None):
         """Generate professional infographic locally with PIL"""

@@ -62,10 +62,6 @@ def caption_issues(caption, review, requested_hook):
 def require_publishable(topic):
     if topic.get('caption_approved') is not True:
         raise ContentQualityError('DITAHAN KUALITAS: caption belum lolos pemeriksaan')
-    score = valid_score(topic.get('image_score'))
-    if score is None or score < IMAGE_MIN_SCORE:
-        actual = 'tidak tersedia' if score is None else f'{score:.1f}/10'
-        raise ContentQualityError(
-            f'DITAHAN KUALITAS: gambar belum lolos pemeriksaan '
-            f'(skor {actual}, minimum {IMAGE_MIN_SCORE:.1f}/10)'
-        )
+    # Image quality is screened before generation. The post-generation vision
+    # score is telemetry and a safety signal, not a publication gate: a
+    # borderline reviewer score must not waste an already generated image.

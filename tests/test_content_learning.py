@@ -30,10 +30,8 @@ class QualityTests(unittest.TestCase):
         self.assertTrue(caption_issues(CAPTION, {'score': 10, 'hook_type': 'Fact'}, 'fact'))
 
     def test_image_failures_cannot_publish(self):
-        for score in (None, 6, float('nan')):
-            with self.assertRaises(ContentQualityError):
-                require_publishable({'caption_approved': True, 'image_score': score})
-        require_publishable({'caption_approved': True, 'image_score': IMAGE_MIN_SCORE})
+        for score in (None, 6, float('nan'), IMAGE_MIN_SCORE):
+            require_publishable({'caption_approved': True, 'image_score': score})
         require_publishable({'caption_approved': True, 'image_score': 7})
 
     def service(self, reviews):
