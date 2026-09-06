@@ -21,7 +21,7 @@ bp = Blueprint('api', __name__)
 from core.config import BASE_DIR, DB_PATH, IMAGES_DIR, DATA_DIR, CONFIG_PATH, DASHBOARD_PIN
 from core.database import get_db_connection
 from core.motion_studio import create_job, list_jobs, list_topics, update_job
-from core.motion_assets import search_assets, scan_existing_images, import_external_asset, search_openverse
+from core.motion_assets import search_assets, scan_existing_images
 from core.motion_renderer import default_manifest, render_manifest
 from core.motion_tts import generate_voiceover
 from core.motion_qa import validate_render
@@ -87,28 +87,6 @@ def motion_assets():
 def scan_motion_assets():
     registered = scan_existing_images(IMAGES_DIR)
     return jsonify({'success': True, 'registered_count': len(registered)})
-
-@bp.route('/api/motion/assets/import', methods=['POST'])
-@require_pin
-def import_motion_asset():
-    data = request.get_json(silent=True) or {}
-    try:
-        asset = import_external_asset(
-            str(data.get('source_url') or ''), str(data.get('license_name') or ''),
-            str(data.get('creator') or ''), str(data.get('attribution') or ''),
-            tuple(str(data.get('tags') or '').split(',')) if data.get('tags') else (),
-        )
-        return jsonify({'success': True, 'asset': asset}), 201
-    except (OSError, RuntimeError, ValueError) as exc:
-        return jsonify({'success': False, 'error': str(exc)}), 400
-
-@bp.route('/api/motion/assets/search', methods=['GET'])
-@require_pin
-def search_motion_external_assets():
-    try:
-        return jsonify({'success': True, 'results': search_openverse(request.args.get('q', ''))})
-    except (OSError, RuntimeError, ValueError) as exc:
-        return jsonify({'success': False, 'error': str(exc)}), 502
 
 @bp.route('/api/motion/readiness', methods=['GET'])
 @require_pin
