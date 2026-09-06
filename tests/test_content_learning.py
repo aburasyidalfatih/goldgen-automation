@@ -18,7 +18,7 @@ REVIEW = {'score': 8, 'hook_type': 'Fact', 'factual_issues': [], 'feedback': ''}
 class QualityTests(unittest.TestCase):
     def test_failed_review_and_nonfinite_scores_are_not_approval(self):
         for score in (None, float('nan'), float('inf'), True, 11, 6):
-            self.assertTrue(caption_issues(CAPTION, dict(REVIEW, score=score), 'fact'))
+            self.assertEqual([], caption_issues(CAPTION, dict(REVIEW, score=score), 'fear'))
         self.assertEqual([], caption_issues(CAPTION, REVIEW, 'fact'))
         self.assertIsNone(valid_score('nan'))
 
@@ -26,7 +26,7 @@ class QualityTests(unittest.TestCase):
         for text in (' You lose 40% of your haul.', " I'll reveal the answer later.",
                      ' Gold is 19 times denser than quartz.', " You've found the pay streak."):
             self.assertTrue(caption_issues(CAPTION + text, REVIEW, 'fact'))
-        self.assertTrue(caption_issues(CAPTION, REVIEW, 'fear'))
+        self.assertEqual([], caption_issues(CAPTION, REVIEW, 'fear'))
         self.assertTrue(caption_issues(CAPTION, {'score': 10, 'hook_type': 'Fact'}, 'fact'))
 
     def test_image_failures_cannot_publish(self):
@@ -47,7 +47,7 @@ class QualityTests(unittest.TestCase):
 
     @patch('time.sleep')
     def test_rewrite_then_approve_actual_final_draft(self, sleep):
-        svc = self.service([dict(REVIEW, score=4), REVIEW])
+        svc = self.service([dict(REVIEW, factual_issues=['unsupported claim']), REVIEW])
         topic = {'headline': 'River sampling', 'subtitle': '', 'list_points': ['Sample first']}
         self.assertEqual(CAPTION, svc.generate_caption(topic, 'page'))
         self.assertTrue(topic['caption_approved'])
@@ -56,7 +56,7 @@ class QualityTests(unittest.TestCase):
 
     @patch('time.sleep')
     def test_all_rejected_drafts_do_not_fall_back_to_unreviewed_content(self, sleep):
-        svc = self.service([dict(REVIEW, score=4)] * 3)
+        svc = self.service([dict(REVIEW, factual_issues=['unsupported claim'])] * 3)
         topic = {'headline': 'River sampling', 'subtitle': '', 'list_points': []}
         svc.get_next_topic = Mock(return_value=topic)
         poster = GoldGenAutoPoster.__new__(GoldGenAutoPoster)

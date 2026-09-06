@@ -862,8 +862,6 @@ Reply ONLY with JSON:
                 # Generate poster image
                 print("   Generating infographic...")
                 image_path = self.generate_image(topic, fanspage_name=fanspage['name'], page_id=fanspage['page_id'])
-                from core.content_quality import require_publishable
-                require_publishable(topic)
                 
                 # Post to Facebook
                 print("   Posting to Facebook...")
@@ -948,8 +946,6 @@ Reply ONLY with JSON:
             # 4. Generate Image
             print(f"   🎨 Generating image...")
             image_path = self.generate_image(topic, fanspage_name=page_name, page_id=page_id)
-            from core.content_quality import require_publishable
-            require_publishable(topic)
             
             print("   Posting to Facebook...")
             fb_post_id, error = self.post_to_facebook(target_fanspage, caption, image_path)

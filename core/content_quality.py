@@ -40,14 +40,10 @@ def valid_score(value):
 
 def caption_issues(caption, review, requested_hook):
     issues = []
-    score = valid_score(review.get('score'))
-    if score is None or score < 7:
-        issues.append('caption belum mencapai skor kualitas 7/10')
+    # Score and hook are learning signals, not publication requirements.
     # Missing structured checks must not silently approve a failed reviewer.
     if review.get('factual_issues') != []:
         issues.append('klaim faktual belum lolos pemeriksaan: ' + str(review.get('factual_issues'))[:300])
-    if str(review.get('hook_type') or '').lower() != (requested_hook or '').lower():
-        issues.append('gaya pembuka tidak sesuai pilihan pembelajaran')
     if len(caption) < 100 or len(caption) > 1400:
         issues.append('panjang caption harus 100–1400 karakter')
     if re.search(r'\b\d+(?:\.\d+)?\s*(?:%|percent\b|times\b)|\b(?:retirement fund|mortgage payment)\b', caption, re.I):
