@@ -1,19 +1,20 @@
 import unittest
-from core.audience_learning import add_view_outcomes
-
+from datetime import datetime, timedelta, timezone
+from core.audience_learning import add_view_outcomes, summarize
 
 class ViewLearningTests(unittest.TestCase):
-    def test_high_views_reward_low_interactions_without_future_or_other_page_leak(self):
-        rows = [dict(page_id='a', timestamp=f'2026-09-0{i}T00:00:00+00:00',
-                     media_views=100, rel_engagement=1) for i in (1, 2, 3)]
-        target = dict(page_id='a', timestamp='2026-09-04T00:00:00+00:00',
-                      media_views=1000, rel_engagement=0.1)
-        rows += [target, dict(page_id='b', timestamp=rows[0]['timestamp'], media_views=99999),
-                 dict(page_id='a', timestamp='2026-09-05T00:00:00+00:00', media_views=99999)]
-        add_view_outcomes(rows)
-        self.assertEqual(10, target['learning_outcome'])
-        self.assertNotIn('rel_views', rows[0])
+    def test_views_first_and_window_and_page_isolation(self):
+        now = datetime.now(timezone.utc)
+        def row(v,e,d=1,p='a'):
+            return dict(page_id=p,timestamp=(now-timedelta(days=d)).isoformat(),media_views=v,engagement=e,rel_engagement=999)
+        result=add_view_outcomes([row(1000,0,29),row(100,9999),row(100,1),row(99999,1,31),row(99999,1,-1),row(None,9999),row(1,1,p='b')],now)
+        self.assertEqual(4,len(result))
+        self.assertEqual(4,result[0]['learning_outcome'])
+        self.assertGreater(result[0]['learning_outcome'],result[1]['learning_outcome'])
+        self.assertGreater(result[1]['learning_outcome'],result[2]['learning_outcome'])
+        self.assertEqual(4,result[3]['learning_outcome'])
+        self.assertEqual(4,summarize([result[0]],now)['avg'])
 
-    def test_missing_views_keeps_engagement(self):
-        row = dict(page_id='a', timestamp='2026-09-04T00:00:00', rel_engagement=2)
-        self.assertEqual(2, add_view_outcomes([row])[0]['learning_outcome'])
+    def test_no_views_fallback(self):
+        row=dict(page_id='a',timestamp=datetime.now(timezone.utc).isoformat(),rel_engagement=2)
+        self.assertEqual(2,add_view_outcomes([row])[0]['learning_outcome'])

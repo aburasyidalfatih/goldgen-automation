@@ -2,32 +2,34 @@
 import math
 from datetime import datetime, timezone
 
-WINDOW_DAYS = 60
+WINDOW_DAYS = 30
 HALF_LIFE_DAYS = 14
 MIN_EFFECTIVE_SAMPLES = 5
 
 
-def add_view_outcomes(rows):
-    """Compare views only to earlier 48h observations of the same page.
-
-    Views can independently reward distribution; low engagement cannot cancel
-    that reward. Missing views preserve the existing engagement-only outcome.
-    """
+def add_view_outcomes(rows, now=None):
+    """Rank comparable posts by views first, interactions only for tied views."""
+    now = now or datetime.now(timezone.utc)
+    recent = []
     for row in rows:
-        row['learning_outcome'] = row.get('rel_engagement')
         stamp = datetime.fromisoformat(row['timestamp'])
         stamp = stamp.replace(tzinfo=timezone.utc) if stamp.tzinfo is None else stamp
-        peers = []
-        for other in rows:
-            date = datetime.fromisoformat(other['timestamp'])
-            date = date.replace(tzinfo=timezone.utc) if date.tzinfo is None else date
-            if other['page_id'] == row['page_id'] and 0 < (stamp-date).total_seconds() <= 14*86400:
-                if other.get('media_views') is not None:
-                    peers.append(other['media_views'])
-        if row.get('media_views') is not None and len(peers) >= 3 and sum(peers) > 0:
-            row['rel_views'] = row['media_views'] / (sum(peers)/len(peers))
-            row['learning_outcome'] = max(row.get('rel_engagement') or 0, row['rel_views'])
-    return rows
+        if 0 <= (now-stamp).total_seconds() <= WINDOW_DAYS*86400:
+            recent.append(dict(row))
+    pages = {row['page_id'] for row in recent}
+    for page in pages:
+        members = [r for r in recent if r['page_id'] == page]
+        measured = [r for r in members if r.get('media_views') is not None]
+        keys = sorted({(r['media_views'], r.get('engagement') or 0) for r in measured})
+        scores = {key: 1 + 3*(i+1)/len(keys) for i,key in enumerate(keys)}
+        for row in members:
+            row['views_ranked'] = bool(measured)
+            # Unmeasured posts cannot outrank measured winners on likes alone.
+            row['learning_outcome'] = (
+                scores[(row['media_views'], row.get('engagement') or 0)]
+                if row.get('media_views') is not None else
+                None if measured else row.get('rel_engagement'))
+    return [row for row in recent if row['learning_outcome'] is not None]
 
 
 def summarize(rows, now=None):
@@ -42,7 +44,7 @@ def summarize(rows, now=None):
             value = float(row.get('learning_outcome', row.get('rel_engagement')))
             if not 0 <= age <= WINDOW_DAYS or not math.isfinite(value) or value < 0:
                 continue
-            weight = 2 ** (-age / HALF_LIFE_DAYS)
+            weight = 1.0 if row.get('views_ranked') else 2 ** (-age / HALF_LIFE_DAYS)
             # Limit single-post outliers; the uncapped outcome remains in the DB.
             values.append((min(value, 4.0), weight))
         except (ValueError, TypeError, KeyError):
@@ -66,7 +68,7 @@ def page_rows(page_id):
     try:
         return add_view_outcomes([dict(r) for r in conn.execute('''
             SELECT * FROM post_engagement WHERE page_id=? AND source='snapshot48'
-              AND julianday(timestamp) BETWEEN julianday('now','-60 days') AND julianday('now')
+              AND julianday(timestamp) BETWEEN julianday('now','-30 days') AND julianday('now')
         ''', (page_id,))])
     finally:
         conn.close()
@@ -86,8 +88,8 @@ def report(page_id):
     from comment_analyzer import normalize_hook
     return {'window_days': WINDOW_DAYS, 'half_life_days': HALF_LIFE_DAYS,
             'minimum_effective_samples': MIN_EFFECTIVE_SAMPLES,
-            'objective': 'Nilai terbaik antara interaksi relatif dan tayangan relatif; bukan pendapatan',
-            'views_baseline': 'Minimal 3 snapshot terdahulu dalam 14 hari pada Fanspage yang sama',
+            'objective': 'Peringkat tayangan 30 hari; interaksi hanya pembeda jika tayangan sama',
+            'views_baseline': 'Snapshot 48 jam per Fanspage; tayangan tertinggi mendapat skor 4',
             'interpretation': 'Bukti observasional; bukan bukti sebab-akibat atau ukuran reach',
             'layouts': performance(page_id, 'layout_name'),
             'hooks': performance(page_id, 'hook_type', normalize_hook),

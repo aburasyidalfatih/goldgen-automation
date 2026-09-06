@@ -5,8 +5,10 @@ Angka ini adalah total tayangan, bukan orang unik dan bukan pendapatan.
 Kegagalan API menghasilkan NULL, bukan nol. Snapshot lama tidak diisi ulang
 dengan angka lifetime saat ini karena umur pengukurannya berbeda.
 
-Pemilihan topik, hook, dan layout memakai nilai terbaik antara interaksi relatif
-dan tayangan relatif. Baseline tayangan membutuhkan minimal tiga posting terdahulu
-dari Fanspage yang sama dalam 14 hari. Tanpa baseline, interaksi tetap digunakan.
-Pembobotan kebaruan dan pembatasan outlier tetap berlaku. Ini merupakan heuristik
-untuk menghargai distribusi maupun interaksi, bukan prediksi penghasilan.
+Pemilihan topik, hook, dan layout memakai peringkat tayangan dalam 30 hari terakhir
+per Fanspage. Interaksi hanya memecahkan seri jika tayangan sama. Peringkat
+tertinggi mendapat skor 4. Tidak ada peluruhan skor tayangan di dalam 30 hari.
+Jika belum ada tayangan sama sekali, interaksi menjadi fallback. Jika sudah ada,
+postingan tanpa tayangan tidak ikut peringkat. Skor kelompok merupakan rata-rata
+skor posting. Eksplorasi dan pertimbangan jumlah sampel tetap berjalan sehingga
+pemenang tidak selalu diulang. Skor ini bukan prediksi penghasilan.
