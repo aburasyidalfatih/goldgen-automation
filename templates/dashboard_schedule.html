@@ -647,6 +647,16 @@
                                 </a>
                             `;
                         }
+
+                        let retryButton = '';
+                        if (post.status !== 'success' && post.image_path) {
+                            retryButton = `
+                                <button onclick="retryExistingPost(${post.id})"
+                                    class="inline-block px-2 py-1 text-xs bg-amber-600 hover:bg-amber-500 text-white rounded transition-colors touch-manipulation">
+                                    Retry Post
+                                </button>
+                            `;
+                        }
                         
                         // Kalau gagal, tampilkan alasannya — bukan cuma label "failed"
                         let failureReason = '';
@@ -672,7 +682,7 @@
                                 <div class="flex items-center gap-2 sm:flex-col sm:items-end sm:text-right w-full sm:w-auto">
                                     <div class="${statusColor} text-xs sm:text-sm font-semibold">${post.status}</div>
                                     <div class="text-xs text-gray-500">${date.toLocaleTimeString('id-ID', {hour: '2-digit', minute: '2-digit'})}</div>
-                                    ${viewPostButton}
+                                    ${viewPostButton}${retryButton}
                                 </div>
                             </div>
                         `;
@@ -682,6 +692,18 @@
                 }
             } catch (e) {
                 console.error('Failed to load posts:', e);
+            }
+        }
+
+        async function retryExistingPost(postId) {
+            if (!confirm('Kirim ulang caption dan gambar yang sudah dibuat? Konten tidak akan digenerate ulang.')) return;
+            try {
+                const res = await fetch(`/api/posts/${postId}/retry`, { method: 'POST' });
+                const data = await res.json();
+                alert(data.success ? 'Posting berhasil dikirim ulang.' : `Retry gagal: ${data.message || data.error}`);
+                await loadRecentPosts();
+            } catch (e) {
+                alert(`Retry gagal: ${e.message}`);
             }
         }
 

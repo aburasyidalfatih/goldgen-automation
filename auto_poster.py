@@ -978,6 +978,42 @@ Reply ONLY with JSON:
             self.log_post(target_fanspage, "", "", None, 'failed', error_msg)
             return False, error_msg
 
+    def retry_existing_post(self, post_id):
+        """Retry a failed post using its already-generated caption and image."""
+        conn = get_db_connection()
+        row = conn.execute(
+            "SELECT * FROM posts WHERE id = ? AND status != 'success'", (post_id,)
+        ).fetchone()
+        conn.close()
+        if not row:
+            return False, 'Postingan tidak ditemukan atau sudah berhasil diposting'
+
+        image_path = Path(row['image_path']) if row['image_path'] else None
+        if not image_path or not image_path.exists():
+            return False, 'File gambar hasil generate sudah tidak tersedia'
+        if not (row['content'] or '').strip():
+            return False, 'Caption hasil generate tidak tersedia'
+
+        page = next((p for p in self.fanspages if str(p.get('page_id')) == str(row['page_id'])), None)
+        if not page:
+            return False, 'Konfigurasi Fanspage tidak ditemukan'
+        valid, token_error = self.validate_token(page)
+        if not valid:
+            return False, token_error
+
+        fb_post_id, error = self.post_to_facebook(page, row['content'], image_path)
+        conn = get_db_connection()
+        if fb_post_id:
+            conn.execute(
+                "UPDATE posts SET fb_post_id = ?, status = 'success', error_message = NULL, timestamp = ? WHERE id = ?",
+                (fb_post_id, datetime.now().isoformat(), post_id),
+            )
+        else:
+            conn.execute("UPDATE posts SET error_message = ? WHERE id = ?", (error, post_id))
+        conn.commit()
+        conn.close()
+        return (True, fb_post_id) if fb_post_id else (False, error)
+
     def process_queue(self):
         """Process queued posts from web app"""
         print("\n🔄 Checking post queue from web app...")

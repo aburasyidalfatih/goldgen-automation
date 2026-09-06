@@ -103,6 +103,18 @@ def trigger_post():
     
     return jsonify({'success': True, 'message': 'Post generation started in background'})
 
+@bp.route('/api/posts/<int:post_id>/retry', methods=['POST'])
+@require_pin
+def retry_post(post_id):
+    """Retry an already-generated failed post without generating new content."""
+    try:
+        from auto_poster import GoldGenAutoPoster
+        poster = GoldGenAutoPoster()
+        success, result = poster.retry_existing_post(post_id)
+        return jsonify({'success': success, 'message': result}), (200 if success else 400)
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'{type(e).__name__}: {e}'}), 500
+
 @bp.route('/api/stats')
 @require_pin
 def get_stats():
