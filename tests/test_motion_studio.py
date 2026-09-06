@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 from core.motion_qa import validate_render
 from core.motion_renderer import default_manifest, render_manifest, write_srt
-from core.motion_assets import init_asset_storage, register_asset, search_assets
+from core.motion_assets import init_asset_storage, register_asset, search_assets, search_openverse
 from core.motion_tts import generate_voiceover
 from core.motion_publisher import publish_video
 
@@ -103,6 +103,16 @@ class MotionStudioTests(unittest.TestCase):
         with patch.dict("os.environ", {"MOTION_AUTO_PUBLISH_ENABLED": "false"}, clear=False):
             with self.assertRaisesRegex(RuntimeError, "disabled"):
                 publish_video("page", "token", "missing.mp4", "caption")
+
+    def test_openverse_search_normalizes_license_metadata(self):
+        class FakeResponse:
+            def __enter__(self): return self
+            def __exit__(self, *args): pass
+            def read(self): return json.dumps({"results": [{"id": "1", "title": "River", "url": "https://upload.wikimedia.org/river.jpg", "creator": "A", "license": "by", "license_version": "4.0", "license_url": "https://creativecommons.org/licenses/by/4.0/"}]}).encode()
+        with patch("core.motion_assets.urlopen", return_value=FakeResponse()):
+            result = search_openverse("gold river")
+        self.assertEqual(result[0]["license"], "by")
+        self.assertEqual(result[0]["creator"], "A")
 
 
 if __name__ == "__main__":

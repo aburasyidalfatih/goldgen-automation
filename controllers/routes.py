@@ -21,7 +21,7 @@ bp = Blueprint('api', __name__)
 from core.config import BASE_DIR, DB_PATH, IMAGES_DIR, DATA_DIR, CONFIG_PATH, DASHBOARD_PIN
 from core.database import get_db_connection
 from core.motion_studio import create_job, list_jobs, list_topics, update_job
-from core.motion_assets import search_assets, scan_existing_images, import_external_asset
+from core.motion_assets import search_assets, scan_existing_images, import_external_asset, search_openverse
 from core.motion_renderer import default_manifest, render_manifest
 from core.motion_tts import generate_voiceover
 from core.motion_qa import validate_render
@@ -101,6 +101,14 @@ def import_motion_asset():
         return jsonify({'success': True, 'asset': asset}), 201
     except (OSError, RuntimeError, ValueError) as exc:
         return jsonify({'success': False, 'error': str(exc)}), 400
+
+@bp.route('/api/motion/assets/search', methods=['GET'])
+@require_pin
+def search_motion_external_assets():
+    try:
+        return jsonify({'success': True, 'results': search_openverse(request.args.get('q', ''))})
+    except (OSError, RuntimeError, ValueError) as exc:
+        return jsonify({'success': False, 'error': str(exc)}), 502
 
 @bp.route('/api/motion/readiness', methods=['GET'])
 @require_pin
