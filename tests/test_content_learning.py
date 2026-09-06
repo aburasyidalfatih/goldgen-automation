@@ -4,7 +4,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch, Mock
 
-from core.content_quality import caption_issues, require_publishable, ContentQualityError, valid_score
+from core.content_quality import caption_issues, require_publishable, ContentQualityError, valid_score, IMAGE_MIN_SCORE
 from core import database
 from goldgen_service import GoldGenService
 from auto_poster import GoldGenAutoPoster
@@ -33,6 +33,7 @@ class QualityTests(unittest.TestCase):
         for score in (None, 6, float('nan')):
             with self.assertRaises(ContentQualityError):
                 require_publishable({'caption_approved': True, 'image_score': score})
+        require_publishable({'caption_approved': True, 'image_score': IMAGE_MIN_SCORE})
         require_publishable({'caption_approved': True, 'image_score': 7})
 
     def service(self, reviews):

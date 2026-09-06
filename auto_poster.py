@@ -213,7 +213,8 @@ Reply ONLY with JSON:
         prompt_saat_ini = image_prompt
         # Satu kali gambar ulang kalau juri menolak. Gambar 2K mahal dan lambat,
         # jadi jatahnya sengaja lebih ketat daripada siklus tulis-ulang caption.
-        AMBANG_GAMBAR = 7.0
+        from core.content_quality import IMAGE_MIN_SCORE
+        AMBANG_GAMBAR = IMAGE_MIN_SCORE
         max_attempts = 3
         gambar_terbaik = None  # (skor, path)
         topic['image_score'] = None
@@ -257,7 +258,7 @@ Reply ONLY with JSON:
                     topic['image_score'] = None
                     return image_path
 
-                print(f"   🖼️  Kritikus Gambar (percobaan {attempt+1}): {skor:.0f}/10 — {catatan}")
+                print(f"   🖼️  Kritikus Gambar (percobaan {attempt+1}): {skor:.1f}/10 — {catatan}")
                 if gambar_terbaik is None or skor > gambar_terbaik[0]:
                     gambar_terbaik = (skor, image_path)
 

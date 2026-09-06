@@ -21,6 +21,13 @@ class ContentQualityError(ValueError):
     pass
 
 
+# Vision reviewers commonly return half-point scores. Treating 6.5 as a hard
+# failure while displaying it as 7/10 caused otherwise usable posts to be
+# reported as "7/10" but rejected. Keep a meaningful floor and make the rule
+# explicit and consistent with the displayed score.
+IMAGE_MIN_SCORE = 6.5
+
+
 def valid_score(value):
     if isinstance(value, bool):
         return None
@@ -56,5 +63,9 @@ def require_publishable(topic):
     if topic.get('caption_approved') is not True:
         raise ContentQualityError('DITAHAN KUALITAS: caption belum lolos pemeriksaan')
     score = valid_score(topic.get('image_score'))
-    if score is None or score < 7:
-        raise ContentQualityError('DITAHAN KUALITAS: gambar belum lolos pemeriksaan 7/10')
+    if score is None or score < IMAGE_MIN_SCORE:
+        actual = 'tidak tersedia' if score is None else f'{score:.1f}/10'
+        raise ContentQualityError(
+            f'DITAHAN KUALITAS: gambar belum lolos pemeriksaan '
+            f'(skor {actual}, minimum {IMAGE_MIN_SCORE:.1f}/10)'
+        )
