@@ -77,6 +77,7 @@ class LearningDataTests(unittest.TestCase):
             analyzer = CommentAnalyzer.__new__(CommentAnalyzer)
             analyzer.fanspages = [{'page_id': 'a', 'access_token': 'test'}]
             analyzer.fetch_post_clicks = Mock(return_value=None)
+            analyzer.fetch_post_media_views = Mock(return_value=1200)
             good = {k: {'summary': {'total_count': 2}} for k in ('like_count','love','haha','wow','comments')}
             response = Mock()
             response.json.side_effect = [{'error': 'unavailable'}, good]
@@ -90,6 +91,7 @@ class LearningDataTests(unittest.TestCase):
             self.assertEqual(8, row['likes'])
             self.assertEqual(2, row['comments'])
             self.assertIsNone(row['clicks'])
+            self.assertEqual(1200, row['media_views'])
             conn.close()
 
     def test_migration_capture_age_prior_peers_and_page_isolation(self):

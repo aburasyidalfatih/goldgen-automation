@@ -201,6 +201,7 @@ def init_db():
         # pengganti terbaik untuk mengukur perhatian nyata.
         ('engagement_snapshots', 'impressions', 'INTEGER'),
         ('engagement_snapshots', 'clicks', 'INTEGER'),
+        ('engagement_snapshots', 'media_views', 'INTEGER'),
         ('page_stats', 'post_engagements', 'INTEGER'),
         ('page_stats', 'page_views', 'INTEGER'),
         # Topik TIDAK pernah disimpan sebelumnya — bot bisa belajar layout & hook
@@ -280,6 +281,7 @@ def init_db():
                p.image_score   AS image_score,
                p.fb_post_id    AS fb_post_id,
                s.clicks        AS clicks,
+               s.media_views   AS media_views,
                COALESCE(s.likes + s.comments, ec.likes + ec.comments) AS engagement,
                CASE WHEN s.fb_post_id IS NOT NULL THEN 'snapshot48' ELSE 'cache' END AS source,
                -- At least three earlier same-page observations from the preceding 14 days.

@@ -125,15 +125,16 @@ class CommentAnalyzer:
                     if any(type(v) is not int or v < 0 for v in values):
                         raise ValueError('Metrik snapshot tidak lengkap; akan dicoba kembali')
                     clicks = self.fetch_post_clicks(post_id, page['access_token'])
+                    media_views = self.fetch_post_media_views(post_id, page['access_token'])
                     conn = get_db_connection()
                     try:
                         with conn:
                             conn.execute('''INSERT OR IGNORE INTO engagement_snapshots
-                                (fb_post_id,age_hours,likes,comments,clicks)
-                                SELECT ?,48,?,?,? WHERE EXISTS (
+                                (fb_post_id,age_hours,likes,comments,clicks,media_views)
+                                SELECT ?,48,?,?,?,? WHERE EXISTS (
                                   SELECT 1 FROM posts WHERE fb_post_id=?
                                   AND (julianday('now')-julianday(timestamp))*24 BETWEEN 48 AND 50)
-                            ''', (post_id, sum(values[:4]), values[4], clicks, post_id))
+                            ''', (post_id, sum(values[:4]), values[4], clicks, media_views, post_id))
                     finally:
                         conn.close()
                 except Exception as exc:
@@ -209,6 +210,22 @@ class CommentAnalyzer:
         except Exception as e:
             print(f"   ⚠️ Gagal merekam statistik page: {redact(e)}")
             return None
+
+    def fetch_post_media_views(self, fb_post_id, access_token):
+        """Total displays, not unique reach or monetization revenue."""
+        try:
+            response = requests.get(
+                f'https://graph.facebook.com/v18.0/{fb_post_id}/insights',
+                params={'access_token': access_token, 'metric': 'post_media_view'}, timeout=30)
+            response.raise_for_status()
+            for metric in response.json().get('data', []):
+                if metric.get('name') == 'post_media_view':
+                    value = metric['values'][0]['value']
+                    if type(value) is int and value >= 0:
+                        return value
+        except Exception as exc:
+            print(f'Tayangan belum tersedia: {redact(exc)}')
+        return None
 
     def fetch_post_clicks(self, fb_post_id, access_token):
         """Read post clicks when available. Clicks are not reach or unique viewers."""
