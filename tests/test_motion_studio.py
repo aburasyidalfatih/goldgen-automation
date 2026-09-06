@@ -108,11 +108,12 @@ class MotionStudioTests(unittest.TestCase):
         class FakeResponse:
             def __enter__(self): return self
             def __exit__(self, *args): pass
-            def read(self): return json.dumps({"results": [{"id": "1", "title": "River", "url": "https://upload.wikimedia.org/river.jpg", "creator": "A", "license": "by", "license_version": "4.0", "license_url": "https://creativecommons.org/licenses/by/4.0/"}]}).encode()
+            def read(self): return json.dumps({"results": [{"id": "1", "title": "River", "url": "https://upload.wikimedia.org/river.jpg", "creator": "A", "license": "by", "license_version": "4.0", "license_url": "https://creativecommons.org/licenses/by/4.0/"}, {"id": "2", "title": "Restricted", "url": "https://upload.wikimedia.org/restricted.jpg", "license": "by-nc-nd"}]}).encode()
         with patch("core.motion_assets.urlopen", return_value=FakeResponse()):
             result = search_openverse("gold river")
         self.assertEqual(result[0]["license"], "by")
         self.assertEqual(result[0]["creator"], "A")
+        self.assertEqual(len(result), 1)
 
 
 if __name__ == "__main__":

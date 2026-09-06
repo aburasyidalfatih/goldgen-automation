@@ -78,7 +78,7 @@ document.getElementById('asset-search-form').addEventListener('submit', async (e
   const response = await fetch('/api/motion/assets/search?q=' + encodeURIComponent(query));
   const data = await response.json();
   if (!response.ok) { target.textContent = data.error || 'Search gagal'; return; }
-  target.innerHTML = data.results.map((item) => `<div class="external-result"><img src="${escapeHtml(item.thumbnail || item.url)}" alt=""><div><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.creator || 'Unknown creator')} · ${escapeHtml(item.license)}${item.license_version ? ' ' + escapeHtml(item.license_version) : ''}</small></div><button type="button" class="secondary" onclick='importSearchResult(${JSON.stringify(item).replace(/'/g, '&#39;')})'>Import</button></div>`).join('') || '<small>No licensed results found.</small>';
+  target.innerHTML = data.results.map((item) => `<div class="external-result"><img src="${escapeHtml(item.thumbnail || item.url)}" alt=""><div><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.creator || 'Unknown creator')} · ${escapeHtml(item.license)}${item.license_version ? ' ' + escapeHtml(item.license_version) : ''}</small></div><button type="button" class="secondary" onclick='importSearchResult(${JSON.stringify(item).replace(/'/g, '&#39;')})'>Import</button></div>`).join('') || '<small>No commercial-use results found. Try a more specific keyword.</small>';
 });
 function escapeHtml(value) { return String(value || '').replace(/[&<>\"']/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[char])); }
 async function importSearchResult(item) {

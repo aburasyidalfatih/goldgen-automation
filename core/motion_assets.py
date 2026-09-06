@@ -14,6 +14,7 @@ from core.motion_studio import MOTION_ASSETS_DIR, MOTION_DATA_DIR
 
 ASSET_DB_PATH = MOTION_DATA_DIR / "assets.db"
 EXTERNAL_ASSET_HOSTS = {"pexels.com", "www.pexels.com", "unsplash.com", "images.unsplash.com", "pixabay.com", "commons.wikimedia.org", "upload.wikimedia.org"}
+COMMERCIAL_LICENSES = {"cc0", "pdm", "by", "by-sa"}
 
 
 def init_asset_storage():
@@ -77,14 +78,15 @@ def search_openverse(query, page_size=12):
     request = Request(f"https://api.openverse.org/v1/images/?{params}", headers={"User-Agent": "GoldGen-Motion/1.0"})
     with urlopen(request, timeout=15) as response:
         payload = json.loads(response.read().decode("utf-8"))
-    return [{
+    normalized = [{
         "id": item.get("id"), "title": item.get("title") or "Untitled",
         "thumbnail": item.get("thumbnail"), "url": item.get("url"),
         "landing_url": item.get("foreign_landing_url"), "creator": item.get("creator") or "",
         "license": item.get("license") or "unknown", "license_version": item.get("license_version") or "",
         "license_url": item.get("license_url") or "", "provider": item.get("provider") or "Openverse",
         "attribution": item.get("attribution") or ""
-    } for item in payload.get("results", []) if item.get("url")]
+    } for item in payload.get("results", []) if item.get("url") and item.get("license", "").lower() in COMMERCIAL_LICENSES]
+    return normalized
 
 
 def search_assets(query="", asset_type=None, approved_only=False):
