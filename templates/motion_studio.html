@@ -21,6 +21,7 @@
     .topic strong { display:block; } .topic small { color:#a1a1aa; } .topic button { padding:8px 11px; font-size:13px; }
     .phone { width:min(100%,280px); aspect-ratio:9/16; margin:12px auto; border:1px solid #52525b; border-radius:24px; display:flex; align-items:center; justify-content:center; text-align:center; padding:24px; color:#71717a; background:linear-gradient(145deg,#27272a,#09090b); }
     .job { border-top:1px solid var(--line); padding:12px 0; } .status { color:var(--gold); font-size:12px; text-transform:uppercase; font-weight:700; } .job button { margin-top:8px; font-size:12px; padding:7px 9px; } .job button.secondary { background:#27272a; color:#f4f4f5; border:1px solid #3f3f46; } .job button:disabled { opacity:.45; cursor:not-allowed; }
+    .panel-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; } .panel-heading h2 { margin:0; } .scan-status { min-height:18px; color:#a1a1aa; font-size:12px; margin:8px 0 0; }
     @media (max-width:800px) { .grid { grid-template-columns:1fr; } .top { align-items:flex-start; flex-direction:column; } }
   </style>
 </head>
@@ -28,7 +29,7 @@
 <main class="wrap">
   <div class="top"><div><div class="eyebrow">GoldGen / Motion Studio</div><h1>Turn gold facts into motion.</h1><p>Portrait 9:16 workspace. Existing GoldGen topics are read-only here.</p></div><a href="/dashboard">Back to Dashboard</a></div>
   <div class="grid">
-    <section class="panel"><h2>Choose a topic</h2><p>Select an existing topic to create an isolated motion job.</p><div class="topics">
+    <section class="panel"><div class="panel-heading"><h2>Choose a topic</h2><button class="secondary" id="scan-assets" onclick="scanAssets()">Scan Assets</button></div><p>Select an existing topic to create an isolated motion job.</p><div class="scan-status" id="scan-status" aria-live="polite">Assets are reused from the existing GoldGen image library.</div><div class="topics">
       {% for topic in topics %}<div class="topic"><div><strong>{{ topic.headline }}</strong><small>{{ topic.subtitle }}</small></div><button onclick="createJob({{ topic.id }})">Create video</button></div>{% endfor %}
     </div></section>
     <aside class="panel"><h2>Preview</h2>{% set ready_job = jobs|selectattr('status', 'equalto', 'ready')|list|first %}{% if ready_job %}<video class="phone" controls playsinline preload="metadata" src="/api/motion/jobs/{{ ready_job.id }}/preview"></video>{% else %}<div class="phone">Render a draft to create the first 9:16 preview.</div>{% endif %}<h3>Recent jobs</h3><div id="jobs">{% for job in jobs %}<div class="job"><strong>{{ job.topic_headline }}</strong><br><span class="status">{{ job.status }}</span><br><button class="secondary" onclick="voiceoverJob('{{ job.id }}')">Generate voice-over</button> <button class="secondary" onclick="renderJob('{{ job.id }}')">Render draft</button>{% if job.status == 'ready' %}<a href="/api/motion/jobs/{{ job.id }}/download" style="display:inline-block;margin-left:4px;padding:7px 9px;font-size:12px">Download MP4</a> <button disabled title="Automatic publishing will be enabled after staging QA">Post automatically</button>{% endif %}</div>{% else %}<p>No motion jobs yet.</p>{% endfor %}</div></aside>
@@ -40,6 +41,22 @@ async function createJob(topicId) {
   const data = await response.json();
   if (!response.ok) return alert(data.error || 'Unable to create motion job');
   window.location.reload();
+}
+async function scanAssets() {
+  const button = document.getElementById('scan-assets');
+  const status = document.getElementById('scan-status');
+  button.disabled = true;
+  status.textContent = 'Scanning existing GoldGen images...';
+  try {
+    const response = await fetch('/api/motion/assets/scan', {method:'POST'});
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Asset scan gagal');
+    status.textContent = `${data.registered_count || 0} asset terdaftar dan siap dipakai ulang.`;
+  } catch (error) {
+    status.textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
 }
 async function renderJob(jobId) {
   const response = await fetch('/api/motion/jobs/' + jobId + '/render', {method:'POST'});
