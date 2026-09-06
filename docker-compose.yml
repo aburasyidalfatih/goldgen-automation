@@ -31,7 +31,6 @@ services:
       - goldgen_images:/app/generated_images
       - goldgen_logs:/app/logs
       - goldgen_motion:/app/motion_studio
-      - goldgen_motion:/app/motion_studio
     environment:
       - PYTHONUNBUFFERED=1
       - TZ=Asia/Jakarta
