@@ -649,11 +649,11 @@
                         }
 
                         let retryButton = '';
-                        if (post.status !== 'success' && post.image_path) {
+                        if (post.status !== 'success') {
                             retryButton = `
                                 <button onclick="retryExistingPost(${post.id})"
                                     class="inline-block px-2 py-1 text-xs bg-amber-600 hover:bg-amber-500 text-white rounded transition-colors touch-manipulation">
-                                    Retry Post
+                                    Retry Post${post.image_path ? '' : ' (cek file)'}
                                 </button>
                             `;
                         }
