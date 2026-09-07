@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Laporan JIT ML (Otak Bot) — GoldGen</title>
+<title>Performa Konten — GoldGen</title>
 <!-- Google Fonts: Outfit -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -73,7 +73,7 @@
 </head>
 <body class="selection:bg-amber-500/30">
 <div class="topbar">
-  <h1>Laporan Otak Bot (JIT ML)</h1>
+  <h1>Performa Konten</h1>
   <nav>
     <button onclick="loadJITReport()" style="background:transparent; border:1px solid #D4A523; color:#D4A523; padding:6px 16px; border-radius:8px; cursor:pointer; font-weight:600; transition:all 0.3s;" onmouseover="this.style.background='rgba(212,165,35,0.1)'" onmouseout="this.style.background='transparent'">🔄 Segarkan Data</button>
     <a href="/dashboard">← Kembali ke Dashboard</a>
@@ -81,6 +81,15 @@
 </div>
 
 <div class="container">
+    <section aria-labelledby="views-heading" style="margin-bottom:40px">
+      <div style="display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;align-items:center">
+        <h2 id="views-heading" style="font-size:26px;font-weight:700">Konten dengan tayangan terluas</h2>
+        <button type="button" onclick="loadViewsRanking()" style="padding:10px 16px;border:1px solid #fbbf24;border-radius:10px;color:#fbbf24">Segarkan peringkat</button>
+      </div>
+      <p style="color:#a1a1aa;margin:12px 0 24px;line-height:1.7">Posting 30 hari terakhir · Dikelompokkan per Fanspage · Tayangan terbanyak di urutan pertama, lalu interaksi. Angka diukur saat usia posting sekitar 48 jam, bukan tayangan terkini atau jumlah orang unik.</p>
+      <div id="views-ranking" aria-live="polite">Memuat peringkat…</div>
+    </section>
+    <h2 style="font-size:22px;font-weight:700;margin-bottom:12px">Memori pembelajaran</h2>
     <p class="header-desc">
         Halaman ini menampilkan isi memori pembelajaran <strong>Machine Learning (JIT Research)</strong> dari masing-masing Fanspage. 
         Bot mengumpulkan topik-topik ini secara otomatis sebelum mem-posting konten baru. Semakin tinggi <strong>Boost Score (🔥)</strong>, semakin topik tersebut disukai oleh audiens.
@@ -98,11 +107,57 @@
 <script>
 document.addEventListener("DOMContentLoaded", () => {
     document.body.classList.add('ready');
+    loadViewsRanking();
     loadJITReport();
 });
 
 function getPin() {
     return localStorage.getItem('goldgen_pin') || '';
+}
+
+async function loadViewsRanking() {
+    const container = document.getElementById('views-ranking');
+    container.textContent = 'Memuat peringkat…';
+    const el = (tag, text, css) => {
+        const node = document.createElement(tag);
+        if (text !== undefined) node.textContent = text;
+        if (css) node.style.cssText = css;
+        return node;
+    };
+    const number = value => value == null ? '—' : Number(value).toLocaleString('id-ID');
+    try {
+        const response = await fetch('/api/analytics/views-ranking');
+        if (!response.ok) throw new Error(response.status === 401 ? 'Sesi berakhir. Silakan masuk kembali melalui dashboard.' : 'Data belum bisa dimuat. Silakan coba lagi.');
+        const data = await response.json();
+        container.replaceChildren();
+        if (!data.groups.length) { container.textContent = 'Belum ada posting berhasil dalam 30 hari terakhir.'; return; }
+        for (const group of data.groups) {
+            const card = el('section', undefined, 'border:1px solid #3f3f46;background:#18181b;border-radius:16px;padding:20px;margin-bottom:20px');
+            card.append(el('h3',group.page_name,'color:#fbbf24;font-size:21px;font-weight:700'));
+            card.append(el('p',`${group.measured} dari ${group.posts.length} konten memiliki data tayangan`,'color:#a1a1aa;margin:6px 0 16px'));
+            if (!group.measured) card.append(el('p','Belum ada snapshot tayangan yang tersedia. Data kosong bukan berarti nol tayangan.','color:#fbbf24;margin-bottom:16px'));
+            let rank = 0;
+            for (const post of group.posts) {
+                const measured = post.media_views != null;
+                const row = el('article',undefined,'padding:16px 0;border-top:1px solid #3f3f46;display:flex;gap:16px;flex-wrap:wrap');
+                row.append(el('span',measured ? `#${++rank}` : '—','color:#fbbf24;font-weight:700;min-width:30px'));
+                const body = el('div',undefined,'flex:1;min-width:200px;overflow-wrap:anywhere');
+                body.append(el('h4',post.topic_headline || (post.content || 'Tanpa judul').slice(0,110),'font-weight:600'));
+                body.append(el('p',new Date(post.timestamp).toLocaleString('id-ID'),'font-size:12px;color:#a1a1aa;margin:6px 0'));
+                body.append(el('p',measured ? `${number(post.media_views)} tayangan · ${number(post.engagement)} interaksi · ${number(post.clicks)} klik` : 'Belum tersedia pengukuran tayangan 48 jam','color:#e4e4e7;font-size:14px'));
+                const details=el('details');
+                details.append(el('summary','Lihat caption','cursor:pointer;color:#a1a1aa;margin-top:10px'));
+                details.append(el('p',post.content || 'Caption tidak tersedia','white-space:pre-wrap;font-size:14px;line-height:1.7;margin-top:8px'));
+                body.append(details);
+                if (/^[0-9_]+$/.test(post.fb_post_id || '')) {
+                    const link=el('a','Lihat di Facebook','display:inline-block;color:#fbbf24;padding:10px 0');
+                    link.href='https://www.facebook.com/'+post.fb_post_id; link.target='_blank'; link.rel='noopener noreferrer'; body.append(link);
+                }
+                row.append(body);card.append(row);
+            }
+            container.append(card);
+        }
+    } catch(error) { container.textContent=error.message; }
 }
 
 function formatDate(isoString) {

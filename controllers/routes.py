@@ -1184,6 +1184,33 @@ def serve_schedule_insight():
 def serve_analytics():
     return render_template("analytics.html")
 
+@bp.route('/api/analytics/views-ranking')
+@require_pin
+def views_ranking():
+    """Comparable 48h views for successful posts from the last 30 days."""
+    conn = get_db()
+    try:
+        rows = conn.execute('''
+            SELECT p.id,p.page_id,p.page_name,p.timestamp,p.topic_headline,
+                   p.content,p.fb_post_id,e.media_views,e.engagement,e.clicks
+            FROM posts p LEFT JOIN post_engagement e
+              ON e.post_id=p.id AND e.source='snapshot48'
+            WHERE p.status='success'
+              AND julianday(p.timestamp) BETWEEN julianday('now','-30 days') AND julianday('now')
+            ORDER BY p.page_name,p.page_id,e.media_views IS NULL,e.media_views DESC,
+                     e.engagement DESC,p.id DESC
+        ''').fetchall()
+        groups = {}
+        for r in rows:
+            group = groups.setdefault(r['page_id'], {'page_id':r['page_id'],
+                'page_name':r['page_name'],'posts':[], 'measured':0})
+            group['measured'] += r['media_views'] is not None
+            group['posts'].append(dict(r))
+        return jsonify({'groups':list(groups.values()),'window_days':30,
+                        'metric':'post_media_view','measurement':'snapshot48'})
+    finally:
+        conn.close()
+
 @bp.route('/api/analyze-comments', methods=['POST'])
 @require_pin
 def analyze_comments():
