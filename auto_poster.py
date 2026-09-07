@@ -49,8 +49,16 @@ class GoldGenAutoPoster:
             import time
             cutoff = time.time() - (days * 86400)
             deleted = 0
+            conn = get_db_connection()
+            try:
+                protected = {Path(r['image_path']).resolve() for r in conn.execute(
+                    "SELECT image_path FROM posts WHERE status != 'success' AND image_path != ''")}
+            finally:
+                conn.close()
             
             for image_path in IMAGES_DIR.glob('*.png'):
+                if image_path.resolve() in protected:
+                    continue
                 if image_path.stat().st_mtime < cutoff:
                     image_path.unlink()
                     deleted += 1
@@ -254,30 +262,10 @@ Reply ONLY with JSON:
                     return self._generate_fallback_image(topic, fanspage_name)
 
                 skor, catatan = self._review_image(image_path, topic, fanspage_name)
-                if skor is None:
-                    # Juri tidak bisa menilai — jangan tahan postingannya.
-                    topic['image_score'] = None
-                    return image_path
-
-                print(f"   🖼️  Kritikus Gambar (percobaan {attempt+1}): {skor:.1f}/10 — {catatan}")
-                if gambar_terbaik is None or skor > gambar_terbaik[0]:
-                    gambar_terbaik = (skor, image_path)
-
-                if skor >= AMBANG_GAMBAR or attempt == max_attempts - 1:
-                    skor_pakai, path_pakai = gambar_terbaik
-                    if path_pakai != image_path:
-                        print(f"   ↩️  Memakai gambar terbaik (skor {skor_pakai:.0f}), "
-                              f"bukan percobaan terakhir (skor {skor:.0f})")
-                    topic['image_score'] = skor_pakai
-                    return path_pakai
-
-                print(f"   🎨 Gambar ditolak, membuat ulang — perbaiki: {catatan}")
-                prompt_saat_ini = (image_prompt +
-                                   f"\n\nTHE PREVIOUS ATTEMPT WAS REJECTED BY THE ART DIRECTOR.\n"
-                                   f"Worst problem: {catatan}\n"
-                                   f"Fix that specific problem. Keep all text short, real and "
-                                   f"perfectly spelled, and make the composition unmistakably "
-                                   f"match the intended layout.")
+                from core.content_feedback import save_feedback
+                save_feedback(page_id, topic, 'image', skor, catatan)
+                topic['image_score'] = skor
+                return image_path
 
             except Exception as e:
                 if attempt < max_attempts - 1:
@@ -535,7 +523,7 @@ Reply ONLY with JSON:
             print(f"   🔗 Post ID: {post_id} (foto: {photo_id})")
         return post_id
 
-    def post_to_facebook(self, fanspage, content, image_path):
+    def post_to_facebook(self, fanspage, content, image_path, single_attempt=False):
         """Post content and image to Facebook page with retry"""
         # Validate token first
         valid, error = self.validate_token(fanspage)
@@ -584,7 +572,7 @@ Reply ONLY with JSON:
         feeling_id = random.choice(list(feelings.values()))
         
         # Try posting with retry
-        max_retries = 3
+        max_retries = 1 if single_attempt else 3
         for attempt in range(max_retries):
             try:
                 url = f"https://graph.facebook.com/v18.0/{fanspage['page_id']}/photos"
@@ -644,6 +632,8 @@ Reply ONLY with JSON:
                             return None, f"{error_msg} (setelah {max_retries} percobaan)"
 
             except Exception as e:
+                if single_attempt:
+                    raise RuntimeError('Hasil kirim belum pasti: ' + type(e).__name__) from e
                 if attempt < max_retries - 1:
                     delay = 2 ** attempt
                     print(f"   ⚠️  Error: {redact(e)}, retry {attempt + 1}/{max_retries} after {delay}s")
@@ -813,6 +803,7 @@ Reply ONLY with JSON:
         posted_count = 0
         
         for idx, fanspage in enumerate(self.fanspages):
+            content, image_path = '', None
             if not fanspage.get('enabled', True):
                 print(f"⏭️  Skipping {fanspage['name']} (disabled)")
                 continue
@@ -885,7 +876,7 @@ Reply ONLY with JSON:
                 error_msg = f"GAGAL DIPROSES: {type(e).__name__}: {redact(e)[:300]}"
                 print(f"   ❌ {error_msg}\n")
                 traceback.print_exc()
-                self.log_post(fanspage, "", "", None, 'failed', error_msg)
+                self.log_post(fanspage, content, str(image_path or ''), None, 'failed', error_msg)
 
         # Update state once at the end of cycle
         # ALWAYS update state even if posted_count = 0 to prevent stuck topics
@@ -909,6 +900,7 @@ Reply ONLY with JSON:
         print(f"[{datetime.now()}] Process completed.\n")
     
     def force_post(self, target_page_id):
+        caption, image_path = '', None
         """Force a post to a specific fanspage regardless of schedule or queue"""
         print(f"[{datetime.now()}] Starting forced manual post for {target_page_id}...")
         
@@ -971,10 +963,41 @@ Reply ONLY with JSON:
             error_msg = f"GAGAL DIPROSES: {type(e).__name__}: {redact(e)[:300]}"
             print(f"   ❌ {error_msg}\n")
             traceback.print_exc()
-            self.log_post(target_fanspage, "", "", None, 'failed', error_msg)
+            self.log_post(target_fanspage, caption, str(image_path or ''), None, 'failed', error_msg)
             return False, error_msg
 
     def retry_existing_post(self, post_id):
+        # Atomically claim before sending; a concurrent click cannot send twice.
+        conn = get_db_connection()
+        try:
+            with conn:
+                claimed = conn.execute("UPDATE posts SET status='retrying' WHERE id=? AND status='failed' AND fb_post_id IS NULL", (post_id,)).rowcount
+        finally:
+            conn.close()
+        if not claimed:
+            return False, 'Posting sedang diproses, sudah berhasil, atau perlu pemeriksaan hasil sebelumnya'
+        try:
+            result = self._retry_claimed_post(post_id)
+        except Exception as exc:
+            result = (False, 'Hasil pengiriman belum pasti; periksa Facebook sebelum mencoba lagi. ' + redact(str(exc))[:120])
+            # Leave retrying after an uncertain exception to prevent duplicates.
+            conn = get_db_connection()
+            try:
+                with conn:
+                    conn.execute('UPDATE posts SET error_message=? WHERE id=?', (result[1], post_id))
+            finally:
+                conn.close()
+            return result
+        if not result[0]:
+            conn = get_db_connection()
+            try:
+                with conn:
+                    conn.execute("UPDATE posts SET status='failed',error_message=? WHERE id=? AND status='retrying'", (result[1],post_id))
+            finally:
+                conn.close()
+        return result
+
+    def _retry_claimed_post(self, post_id):
         """Retry a failed post using its already-generated caption and image."""
         conn = get_db_connection()
         row = conn.execute(
@@ -984,7 +1007,11 @@ Reply ONLY with JSON:
         if not row:
             return False, 'Postingan tidak ditemukan atau sudah berhasil diposting'
 
-        image_path = Path(row['image_path']) if row['image_path'] else None
+        if not row['image_path']:
+            return False, 'Lokasi gambar tidak tercatat; belum tentu file telah terhapus'
+        image_path = Path(row['image_path']).resolve()
+        if not image_path.is_relative_to(IMAGES_DIR.resolve()):
+            return False, 'Lokasi gambar berada di luar folder hasil generate'
         if not image_path or not image_path.exists():
             return False, 'File gambar hasil generate sudah tidak tersedia'
         if not (row['content'] or '').strip():
@@ -997,12 +1024,12 @@ Reply ONLY with JSON:
         if not valid:
             return False, token_error
 
-        fb_post_id, error = self.post_to_facebook(page, row['content'], image_path)
+        fb_post_id, error = self.post_to_facebook(page, row['content'], image_path, single_attempt=True)
         conn = get_db_connection()
         if fb_post_id:
             conn.execute(
                 "UPDATE posts SET fb_post_id = ?, status = 'success', error_message = NULL, timestamp = ? WHERE id = ?",
-                (fb_post_id, datetime.now().isoformat(), post_id),
+                (fb_post_id, datetime.now().astimezone().isoformat(), post_id),
             )
         else:
             conn.execute("UPDATE posts SET error_message = ? WHERE id = ?", (error, post_id))

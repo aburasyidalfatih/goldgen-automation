@@ -959,6 +959,8 @@ Use it only when consistent with the requirements above:
 {dynamic_suggestions}
 {dynamic_avoid}
 """
+        from core.content_feedback import feedback_prompt
+        base_prompt += feedback_prompt(page_id)
         current_prompt = base_prompt
         # Editor scores are quality checks, not a proxy for audience preference.
         editor_trusted, trust_note = self._editor_is_trustworthy(page_id)
@@ -1005,6 +1007,8 @@ Use it only when consistent with the requirements above:
 
                 from core.content_quality import caption_issues, ContentQualityError
                 review['hook_type'] = hook_label
+                from core.content_feedback import save_feedback
+                save_feedback(page_id, topic, 'caption', skor, review.get('feedback', ''))
                 issues = caption_issues(caption, review, requested_hook)
                 if not issues:
                     topic['hook_type'] = hook_label
@@ -1149,4 +1153,5 @@ MANDATORY REQUIREMENTS:
 - TEXT WARNING: DO NOT generate paragraphs of illegible text or scribbles. If text is included, it must be minimal, bold, and highly legible.
 """
         
-        return full_prompt
+        from core.content_feedback import feedback_prompt
+        return full_prompt + feedback_prompt(page_id)
