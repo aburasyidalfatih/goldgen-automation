@@ -122,18 +122,24 @@ def render_motion_job(job_id):
         return jsonify({'success': False, 'error': 'Motion job tidak ditemukan'}), 404
     topic = next((item for item in list_topics() if item['id'] == job['topic_id']), None)
     try:
-        update_job(job_id, status='rendering', error_message=None)
+        update_job(job_id, status='rendering', progress_percent=12, current_stage='preparing', current_detail='Preparing topic, assets, and scene plan', scene_current=0, scene_total=6, error_message=None)
         from core.motion_studio import MOTION_RENDERS_DIR
         audio_path = MOTION_RENDERS_DIR / f'{job_id}.wav'
-        result = render_manifest(job_id, default_manifest(topic, select_assets_for_topic(topic)), audio_path=audio_path)
+        update_job(job_id, progress_percent=22, current_stage='assets', current_detail='Matching approved internal assets')
+        manifest = default_manifest(topic, select_assets_for_topic(topic))
+        def report(scene_current, scene_total, stage, detail):
+            percent = 35 + round((scene_current / max(scene_total, 1)) * 50)
+            update_job(job_id, progress_percent=percent, current_stage=stage, current_detail=detail, scene_current=scene_current, scene_total=scene_total)
+        result = render_manifest(job_id, manifest, audio_path=audio_path, progress_callback=report)
+        update_job(job_id, progress_percent=92, current_stage='quality_check', current_detail='Validating video, audio, subtitle, and portrait format')
         qa = validate_render(result['output_path'], result['manifest_path'])
         if not qa['ok']:
             update_job(job_id, status='failed', output_path=result['output_path'], error_message='; '.join(qa['errors']))
             return jsonify({'success': False, 'error': 'Video gagal QA', 'qa': qa}), 422
-        updated = update_job(job_id, status='ready', output_path=result['output_path'])
+        updated = update_job(job_id, status='ready', progress_percent=100, current_stage='complete', current_detail='Video ready to preview or download', output_path=result['output_path'])
         return jsonify({'success': True, 'job': updated, 'render': result, 'qa': qa})
     except (OSError, RuntimeError) as exc:
-        update_job(job_id, status='failed', error_message=str(exc))
+        update_job(job_id, status='failed', current_stage='failed', current_detail='Motion job failed', error_message=str(exc))
         return jsonify({'success': False, 'error': str(exc)}), 503
 
 @bp.route('/api/motion/jobs/<job_id>/voiceover', methods=['POST'])
@@ -147,9 +153,12 @@ def motion_voiceover(job_id):
     if not text:
         return jsonify({'success': False, 'error': 'Naskah voice-over kosong'}), 400
     try:
+        update_job(job_id, progress_percent=10, current_stage='voiceover', current_detail='Generating voice-over audio')
         path = generate_voiceover(job_id, text, str(data.get('voice') or 'Kore'))
+        update_job(job_id, progress_percent=25, current_stage='voiceover_ready', current_detail='Voice-over ready; render draft to continue')
         return jsonify({'success': True, 'audio_path': path})
     except (OSError, RuntimeError) as exc:
+        update_job(job_id, current_stage='failed', current_detail='Voice-over generation failed', error_message=str(exc))
         return jsonify({'success': False, 'error': str(exc)}), 503
 
 @bp.route('/api/motion/jobs/<job_id>/download', methods=['GET'])

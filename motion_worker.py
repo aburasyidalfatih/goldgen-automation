@@ -24,17 +24,24 @@ def process_one(job):
         update_job(job["id"], status="failed", error_message="Topic tidak ditemukan")
         return
     try:
-        update_job(job["id"], status="rendering", error_message=None)
+        update_job(job["id"], status="rendering", progress_percent=12, current_stage="preparing", current_detail="Preparing topic, assets, and scene plan", scene_current=0, scene_total=6, error_message=None)
         audio_path = MOTION_RENDERS_DIR / f'{job["id"]}.wav'
-        result = render_manifest(job["id"], default_manifest(topic, select_assets_for_topic(topic)), audio_path=audio_path)
+        update_job(job["id"], progress_percent=22, current_stage="assets", current_detail="Matching approved internal assets")
+        manifest = default_manifest(topic, select_assets_for_topic(topic))
+        update_job(job["id"], progress_percent=32, current_stage="voiceover", current_detail="Checking available voice-over")
+        def report(scene_current, scene_total, stage, detail):
+            percent = 35 + round((scene_current / max(scene_total, 1)) * 50)
+            update_job(job["id"], progress_percent=percent, current_stage=stage, current_detail=detail, scene_current=scene_current, scene_total=scene_total)
+        result = render_manifest(job["id"], manifest, audio_path=audio_path, progress_callback=report)
+        update_job(job["id"], progress_percent=92, current_stage="quality_check", current_detail="Validating video, audio, subtitle, and portrait format")
         qa = validate_render(result["output_path"], result["manifest_path"])
         if not qa["ok"]:
             update_job(job["id"], status="failed", output_path=result["output_path"], error_message="; ".join(qa["errors"]))
             return
-        update_job(job["id"], status="ready", output_path=result["output_path"])
+        update_job(job["id"], status="ready", progress_percent=100, current_stage="complete", current_detail="Video ready to preview or download", output_path=result["output_path"])
         logger.info("Motion job %s siap", job["id"])
     except Exception as exc:
-        update_job(job["id"], status="failed", error_message=f"{type(exc).__name__}: {exc}")
+        update_job(job["id"], status="failed", current_stage="failed", current_detail="Motion job failed", error_message=f"{type(exc).__name__}: {exc}")
         logger.exception("Motion job %s gagal", job["id"])
 
 

@@ -36,10 +36,26 @@ def init_motion_storage():
                 aspect_ratio TEXT NOT NULL DEFAULT '9:16',
                 output_path TEXT,
                 error_message TEXT,
+                progress_percent INTEGER NOT NULL DEFAULT 0,
+                current_stage TEXT NOT NULL DEFAULT 'draft',
+                current_detail TEXT,
+                scene_current INTEGER NOT NULL DEFAULT 0,
+                scene_total INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             )"""
         )
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(motion_jobs)").fetchall()}
+        migrations = {
+            "progress_percent": "ALTER TABLE motion_jobs ADD COLUMN progress_percent INTEGER NOT NULL DEFAULT 0",
+            "current_stage": "ALTER TABLE motion_jobs ADD COLUMN current_stage TEXT NOT NULL DEFAULT 'draft'",
+            "current_detail": "ALTER TABLE motion_jobs ADD COLUMN current_detail TEXT",
+            "scene_current": "ALTER TABLE motion_jobs ADD COLUMN scene_current INTEGER NOT NULL DEFAULT 0",
+            "scene_total": "ALTER TABLE motion_jobs ADD COLUMN scene_total INTEGER NOT NULL DEFAULT 0",
+        }
+        for column, statement in migrations.items():
+            if column not in columns:
+                conn.execute(statement)
     from core.motion_assets import init_asset_storage
     init_asset_storage()
 
@@ -93,7 +109,7 @@ def get_job(job_id):
 
 
 def update_job(job_id, **fields):
-    allowed = {'status', 'output_path', 'error_message'}
+    allowed = {'status', 'output_path', 'error_message', 'progress_percent', 'current_stage', 'current_detail', 'scene_current', 'scene_total'}
     updates = {key: value for key, value in fields.items() if key in allowed}
     if not updates:
         return get_job(job_id)

@@ -98,7 +98,7 @@ def write_manifest(job_id, manifest):
     return path
 
 
-def render_manifest(job_id, manifest, audio_path=None):
+def render_manifest(job_id, manifest, audio_path=None, progress_callback=None):
     """Render scene cards with deterministic overlays and join them to MP4."""
     binary = ffmpeg_path()
     if not binary:
@@ -111,6 +111,8 @@ def render_manifest(job_id, manifest, audio_path=None):
         temp = Path(temp_dir)
         clips = []
         for index, scene in enumerate(manifest.get("scenes", [])):
+            if progress_callback:
+                progress_callback(index, len(manifest.get("scenes", [])), "rendering", f"Rendering scene {index + 1} of {len(manifest.get('scenes', []))}")
             seconds = max(float(scene.get("duration", 1)), 1)
             text = next((layer.get("text") for layer in scene.get("layers", [])
                          if layer.get("type") == "text"), scene.get("id", "GoldGen"))
@@ -162,6 +164,8 @@ def render_manifest(job_id, manifest, audio_path=None):
                 "-pix_fmt", "yuv420p", str(clip),
             ], check=True, capture_output=True, text=True)
             clips.append(clip)
+            if progress_callback:
+                progress_callback(index + 1, len(manifest.get("scenes", [])), "rendering", f"Scene {index + 1} of {len(manifest.get('scenes', []))} complete")
         concat_file = temp / "concat.txt"
         concat_file.write_text("\n".join(f"file '{clip.as_posix()}'" for clip in clips), encoding="utf-8")
         command = [binary, "-y", "-f", "concat", "-safe", "0", "-i", str(concat_file)]
