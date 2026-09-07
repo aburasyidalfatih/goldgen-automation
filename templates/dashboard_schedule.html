@@ -923,7 +923,7 @@
 
         // Delete fanspage
         async function triggerManualPost(pageId, pageName) {
-            if (!confirm(`Trigger manual post for ${pageName}? This will generate and post immediately.`)) return;
+            if (!await showPostDialog('Posting sekarang?', `Buat caption dan gambar baru untuk ${pageName} menggunakan data pembelajaran yang tersedia, lalu kirim ke Facebook. Proses ini memakai kuota AI.`, 'Buat & posting')) return;
             
             try {
                 const res = await fetch('/api/trigger-post', {
@@ -937,12 +937,12 @@
                 
                 const data = await res.json();
                 if (data.success) {
-                    alert(`Post generation started for ${pageName}. This process takes about 30-60 seconds. Check 'Recent Posts' below or your Facebook page shortly.`);
+                    await showPostDialog('Proses sudah dimulai', `Konten untuk ${pageName} sedang dibuat. Anda boleh menutup pesan ini. Pantau hasilnya di Recent Posts; proses dapat memerlukan beberapa menit.`, 'Mengerti', false);
                 } else {
-                    alert('Error: ' + (data.error || 'Failed to trigger post'));
+                    await showPostDialog('Belum bisa memulai', data.error || 'Permintaan posting gagal. Silakan coba kembali.', 'Tutup', false);
                 }
             } catch (e) {
-                alert('Error: ' + e.message);
+                await showPostDialog('Status belum dapat dipastikan', 'Koneksi terputus. Periksa Recent Posts sebelum mencoba lagi agar tidak membuat posting ganda.', 'Mengerti', false);
             }
         }
 
@@ -1089,6 +1089,54 @@ checkAuth();
         window.addEventListener('load', () => {
             setTimeout(() => { document.body.classList.add('ready'); }, 100);
         });
+    </script>
+    <style>
+        #postDialog { color: #f4f4f5; background: #18181b; border: 1px solid #3f3f46; border-radius: 20px; padding: 0; width: min(440px, calc(100vw - 32px)); box-shadow: 0 24px 80px #0009; }
+        #postDialog::backdrop { background: #000b; backdrop-filter: blur(4px); }
+        #postDialog .dialog-body { padding: 28px; }
+        #postDialog .dialog-mark { color: #fbbf24; background: #fbbf241a; width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; margin-bottom: 20px; }
+        #postDialog h2 { font-size: 21px; font-weight: 700; margin-bottom: 12px; }
+        #postDialog p { color: #a1a1aa; font-size: 14px; line-height: 1.7; overflow-wrap: anywhere; }
+        #postDialog .dialog-actions { display: flex; flex-wrap: wrap; gap: 12px; justify-content: flex-end; padding: 20px 28px; border-top: 1px solid #ffffff12; }
+        #postDialog button { min-height: 44px; padding: 10px 18px; border-radius: 10px; font-weight: 600; font-size: 14px; cursor: pointer; }
+        #postDialog button:focus-visible { outline: 2px solid #fbbf24; outline-offset: 4px; }
+        #postDialogCancel { background: #27272a; color: #e4e4e7; }
+        #postDialogConfirm { background: #fbbf24; color: #18181b; }
+    </style>
+    <dialog id="postDialog" aria-labelledby="postDialogTitle" aria-describedby="postDialogMessage">
+        <div class="dialog-body">
+            <div class="dialog-mark" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m22 2-7 20-4-9-9-4 20-7ZM22 2 11 13" /></svg></div>
+            <h2 id="postDialogTitle"></h2>
+            <p id="postDialogMessage"></p>
+        </div>
+        <div class="dialog-actions">
+            <button id="postDialogCancel" type="button">Batal</button>
+            <button id="postDialogConfirm" type="button"></button>
+        </div>
+    </dialog>
+    <script>
+        function showPostDialog(title, message, action, cancellable = true) {
+            const dialog = document.getElementById('postDialog');
+            if (dialog.open) return Promise.resolve(false);
+            const previousFocus = document.activeElement;
+            document.getElementById('postDialogTitle').textContent = title;
+            document.getElementById('postDialogMessage').textContent = message;
+            const cancel = document.getElementById('postDialogCancel');
+            const confirmButton = document.getElementById('postDialogConfirm');
+            cancel.hidden = !cancellable;
+            confirmButton.textContent = action;
+            dialog.returnValue = '';
+            return new Promise(resolve => {
+                cancel.onclick = () => dialog.close('cancel');
+                confirmButton.onclick = () => dialog.close('confirm');
+                dialog.addEventListener('close', () => {
+                    if (previousFocus?.isConnected) previousFocus.focus();
+                    resolve(dialog.returnValue === 'confirm');
+                }, { once: true });
+                dialog.showModal();
+                (cancellable ? cancel : confirmButton).focus();
+            });
+        }
     </script>
 </body>
 </html>
