@@ -72,9 +72,14 @@ def default_manifest(topic, assets=None):
     for index, scene in enumerate(scenes):
         if backgrounds:
             scene["background"] = backgrounds[index % len(backgrounds)]
-    motions = ("slide-left", "slide-right", "float", "center")
+    # Bang Motion-inspired deterministic presets: a persistent visual world,
+    # changing camera language, and no repeated slide-only sequence.
+    motions = ("slide-left", "zoom-in", "float", "drift-up", "slide-right", "pulse", "center")
+    styles = ("visual-journalism", "continuous-action", "vintage-geology")
     for index, scene in enumerate(scenes):
         scene["motion"] = motions[index % len(motions)]
+        scene["transition"] = ("cut", "push", "settle")[index % 3]
+        scene["style"] = styles[(int(topic.get("id") or 0) + index) % len(styles)]
     target_duration = 60.0
     current_duration = sum(float(scene["duration"]) for scene in scenes)
     scale = target_duration / current_duration if current_duration else 1
@@ -123,8 +128,16 @@ def render_manifest(job_id, manifest, audio_path=None):
                 position = "x='(w-text_w)*min(t/0.6,1)':y=(h-text_h)/2"
             elif motion == "slide-right":
                 position = "x='(w-text_w)*(1-min(t/0.6,1))':y=(h-text_h)/2"
+            elif motion == "zoom-in":
+                position = "x=(w-text_w)/2:y=(h-text_h)/2"
+                vf = vf.replace("drawtext=", "zoompan=z='min(zoom+0.0015,1.08)':d=1:s=1080x1920,drawtext=", 1)
             elif motion == "float":
                 position = "x=(w-text_w)/2:y='(h-text_h)/2+sin(t*2)*18'"
+            elif motion == "drift-up":
+                position = "x=(w-text_w)/2:y='(h-text_h)/2+24-48*min(t/1.2,1)'"
+            elif motion == "pulse":
+                position = "x=(w-text_w)/2:y=(h-text_h)/2"
+                vf = vf.replace("fontsize=64", "fontsize='64+4*sin(t*3)'", 1)
             else:
                 position = "x=(w-text_w)/2:y=(h-text_h)/2"
             vf = vf.replace("box=1:boxcolor=black@0.55:boxborderw=28:",
