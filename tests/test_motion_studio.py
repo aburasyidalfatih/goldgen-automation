@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 from core.motion_qa import validate_render
 from core.motion_renderer import default_manifest, render_manifest, write_srt
-from core.motion_assets import init_asset_storage, register_asset, search_assets
+from core.motion_assets import init_asset_storage, register_asset, search_assets, select_assets_for_topic
 from core.motion_tts import generate_voiceover
 from core.motion_publisher import publish_video
 
@@ -98,6 +98,16 @@ class MotionStudioTests(unittest.TestCase):
             with patch("core.motion_renderer.MOTION_RENDERS_DIR", render_dir):
                 result = render_manifest("asset-test", manifest)
             self.assertTrue(Path(result["output_path"]).is_file())
+
+    def test_topic_asset_selection_uses_approved_internal_assets(self):
+        fixture = Path(__file__).parent / "fixtures" / "motion_background.svg"
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with patch("core.motion_assets.ASSET_DB_PATH", Path(temp_dir) / "assets.db"):
+                with patch("core.motion_assets.MOTION_ASSETS_DIR", Path(temp_dir)):
+                    init_asset_storage()
+                    register_asset(fixture, tags=("river", "gold"), status="approved")
+                    selected = select_assets_for_topic({"headline": "River gold", "list_points": []})
+        self.assertEqual(len(selected), 1)
 
     def test_publisher_is_disabled_by_default(self):
         with patch.dict("os.environ", {"MOTION_AUTO_PUBLISH_ENABLED": "false"}, clear=False):

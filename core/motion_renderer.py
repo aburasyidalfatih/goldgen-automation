@@ -43,9 +43,10 @@ def ffmpeg_path():
     return shutil.which("ffmpeg")
 
 
-def default_manifest(topic):
+def default_manifest(topic, assets=None):
     """Create a safe first-pass storyboard from an existing topic."""
     points = topic.get("list_points") or []
+    backgrounds = [asset.get("source_path") for asset in (assets or []) if asset.get("source_path")]
     scenes = [{
         "id": "hook",
         "duration": 5,
@@ -68,6 +69,9 @@ def default_manifest(topic):
         "background": None,
         "layers": [{"type": "text", "text": "Observe. Test. Compare.", "role": "cta"}],
     })
+    for index, scene in enumerate(scenes):
+        if backgrounds:
+            scene["background"] = backgrounds[index % len(backgrounds)]
     motions = ("slide-left", "slide-right", "float", "center")
     for index, scene in enumerate(scenes):
         scene["motion"] = motions[index % len(motions)]

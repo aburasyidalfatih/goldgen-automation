@@ -1,6 +1,7 @@
 """Isolated asset registry for Motion Studio."""
 
 import hashlib
+import re
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -56,6 +57,23 @@ def search_assets(query="", asset_type=None, approved_only=False):
         conn.row_factory = sqlite3.Row
         rows = conn.execute(f"SELECT * FROM assets {where} ORDER BY created_at DESC", values).fetchall()
     return [dict(row) for row in rows]
+
+
+def select_assets_for_topic(topic, limit=5):
+    """Return approved internal assets ranked by topic words, without external sources."""
+    words = {word for word in re.findall(r"[a-z0-9]+", " ".join([
+        str(topic.get("headline", "")), str(topic.get("subtitle", "")),
+        " ".join(topic.get("list_points") or []),
+    ]).lower()) if len(word) >= 4}
+    candidates = search_assets(approved_only=True)
+    ranked = []
+    for asset in candidates:
+        haystack = f"{asset.get('filename', '')} {asset.get('tags', '')}".lower()
+        score = sum(1 for word in words if word in haystack)
+        if score:
+            ranked.append((score, asset))
+    ranked.sort(key=lambda item: (-item[0], item[1].get("created_at", "")))
+    return [asset for _, asset in ranked[:limit]]
 
 
 def scan_existing_images(root):

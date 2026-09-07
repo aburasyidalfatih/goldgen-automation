@@ -21,7 +21,7 @@ bp = Blueprint('api', __name__)
 from core.config import BASE_DIR, DB_PATH, IMAGES_DIR, DATA_DIR, CONFIG_PATH, DASHBOARD_PIN
 from core.database import get_db_connection
 from core.motion_studio import create_job, list_jobs, list_topics, update_job
-from core.motion_assets import search_assets, scan_existing_images
+from core.motion_assets import search_assets, scan_existing_images, select_assets_for_topic
 from core.motion_renderer import default_manifest, render_manifest
 from core.motion_tts import generate_voiceover
 from core.motion_qa import validate_render
@@ -114,7 +114,7 @@ def render_motion_job(job_id):
         update_job(job_id, status='rendering', error_message=None)
         from core.motion_studio import MOTION_RENDERS_DIR
         audio_path = MOTION_RENDERS_DIR / f'{job_id}.wav'
-        result = render_manifest(job_id, default_manifest(topic), audio_path=audio_path)
+        result = render_manifest(job_id, default_manifest(topic, select_assets_for_topic(topic)), audio_path=audio_path)
         qa = validate_render(result['output_path'], result['manifest_path'])
         if not qa['ok']:
             update_job(job_id, status='failed', output_path=result['output_path'], error_message='; '.join(qa['errors']))
