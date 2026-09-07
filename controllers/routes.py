@@ -1207,18 +1207,22 @@ def serve_analytics():
 @bp.route('/api/analytics/views-ranking')
 @require_pin
 def views_ranking():
-    """Comparable 48h views for successful posts from the last 30 days."""
+    """Current lifetime views; do not conflate with fixed-age snapshots."""
     conn = get_db()
     try:
         rows = conn.execute('''
             SELECT p.id,p.page_id,p.page_name,p.timestamp,p.topic_headline,
-                   p.content,p.fb_post_id,e.media_views,e.engagement,e.clicks
+                   p.content,p.fb_post_id,v.media_views,
+                   COALESCE(ec.likes+ec.comments,e.engagement) AS engagement,e.clicks,
+                   v.fetched_at,v.attempted_at,v.error AS views_error
             FROM posts p LEFT JOIN post_engagement e
               ON e.post_id=p.id AND e.source='snapshot48'
+            LEFT JOIN post_views_current v ON v.fb_post_id=p.fb_post_id
+            LEFT JOIN engagement_cache ec ON ec.fb_post_id=p.fb_post_id
             WHERE p.status='success'
               AND julianday(p.timestamp) BETWEEN julianday('now','-30 days') AND julianday('now')
-            ORDER BY p.page_name,p.page_id,e.media_views IS NULL,e.media_views DESC,
-                     e.engagement DESC,p.id DESC
+            ORDER BY p.page_name,p.page_id,v.media_views IS NULL,v.media_views DESC,
+                     engagement DESC,p.id DESC
         ''').fetchall()
         groups = {}
         for r in rows:
@@ -1227,7 +1231,7 @@ def views_ranking():
             group['measured'] += r['media_views'] is not None
             group['posts'].append(dict(r))
         return jsonify({'groups':list(groups.values()),'window_days':30,
-                        'metric':'post_media_view','measurement':'snapshot48'})
+                        'metric':'post_media_view','measurement':'current_lifetime'})
     finally:
         conn.close()
 

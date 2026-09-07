@@ -107,7 +107,7 @@ class CommentAnalyzer:
                 SELECT p.fb_post_id FROM posts p
                 LEFT JOIN engagement_snapshots s ON s.fb_post_id=p.fb_post_id AND s.age_hours=48
                 WHERE p.page_id=? AND p.status='success' AND p.fb_post_id IS NOT NULL
-                  AND s.fb_post_id IS NULL
+                  AND (s.fb_post_id IS NULL OR s.media_views IS NULL OR s.clicks IS NULL)
                   AND (julianday('now')-julianday(p.timestamp))*24 BETWEEN 48 AND 50
                 ORDER BY julianday(p.timestamp) LIMIT 20
             ''', (page['page_id'],)).fetchall()
@@ -135,6 +135,12 @@ class CommentAnalyzer:
                                   SELECT 1 FROM posts WHERE fb_post_id=?
                                   AND (julianday('now')-julianday(timestamp))*24 BETWEEN 48 AND 50)
                             ''', (post_id, sum(values[:4]), values[4], clicks, media_views, post_id))
+                            conn.execute('''UPDATE engagement_snapshots
+                                SET media_views=COALESCE(media_views,?),clicks=COALESCE(clicks,?)
+                                WHERE fb_post_id=? AND age_hours=48 AND EXISTS (
+                                    SELECT 1 FROM posts WHERE fb_post_id=? AND
+                                    (julianday('now')-julianday(timestamp))*24 BETWEEN 48 AND 50)''',
+                                (media_views,clicks,post_id,post_id))
                     finally:
                         conn.close()
                 except Exception as exc:

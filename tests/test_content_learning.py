@@ -76,7 +76,7 @@ class LearningDataTests(unittest.TestCase):
             conn.commit(); conn.close()
             analyzer = CommentAnalyzer.__new__(CommentAnalyzer)
             analyzer.fanspages = [{'page_id': 'a', 'access_token': 'test'}]
-            analyzer.fetch_post_clicks = Mock(return_value=None)
+            analyzer.fetch_post_clicks = Mock(return_value=0)
             analyzer.fetch_post_media_views = Mock(return_value=1200)
             good = {k: {'summary': {'total_count': 2}} for k in ('like_count','love','haha','wow','comments')}
             response = Mock()
@@ -90,7 +90,7 @@ class LearningDataTests(unittest.TestCase):
             row = conn.execute('SELECT * FROM engagement_snapshots').fetchone()
             self.assertEqual(8, row['likes'])
             self.assertEqual(2, row['comments'])
-            self.assertIsNone(row['clicks'])
+            self.assertEqual(0, row['clicks'])
             self.assertEqual(1200, row['media_views'])
             conn.close()
 

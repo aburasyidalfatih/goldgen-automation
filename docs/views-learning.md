@@ -1,6 +1,12 @@
 # Pembelajaran tayangan
 
-`post_media_view` disimpan sebagai `media_views` pada snapshot usia 48–50 jam.
+`post_media_view` disimpan pada tabel `post_views_current` untuk posting 30 hari
+terakhir. Worker memeriksa tiap 30 menit; setiap posting diambil ulang paling
+cepat satu jam. Waktu berhasil/percobaan dan alasan gagal dicatat. Kegagalan
+mempertahankan nilai terakhir. Peringkat dashboard dan pemilihan konten memakai
+tayangan lifetime terkini ini; usia posting berbeda dapat memengaruhi jumlah.
+
+Secara terpisah, `media_views` juga dikumpulkan pada snapshot usia 48–50 jam.
 Angka ini adalah total tayangan, bukan orang unik dan bukan pendapatan.
 Kegagalan API menghasilkan NULL, bukan nol. Snapshot lama tidak diisi ulang
 dengan angka lifetime saat ini karena umur pengukurannya berbeda.

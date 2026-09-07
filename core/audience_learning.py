@@ -67,8 +67,15 @@ def page_rows(page_id):
     conn = get_db_connection()
     try:
         return add_view_outcomes([dict(r) for r in conn.execute('''
-            SELECT * FROM post_engagement WHERE page_id=? AND source='snapshot48'
-              AND julianday(timestamp) BETWEEN julianday('now','-30 days') AND julianday('now')
+            SELECT p.*,v.media_views,v.fetched_at,
+                   COALESCE(ec.likes+ec.comments,e.engagement) AS engagement,
+                   e.rel_engagement
+            FROM posts p
+            LEFT JOIN post_views_current v ON v.fb_post_id=p.fb_post_id
+            LEFT JOIN engagement_cache ec ON ec.fb_post_id=p.fb_post_id
+            LEFT JOIN post_engagement e ON e.post_id=p.id
+            WHERE p.page_id=? AND p.status='success'
+              AND julianday(p.timestamp) BETWEEN julianday('now','-30 days') AND julianday('now')
         ''', (page_id,))])
     finally:
         conn.close()
@@ -89,7 +96,7 @@ def report(page_id):
     return {'window_days': WINDOW_DAYS, 'half_life_days': HALF_LIFE_DAYS,
             'minimum_effective_samples': MIN_EFFECTIVE_SAMPLES,
             'objective': 'Peringkat tayangan 30 hari; interaksi hanya pembeda jika tayangan sama',
-            'views_baseline': 'Snapshot 48 jam per Fanspage; tayangan tertinggi mendapat skor 4',
+            'views_baseline': 'Tayangan lifetime terkini untuk posting 30 hari per Fanspage; usia posting berbeda',
             'interpretation': 'Bukti observasional; bukan bukti sebab-akibat atau ukuran reach',
             'layouts': performance(page_id, 'layout_name'),
             'hooks': performance(page_id, 'hook_type', normalize_hook),

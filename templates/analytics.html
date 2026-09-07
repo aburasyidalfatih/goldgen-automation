@@ -86,7 +86,7 @@
         <h2 id="views-heading" style="font-size:26px;font-weight:700">Konten dengan tayangan terluas</h2>
         <button type="button" onclick="loadViewsRanking()" style="padding:10px 16px;border:1px solid #fbbf24;border-radius:10px;color:#fbbf24">Segarkan peringkat</button>
       </div>
-      <p style="color:#a1a1aa;margin:12px 0 24px;line-height:1.7">Posting 30 hari terakhir · Dikelompokkan per Fanspage · Tayangan terbanyak di urutan pertama, lalu interaksi. Angka diukur saat usia posting sekitar 48 jam, bukan tayangan terkini atau jumlah orang unik.</p>
+      <p style="color:#a1a1aa;margin:12px 0 24px;line-height:1.7">Posting 30 hari terakhir · Tayangan terbanyak di urutan pertama, lalu interaksi. Tayangan adalah total lifetime saat terakhir diperbarui, bukan orang unik. Usia posting berbeda; posting lama punya waktu lebih panjang untuk mengumpulkan tayangan. Data diperbarui berkala.</p>
       <div id="views-ranking" aria-live="polite">Memuat peringkat…</div>
     </section>
     <h2 style="font-size:22px;font-weight:700;margin-bottom:12px">Memori pembelajaran</h2>
@@ -135,7 +135,7 @@ async function loadViewsRanking() {
             const card = el('section', undefined, 'border:1px solid #3f3f46;background:#18181b;border-radius:16px;padding:20px;margin-bottom:20px');
             card.append(el('h3',group.page_name,'color:#fbbf24;font-size:21px;font-weight:700'));
             card.append(el('p',`${group.measured} dari ${group.posts.length} konten memiliki data tayangan`,'color:#a1a1aa;margin:6px 0 16px'));
-            if (!group.measured) card.append(el('p','Belum ada snapshot tayangan yang tersedia. Data kosong bukan berarti nol tayangan.','color:#fbbf24;margin-bottom:16px'));
+            if (!group.measured) card.append(el('p','Data tayangan belum terkumpul. Data kosong bukan berarti nol tayangan.','color:#fbbf24;margin-bottom:16px'));
             let rank = 0;
             for (const post of group.posts) {
                 const measured = post.media_views != null;
@@ -144,7 +144,9 @@ async function loadViewsRanking() {
                 const body = el('div',undefined,'flex:1;min-width:200px;overflow-wrap:anywhere');
                 body.append(el('h4',post.topic_headline || (post.content || 'Tanpa judul').slice(0,110),'font-weight:600'));
                 body.append(el('p',new Date(post.timestamp).toLocaleString('id-ID'),'font-size:12px;color:#a1a1aa;margin:6px 0'));
-                body.append(el('p',measured ? `${number(post.media_views)} tayangan · ${number(post.engagement)} interaksi · ${number(post.clicks)} klik` : 'Belum tersedia pengukuran tayangan 48 jam','color:#e4e4e7;font-size:14px'));
+                body.append(el('p',measured ? `${number(post.media_views)} tayangan · ${number(post.engagement)} interaksi terakhir tercatat` : 'Tayangan belum tersedia','color:#e4e4e7;font-size:14px'));
+                if (post.fetched_at) body.append(el('p','Tayangan diperbarui: '+new Date(post.fetched_at.replace(' ','T')+'Z').toLocaleString('id-ID'),'font-size:12px;color:#a1a1aa'));
+                if (post.views_error) body.append(el('p','Pembaruan terakhir gagal: '+post.views_error,'font-size:12px;color:#fbbf24'));
                 const details=el('details');
                 details.append(el('summary','Lihat caption','cursor:pointer;color:#a1a1aa;margin-top:10px'));
                 details.append(el('p',post.content || 'Caption tidak tersedia','white-space:pre-wrap;font-size:14px;line-height:1.7;margin-top:8px'));

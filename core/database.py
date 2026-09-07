@@ -66,6 +66,9 @@ def init_db():
     """Initialize the database tables if they do not exist, and auto-migrate legacy schemas"""
     conn = get_db_connection()
     cursor = conn.cursor()
+    cursor.execute('''CREATE TABLE IF NOT EXISTS post_views_current (
+        fb_post_id TEXT PRIMARY KEY, media_views INTEGER, clicks INTEGER,
+        engagement INTEGER, fetched_at TEXT, attempted_at TEXT, error TEXT)''')
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS posts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
