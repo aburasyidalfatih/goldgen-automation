@@ -28,6 +28,7 @@ class MotionStudioTests(unittest.TestCase):
                             for scene in manifest["scenes"]
                             for layer in scene["layers"]))
         self.assertGreaterEqual(len({scene["motion"] for scene in manifest["scenes"]}), 3)
+        self.assertTrue(all(scene.get("camera") for scene in manifest["scenes"]))
 
     def test_srt_uses_scene_text_and_timing(self):
         with tempfile.TemporaryDirectory() as temp_dir:

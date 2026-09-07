@@ -80,6 +80,7 @@ def default_manifest(topic, assets=None):
         scene["motion"] = motions[index % len(motions)]
         scene["transition"] = ("cut", "push", "settle")[index % 3]
         scene["style"] = styles[(int(topic.get("id") or 0) + index) % len(styles)]
+        scene["camera"] = ("push-in", "glide-up", "hold")[index % 3]
     target_duration = 60.0
     current_duration = sum(float(scene["duration"]) for scene in scenes)
     scale = target_duration / current_duration if current_duration else 1
@@ -146,7 +147,14 @@ def render_manifest(job_id, manifest, audio_path=None):
             background_path = Path(background) if background else None
             if background_path and background_path.is_file():
                 source = ["-loop", "1", "-i", str(background_path)]
-                vf = f"scale={WIDTH}:{HEIGHT}:force_original_aspect_ratio=increase,crop={WIDTH}:{HEIGHT}," + vf
+                camera = scene.get("camera", "hold")
+                if camera == "push-in":
+                    background_filter = "scale=iw*1.10:ih*1.10,crop=1080:1920:(iw-1080)*0.5:(ih-1920)*0.5"
+                elif camera == "glide-up":
+                    background_filter = "scale=iw*1.08:ih*1.08,crop=1080:1920:(iw-1080)*0.5:(ih-1920)*(1-t/10)"
+                else:
+                    background_filter = f"scale={WIDTH}:{HEIGHT}:force_original_aspect_ratio=increase,crop={WIDTH}:{HEIGHT}"
+                vf = background_filter + "," + vf
             else:
                 source = ["-f", "lavfi", "-i", f"color=c=0x11100d:s={WIDTH}x{HEIGHT}:r={FPS}"]
             subprocess.run([
