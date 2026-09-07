@@ -103,3 +103,12 @@ def update_job(job_id, **fields):
     with sqlite3.connect(MOTION_DB_PATH) as conn:
         conn.execute(f'UPDATE motion_jobs SET {assignments} WHERE id = ?', values)
     return get_job(job_id)
+
+
+def queue_draft_jobs(limit=20):
+    now = datetime.now(timezone.utc).isoformat()
+    with sqlite3.connect(MOTION_DB_PATH) as conn:
+        rows = conn.execute("SELECT id FROM motion_jobs WHERE status = 'draft' ORDER BY created_at ASC LIMIT ?", (limit,)).fetchall()
+        if rows:
+            conn.executemany("UPDATE motion_jobs SET status = 'queued', updated_at = ? WHERE id = ?", [(now, row[0]) for row in rows])
+    return [get_job(row[0]) for row in rows]

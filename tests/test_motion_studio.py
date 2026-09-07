@@ -12,6 +12,7 @@ from core.motion_renderer import default_manifest, render_manifest, write_srt
 from core.motion_assets import init_asset_storage, register_asset, search_assets, select_assets_for_topic
 from core.motion_tts import generate_voiceover
 from core.motion_publisher import publish_video
+from core.motion_studio import create_job, queue_draft_jobs
 
 
 class MotionStudioTests(unittest.TestCase):
@@ -113,6 +114,17 @@ class MotionStudioTests(unittest.TestCase):
         with patch.dict("os.environ", {"MOTION_AUTO_PUBLISH_ENABLED": "false"}, clear=False):
             with self.assertRaisesRegex(RuntimeError, "disabled"):
                 publish_video("page", "token", "missing.mp4", "caption")
+
+    def test_batch_queue_moves_drafts_to_queued(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_path = Path(temp_dir) / "motion.db"
+            with patch("core.motion_studio.MOTION_DB_PATH", db_path), patch("core.motion_studio.list_topics", return_value=[{"id": 1, "headline": "Test", "subtitle": "", "list_points": []}]):
+                from core.motion_studio import init_motion_storage
+                init_motion_storage()
+                job = create_job(1)
+                queued = queue_draft_jobs(10)
+        self.assertEqual(job["status"], "draft")
+        self.assertEqual(queued[0]["status"], "queued")
 
 
 if __name__ == "__main__":

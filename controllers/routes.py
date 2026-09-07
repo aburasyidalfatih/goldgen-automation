@@ -20,7 +20,7 @@ bp = Blueprint('api', __name__)
 
 from core.config import BASE_DIR, DB_PATH, IMAGES_DIR, DATA_DIR, CONFIG_PATH, DASHBOARD_PIN
 from core.database import get_db_connection
-from core.motion_studio import create_job, list_jobs, list_topics, update_job
+from core.motion_studio import create_job, list_jobs, list_topics, update_job, queue_draft_jobs
 from core.motion_assets import search_assets, scan_existing_images, select_assets_for_topic
 from core.motion_renderer import default_manifest, render_manifest
 from core.motion_tts import generate_voiceover
@@ -71,6 +71,17 @@ def motion_jobs():
     try:
         topic_id = int(data.get('topic_id'))
         return jsonify({'success': True, 'job': create_job(topic_id)}), 201
+    except (TypeError, ValueError) as exc:
+        return jsonify({'success': False, 'error': str(exc)}), 400
+
+@bp.route('/api/motion/jobs/batch-render', methods=['POST'])
+@require_pin
+def batch_render_motion_jobs():
+    data = request.get_json(silent=True) or {}
+    try:
+        limit = min(max(int(data.get('limit', 10)), 1), 50)
+        queued = queue_draft_jobs(limit)
+        return jsonify({'success': True, 'queued_count': len(queued), 'jobs': queued})
     except (TypeError, ValueError) as exc:
         return jsonify({'success': False, 'error': str(exc)}), 400
 

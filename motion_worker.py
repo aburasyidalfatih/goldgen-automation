@@ -10,6 +10,7 @@ import time
 
 from core.locks import ProcessLock
 from core.motion_renderer import default_manifest, render_manifest
+from core.motion_assets import select_assets_for_topic
 from core.motion_qa import validate_render
 from core.motion_studio import get_job, list_jobs, list_topics, update_job, init_motion_storage, MOTION_RENDERS_DIR
 
@@ -25,7 +26,7 @@ def process_one(job):
     try:
         update_job(job["id"], status="rendering", error_message=None)
         audio_path = MOTION_RENDERS_DIR / f'{job["id"]}.wav'
-        result = render_manifest(job["id"], default_manifest(topic), audio_path=audio_path)
+        result = render_manifest(job["id"], default_manifest(topic, select_assets_for_topic(topic)), audio_path=audio_path)
         qa = validate_render(result["output_path"], result["manifest_path"])
         if not qa["ok"]:
             update_job(job["id"], status="failed", output_path=result["output_path"], error_message="; ".join(qa["errors"]))
@@ -43,7 +44,7 @@ def run_once():
         if not lock.acquired:
             logger.info("Worker Motion Studio lain sedang berjalan")
             return
-        pending = [job for job in list_jobs(100) if job["status"] == "draft"]
+        pending = [job for job in list_jobs(100) if job["status"] in {"draft", "queued"}]
         if pending:
             process_one(pending[0])
 
