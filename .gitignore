@@ -44,3 +44,7 @@ archive/
 
 # Secrets
 data/secret.key
+
+# Motion Studio runtime data (job DB, rendered video, voice-over, asset registry)
+# Dibuat otomatis saat aplikasi atau tes berjalan; bukan bagian dari kode.
+motion_studio/
