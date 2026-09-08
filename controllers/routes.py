@@ -105,11 +105,17 @@ def motion_readiness():
     import os
     from core.motion_renderer import ffmpeg_path
     from core.motion_tts import _configured_api_key
+    # 'gemini_tts_configured' hanya berarti KUNCI API tersedia — bukan bahwa
+    # voice-over berhasil dibuat. Selama berbulan-bulan nilainya true padahal
+    # setiap panggilan TTS berakhir HTTP 400, sehingga dasbor menyatakan siap
+    # untuk sesuatu yang tidak pernah bekerja. Namanya dibuat sesuai isinya.
     return jsonify({
         'success': True,
         'ready_for_local_render': bool(ffmpeg_path()),
         'ffmpeg': bool(ffmpeg_path()),
-        'gemini_tts_configured': bool(_configured_api_key()),
+        'gemini_tts_key_present': bool(_configured_api_key()),
+        'gemini_tts_configured': bool(_configured_api_key()),  # nama lama, untuk UI yang sudah ada
+        'voiceover_verified': False,  # baru benar setelah satu voice-over sukses dibuat
         'automatic_publishing_enabled': os.getenv('MOTION_AUTO_PUBLISH_ENABLED', 'false').lower() == 'true',
         'manual_export_enabled': True,
     })
@@ -125,18 +131,22 @@ def render_motion_job(job_id):
         update_job(job_id, status='rendering', progress_percent=12, current_stage='preparing', current_detail='Preparing topic, assets, and scene plan', scene_current=0, scene_total=6, error_message=None)
         from core.motion_studio import MOTION_RENDERS_DIR
         audio_path = MOTION_RENDERS_DIR / f'{job_id}.wav'
+        ada_suara = audio_path.is_file()
         update_job(job_id, progress_percent=22, current_stage='assets', current_detail='Matching approved internal assets')
         manifest = default_manifest(topic, select_assets_for_topic(topic))
         def report(scene_current, scene_total, stage, detail):
             percent = 35 + round((scene_current / max(scene_total, 1)) * 50)
             update_job(job_id, progress_percent=percent, current_stage=stage, current_detail=detail, scene_current=scene_current, scene_total=scene_total)
         result = render_manifest(job_id, manifest, audio_path=audio_path, progress_callback=report)
-        update_job(job_id, progress_percent=92, current_stage='quality_check', current_detail='Validating video, audio, subtitle, and portrait format')
-        qa = validate_render(result['output_path'], result['manifest_path'])
+        update_job(job_id, progress_percent=92, current_stage='quality_check',
+                   current_detail='Memeriksa video, subtitle, format potret' + (', dan audio' if ada_suara else ''))
+        qa = validate_render(result['output_path'], result['manifest_path'], expect_audio=ada_suara)
         if not qa['ok']:
             update_job(job_id, status='failed', output_path=result['output_path'], error_message='; '.join(qa['errors']))
             return jsonify({'success': False, 'error': 'Video gagal QA', 'qa': qa}), 422
-        updated = update_job(job_id, status='ready', progress_percent=100, current_stage='complete', current_detail='Video ready to preview or download', output_path=result['output_path'])
+        updated = update_job(job_id, status='ready', progress_percent=100, current_stage='complete',
+                             current_detail='Video siap' + ('' if qa.get('has_audio') else ' (tanpa suara)'),
+                             output_path=result['output_path'])
         return jsonify({'success': True, 'job': updated, 'render': result, 'qa': qa})
     except (OSError, RuntimeError) as exc:
         update_job(job_id, status='failed', current_stage='failed', current_detail='Motion job failed', error_message=str(exc))

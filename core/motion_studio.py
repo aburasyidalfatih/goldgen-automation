@@ -84,9 +84,21 @@ def init_motion_storage():
 
 
 def list_topics():
-    """Read the existing topic catalog without writing to it."""
+    """Read the existing topic catalog without writing to it.
+
+    Gerbang kurasi yang sama dengan pipeline Facebook. Sebelumnya seluruh isi
+    topics.json dikembalikan mentah — 142 topik, sementara hanya 136 yang lolos
+    `allowed()`. Akibatnya Motion Studio bisa membuat video dari topik yang
+    justru sudah ditolak untuk diposting.
+    """
     with TOPICS_PATH.open("r", encoding="utf-8") as handle:
         topics = json.load(handle)
+    try:
+        from core.topic_catalog import allowed
+        topics = [topic for topic in topics if allowed(topic)]
+    except Exception:
+        # Katalog yang tidak bisa dibaca tidak boleh mengosongkan studio
+        pass
     return [
         {
             "id": topic.get("id"),

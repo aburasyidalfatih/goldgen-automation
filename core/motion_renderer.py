@@ -170,8 +170,12 @@ def render_manifest(job_id, manifest, audio_path=None, progress_callback=None):
         concat_file.write_text("\n".join(f"file '{clip.as_posix()}'" for clip in clips), encoding="utf-8")
         command = [binary, "-y", "-f", "concat", "-safe", "0", "-i", str(concat_file)]
         if audio_path and Path(audio_path).is_file():
+            # `apad` menambah keheningan di belakang narasi supaya audio tidak
+            # pernah menjadi stream terpendek. Tanpa itu, `-shortest` memotong
+            # VIDEO mengikuti panjang suara: narasi 5 detik memangkas video 60
+            # detik menjadi 5 detik, dan seluruh adegan sesudahnya hilang.
             command += ["-i", str(audio_path), "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy",
-                        "-c:a", "aac", "-shortest"]
+                        "-c:a", "aac", "-af", "apad", "-shortest"]
         else:
             command += ["-c", "copy"]
         command += ["-movflags", "+faststart", str(output)]

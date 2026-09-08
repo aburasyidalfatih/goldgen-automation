@@ -19,7 +19,15 @@ def inspect_media(path):
     return {"ok": True, "data": json.loads(result.stdout or "{}"), "errors": []}
 
 
-def validate_render(video_path, manifest_path):
+def validate_render(video_path, manifest_path, expect_audio=False):
+    """Periksa hasil render.
+
+    `expect_audio` sengaja eksplisit. Voice-over di Motion Studio bersifat
+    opsional, jadi video bisu memang sah — tapi kalau voice-over SUDAH dibuat
+    dan ternyata tidak ikut termuat, itu cacat yang harus ketahuan. Sebelumnya
+    tidak ada pemeriksaan audio sama sekali, padahal tahap ini dilaporkan ke
+    pengguna sebagai "Validating video, audio, subtitle, and portrait format".
+    """
     errors = []
     video = Path(video_path)
     manifest = Path(manifest_path)
@@ -41,9 +49,13 @@ def validate_render(video_path, manifest_path):
             errors.append("Durasi video tidak valid")
     elif not errors:
         errors.append("Video stream tidak ditemukan")
+    audio_stream = next((item for item in streams if item.get("codec_type") == "audio"), None)
+    if expect_audio and not audio_stream:
+        errors.append("Voice-over sudah dibuat tetapi tidak termuat di video")
     return {
         "ok": not errors,
         "errors": errors + details.get("errors", []),
         "video_path": str(video),
         "manifest_path": str(manifest),
+        "has_audio": bool(audio_stream),
     }

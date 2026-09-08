@@ -47,18 +47,21 @@ def generate_voiceover(job_id, text, voice_name="Kore", model=None):
 
     client = genai.Client(api_key=api_key)
     selected_model = model or os.getenv("GEMINI_TTS_MODEL", "gemini-2.5-flash-preview-tts")
+
+    # Urutannya sengaja: generate_content DULU, interactions hanya cadangan.
+    #
+    # Sebelumnya kebalikannya, dipilih lewat `hasattr(client, "interactions")`.
+    # Atribut itu memang ada pada google-genai 1.73.1 yang terpasang, tapi
+    # servernya menolak skemanya: "The legacy Interactions API schema is no
+    # longer supported ... upgrade to >= 2.0.0". Jadi setiap panggilan berakhir
+    # HTTP 400 dan cabang yang benar tidak pernah tereksekusi — voice-over
+    # Motion Studio tidak pernah sekali pun berhasil dibuat.
+    #
+    # Diuji langsung pada SDK yang terpasang: generate_content mengembalikan
+    # 159.886 byte audio. Tidak perlu menaikkan versi SDK.
     pcm = None
-    if hasattr(client, "interactions"):
-        interaction = client.interactions.create(
-            model=selected_model,
-            input=text,
-            response_format={"type": "audio"},
-            generation_config={"speech_config": [{"voice": voice_name}]},
-        )
-        encoded = getattr(getattr(interaction, "output_audio", None), "data", None)
-        if encoded:
-            pcm = base64.b64decode(encoded)
-    else:
+    kegagalan = []
+    try:
         response = client.models.generate_content(
             model=selected_model,
             contents=text,
@@ -73,13 +76,32 @@ def generate_voiceover(job_id, text, voice_name="Kore", model=None):
         )
         pcm = getattr(response, "audio", None)
         if not pcm and getattr(response, "candidates", None):
-            parts = response.candidates[0].content.parts
-            for part in parts:
+            for part in response.candidates[0].content.parts:
                 if getattr(part, "inline_data", None):
                     pcm = part.inline_data.data
                     break
+    except Exception as exc:  # noqa: BLE001 - alasannya dilaporkan di bawah
+        kegagalan.append(f"generate_content: {type(exc).__name__}: {exc}")
+
+    if not pcm and hasattr(client, "interactions"):
+        try:
+            interaction = client.interactions.create(
+                model=selected_model,
+                input=text,
+                response_format={"type": "audio"},
+                generation_config={"speech_config": [{"voice": voice_name}]},
+            )
+            encoded = getattr(getattr(interaction, "output_audio", None), "data", None)
+            if encoded:
+                pcm = base64.b64decode(encoded)
+        except Exception as exc:  # noqa: BLE001
+            kegagalan.append(f"interactions: {type(exc).__name__}: {exc}")
+
     if not pcm:
-        raise RuntimeError("Gemini TTS tidak mengembalikan audio")
+        # Sebutkan alasan aslinya. Pesan "tidak mengembalikan audio" saja
+        # menyembunyikan HTTP 400 yang justru menjelaskan semuanya.
+        rincian = ' | '.join(kegagalan) if kegagalan else 'tidak ada audio pada respons'
+        raise RuntimeError(f"Gemini TTS gagal — {rincian}"[:600])
     output = MOTION_RENDERS_DIR / f"{job_id}.wav"
     _write_wav(output, pcm)
     return str(output)
