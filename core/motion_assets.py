@@ -6,14 +6,14 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
-from core.motion_studio import MOTION_ASSETS_DIR, MOTION_DATA_DIR
+from core.motion_studio import MOTION_ASSETS_DIR, MOTION_DATA_DIR, motion_db
 
 ASSET_DB_PATH = MOTION_DATA_DIR / "assets.db"
 
 
 def init_asset_storage():
     MOTION_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(ASSET_DB_PATH) as conn:
+    with motion_db(ASSET_DB_PATH) as conn:
         conn.execute("""CREATE TABLE IF NOT EXISTS assets (
             id TEXT PRIMARY KEY, filename TEXT NOT NULL, source_path TEXT NOT NULL, asset_type TEXT NOT NULL,
             tags TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'draft',
@@ -34,7 +34,7 @@ def register_asset(path, asset_type="graphic", tags=(), status="draft", source_u
     digest = hashlib.sha256(source.read_bytes()).hexdigest()
     asset_id = digest[:16]
     now = datetime.now(timezone.utc).isoformat()
-    with sqlite3.connect(ASSET_DB_PATH) as conn:
+    with motion_db(ASSET_DB_PATH) as conn:
         conn.execute("""INSERT OR REPLACE INTO assets
             (id, filename, source_path, asset_type, tags, status, sha256, created_at, source_url, license_name, creator, attribution, origin)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
@@ -53,7 +53,7 @@ def search_assets(query="", asset_type=None, approved_only=False):
     if approved_only:
         clauses.append("status = 'approved'")
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
-    with sqlite3.connect(ASSET_DB_PATH) as conn:
+    with motion_db(ASSET_DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
         rows = conn.execute(f"SELECT * FROM assets {where} ORDER BY created_at DESC", values).fetchall()
     return [dict(row) for row in rows]

@@ -1,6 +1,25 @@
 import os
 import secrets
+import sys
 from pathlib import Path
+
+# Log aplikasi ini penuh emoji, sementara konsol Windows default memakai cp1252
+# yang tidak bisa menuliskannya. Akibatnya bukan sekadar tampilan jelek: satu
+# baris log bisa melempar UnicodeEncodeError dan menggagalkan seluruh siklus
+# posting. Itu benar-benar terjadi pada baris "Hook:" saat suite dijalankan di
+# Windows, padahal lulus di Linux.
+#
+# Diperbaiki sekali di sini — modul ini diimpor paling awal — supaya tiap print
+# di seluruh proyek aman, bukan dengan menghapus emoji satu per satu. Di
+# produksi (Docker/Linux) stdout sudah UTF-8, jadi ini tidak melakukan apa-apa.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        if _stream is not None and hasattr(_stream, 'reconfigure') \
+                and (getattr(_stream, 'encoding', '') or '').lower().replace('-', '') != 'utf8':
+            _stream.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        # Konsol yang menolak dikonfigurasi ulang tidak boleh menggagalkan import
+        pass
 
 # Project paths
 BASE_DIR = Path(__file__).parent.parent

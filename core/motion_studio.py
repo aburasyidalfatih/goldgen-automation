@@ -7,6 +7,7 @@ or auto-poster queues.
 
 import json
 import sqlite3
+from contextlib import contextmanager
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -18,6 +19,28 @@ MOTION_DATA_DIR = MOTION_DIR / "data"
 MOTION_ASSETS_DIR = MOTION_DIR / "assets"
 MOTION_RENDERS_DIR = MOTION_DIR / "renders"
 MOTION_DB_PATH = MOTION_DATA_DIR / "motion_jobs.db"
+
+def motion_db(path):
+    """Buka SQLite, selesaikan transaksinya, lalu TUTUP koneksinya.
+
+    `with sqlite3.connect(path) as conn` hanya menutup transaksi — koneksinya
+    tetap terbuka. Di Windows handle yang menganggur itu membuat berkas
+    database tidak bisa dihapus, sehingga tes Motion Studio gagal di sana
+    (WinError 32) padahal lulus di Linux. Di worker yang berjalan lama, setiap
+    pemanggilan meninggalkan satu handle menggantung.
+    """
+    return _motion_db(path)
+
+
+@contextmanager
+def _motion_db(path):
+    conn = sqlite3.connect(path)
+    try:
+        with conn:
+            yield conn
+    finally:
+        conn.close()
+
 TOPICS_PATH = BASE_DIR / "data" / "topics.json"
 
 
@@ -25,7 +48,7 @@ def init_motion_storage():
     """Create only Motion Studio storage; safe to call during app startup."""
     for path in (MOTION_DATA_DIR, MOTION_ASSETS_DIR, MOTION_RENDERS_DIR):
         path.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(MOTION_DB_PATH) as conn:
+    with motion_db(MOTION_DB_PATH) as conn:
         conn.execute(
             """CREATE TABLE IF NOT EXISTS motion_jobs (
                 id TEXT PRIMARY KEY,
@@ -82,7 +105,7 @@ def create_job(topic_id):
         raise ValueError("Topic tidak ditemukan")
     now = datetime.now(timezone.utc).isoformat()
     job_id = uuid.uuid4().hex
-    with sqlite3.connect(MOTION_DB_PATH) as conn:
+    with motion_db(MOTION_DB_PATH) as conn:
         conn.execute(
             """INSERT INTO motion_jobs
                (id, topic_id, topic_headline, status, created_at, updated_at)
@@ -93,7 +116,7 @@ def create_job(topic_id):
 
 
 def list_jobs(limit=20):
-    with sqlite3.connect(MOTION_DB_PATH) as conn:
+    with motion_db(MOTION_DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
             "SELECT * FROM motion_jobs ORDER BY created_at DESC LIMIT ?", (limit,)
@@ -102,7 +125,7 @@ def list_jobs(limit=20):
 
 
 def get_job(job_id):
-    with sqlite3.connect(MOTION_DB_PATH) as conn:
+    with motion_db(MOTION_DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
         row = conn.execute("SELECT * FROM motion_jobs WHERE id = ?", (job_id,)).fetchone()
     return dict(row) if row else None
@@ -116,14 +139,14 @@ def update_job(job_id, **fields):
     updates['updated_at'] = datetime.now(timezone.utc).isoformat()
     assignments = ', '.join(f'{key} = ?' for key in updates)
     values = list(updates.values()) + [job_id]
-    with sqlite3.connect(MOTION_DB_PATH) as conn:
+    with motion_db(MOTION_DB_PATH) as conn:
         conn.execute(f'UPDATE motion_jobs SET {assignments} WHERE id = ?', values)
     return get_job(job_id)
 
 
 def queue_draft_jobs(limit=20):
     now = datetime.now(timezone.utc).isoformat()
-    with sqlite3.connect(MOTION_DB_PATH) as conn:
+    with motion_db(MOTION_DB_PATH) as conn:
         rows = conn.execute("SELECT id FROM motion_jobs WHERE status = 'draft' ORDER BY created_at ASC LIMIT ?", (limit,)).fetchall()
         if rows:
             conn.executemany("UPDATE motion_jobs SET status = 'queued', updated_at = ? WHERE id = ?", [(now, row[0]) for row in rows])

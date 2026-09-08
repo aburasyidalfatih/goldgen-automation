@@ -64,6 +64,52 @@ GENERIC_HOOK_STYLES = """- "While beginners [do X], real veterans know [secret Y
 - "What successful prospectors know about [topic] that nobody talks about\""""
 
 
+# Batas teks yang boleh dirender di dalam gambar.
+#
+# Latar belakang: setelah katalog topik dikurasi (5 September), butir list_points
+# tumbuh dari median 14 kata menjadi 24-44 kata dan mulai memuat istilah teknis
+# seperti "Hjulstrom's Curve". Seluruh isi itu diserahkan ke model gambar untuk
+# ditulis, dan ejaannya rusak: "CROSGCTION", "acor-grarity", "TANE GOLD",
+# "honostes heavy metal metar". Skor kritikus gambar jatuh dari rata-rata 8.2
+# (1-4 Sep) ke 5.0 (7-8 Sep), dan 11 dari 12 postingan terakhir gagal memenuhi
+# ambangnya sendiri — semuanya karena keterbacaan teks, bukan komposisi.
+#
+# Model gambar mengeja beberapa kata pendek dengan andal, dan gagal pada
+# kalimat. Jadi jumlahnya yang dibatasi, bukan sekadar dilarang "berlebihan".
+MAX_TITLE_WORDS = 6      # judul katalog: 102 dari 103 muat tanpa dipotong
+MAX_EXTRA_LABELS = 3     # label tambahan yang boleh dipilih model sendiri
+
+def _visual_labels(topic, max_words=MAX_TITLE_WORDS):
+    """Judul pendek yang dijamin boleh dirender di dalam gambar.
+
+    Sempat saya coba memotong list_points menjadi label secara mekanis, tapi
+    hasilnya justru omong kosong — "PACK OUT ALL", "LIMITED TEST DOES" — yang
+    akan tampak buruk terpampang di gambar. Judul katalog hasil kurasi sudah
+    pendek dan rapi ("TEST PANNING", "READING THE RIVER"), jadi itulah yang
+    dipakai; sisa label diserahkan ke model gambar dengan batas jumlah, karena
+    ia lebih tahu kata mana yang sanggup ia eja.
+
+    Karakter non-ASCII dibuang: aksen seperti pada "Hjulstrom" termasuk yang
+    paling sering berubah jadi coretan.
+    """
+    import re
+    import unicodedata
+
+    judul = str(topic.get('headline') or '')
+    judul = unicodedata.normalize('NFKD', judul).encode('ascii', 'ignore').decode('ascii')
+    kata = re.findall(r"[A-Za-z][A-Za-z']*", judul)
+    if not kata:
+        return 'GOLD PROSPECTING'
+    kata = kata[:max_words]
+    # Jangan berhenti pada kata sambung — "PRACTICE PANNING IN A CATCH"
+    # terbaca seperti kalimat yang terpotong di tengah.
+    menggantung = {'in', 'a', 'an', 'the', 'and', 'or', 'of', 'to', 'for',
+                   'with', 'from', 'on', 'at', 'by', 'your'}
+    while len(kata) > 1 and kata[-1].lower() in menggantung:
+        kata.pop()
+    return ' '.join(kata).upper()
+
+
 class GoldGenService:
     def __init__(self, api_key, model='gemini-3.5-flash'):
         self.client = genai.Client(api_key=api_key)
@@ -1036,21 +1082,34 @@ Use it only when consistent with the requirements above:
     
     def generate_image_prompt(self, topic, page_id=None):
         """Generate image prompt for gold prospecting infographic"""
-        
+
         list_text = "\n".join([f"- {point}" for point in topic['list_points']])
-        
+        title_text = _visual_labels(topic)
+
         # Get layout-specific visual instructions
         layout_name = topic.get('layout', 'CROSS-SECTION CUTAWAY')
-        
-        # Base prompt with topic content
+
+        # Base prompt with topic content.
+        #
+        # Dua bagian ini sengaja dipisah. Model gambar perlu TAHU isinya supaya
+        # bisa menggambarkan hal yang benar, tapi begitu ia mencoba MENULIS
+        # kalimat panjang, ejaannya rusak. Karena itu isi lengkap diberikan
+        # sebagai arahan visual dengan larangan tegas untuk disalin, sementara
+        # teks yang boleh muncul dibatasi pada beberapa label pendek.
         base_prompt = f"""Create a VERTICAL EDUCATIONAL INFOGRAPHIC about GOLD PROSPECTING.
 
 TOPIC: {topic['headline']}
 SUBTITLE: {topic['subtitle']}
 EDITORIAL ANGLE: {topic.get('editorial_angle', topic['headline'])}
 
-KEY INFORMATION TO VISUALIZE:
+WHAT TO DEPICT (draw these ideas; do NOT copy this wording into the image):
 {list_text}
+
+TEXT ALLOWED IN THE IMAGE — nothing else may be written:
+1. The title, rendered exactly and spelled correctly: "{title_text}"
+2. At most {MAX_EXTRA_LABELS} additional labels of your own choosing, each no more than
+   3 short everyday English words, naming things visible in the illustration.
+   Choose only words you can spell with certainty.
 
 LAYOUT STYLE: {layout_name}
 COMPOSITION GUIDE: {topic['composition']}
@@ -1150,7 +1209,7 @@ MANDATORY REQUIREMENTS:
 - Atmosphere: Educational, scientific, professional
 - Quality: High detail, sharp focus on key elements, photorealistic rendering where applicable.
 - NO ABSTRACT ART. NO CARTOONS. Must look like a professional reference guide.
-- TEXT WARNING: DO NOT generate paragraphs of illegible text or scribbles. If text is included, it must be minimal, bold, and highly legible.
+- TEXT BUDGET (most important rule): render ONLY the short labels listed above. No sentences, no paragraphs, no captions, no footnotes, no fine print, no formulas, no equations, no citations, no invented words. Every label must be a real, correctly spelled English word in a bold sans-serif face, large enough to read on a phone. If you are unsure how to spell something, draw it instead of writing it. Fewer words rendered perfectly beats more words rendered badly.
 """
         
         from core.content_feedback import feedback_prompt
