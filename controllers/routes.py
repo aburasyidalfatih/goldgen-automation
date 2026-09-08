@@ -99,6 +99,19 @@ def scan_motion_assets():
     registered = scan_existing_images(IMAGES_DIR)
     return jsonify({'success': True, 'registered_count': len(registered)})
 
+def _voiceover_pernah_berhasil():
+    """Apakah TTS pernah menghasilkan berkas suara yang berisi?
+
+    Berkas .wav hanya ditulis setelah Gemini mengembalikan audio, jadi
+    keberadaannya adalah bukti nyata — bukan sekadar 'kunci API terpasang'.
+    """
+    try:
+        from core.motion_studio import MOTION_RENDERS_DIR
+        return any(p.stat().st_size > 1024 for p in MOTION_RENDERS_DIR.glob('*.wav'))
+    except OSError:
+        return False
+
+
 @bp.route('/api/motion/readiness', methods=['GET'])
 @require_pin
 def motion_readiness():
@@ -115,7 +128,9 @@ def motion_readiness():
         'ffmpeg': bool(ffmpeg_path()),
         'gemini_tts_key_present': bool(_configured_api_key()),
         'gemini_tts_configured': bool(_configured_api_key()),  # nama lama, untuk UI yang sudah ada
-        'voiceover_verified': False,  # baru benar setelah satu voice-over sukses dibuat
+        # Bukti, bukan konfigurasi: benar hanya kalau TTS pernah benar-benar
+        # menghasilkan berkas suara. Inilah pembeda yang dulu tidak ada.
+        'voiceover_verified': _voiceover_pernah_berhasil(),
         'automatic_publishing_enabled': os.getenv('MOTION_AUTO_PUBLISH_ENABLED', 'false').lower() == 'true',
         'manual_export_enabled': True,
     })
