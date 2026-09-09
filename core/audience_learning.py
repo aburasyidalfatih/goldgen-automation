@@ -89,13 +89,55 @@ def page_rows(page_id):
 
 
 def performance(page_id, field, normalize=None):
+    local_rows = page_rows(page_id)
     groups = {}
-    for row in page_rows(page_id):
+    for row in local_rows:
         key = row.get(field)
         key = normalize(key) if normalize else key
         if key is not None and key != '':
             groups.setdefault(key, []).append(row)
-    return {key: summarize(rows) for key, rows in groups.items()}
+    result = {key: summarize(rows) for key, rows in groups.items()}
+
+    # Cold start: borrow a deliberately weak prior from the same GoldGen
+    # portfolio until this page has enough measured evidence of its own.
+    if sum(1 for row in local_rows if row.get('learning_outcome') is not None) < MIN_EFFECTIVE_SAMPLES:
+        from core.database import get_db_connection
+        conn = get_db_connection()
+        try:
+            shared_rows = add_view_outcomes([dict(r) for r in conn.execute('''
+                SELECT p.*,v.media_views,v.views_24h,v.views_48h,v.velocity_per_hour,v.fetched_at,
+                       COALESCE(ec.likes+ec.comments,e.engagement) AS engagement,
+                       e.rel_engagement
+                FROM posts p
+                LEFT JOIN post_views_current v ON v.fb_post_id=p.fb_post_id
+                LEFT JOIN engagement_cache ec ON ec.fb_post_id=p.fb_post_id
+                LEFT JOIN post_engagement e ON e.post_id=p.id
+                WHERE p.status='success'
+                  AND julianday(p.timestamp) BETWEEN julianday('now','-30 days') AND julianday('now')
+            ''')])
+        finally:
+            conn.close()
+        borrowed = {}
+        for row in shared_rows:
+            if row.get('page_id') == page_id:
+                continue
+            key = row.get(field)
+            key = normalize(key) if normalize else key
+            if key is not None and key != '':
+                borrowed.setdefault(key, []).append(row)
+        for key, rows in borrowed.items():
+            remote = summarize(rows)
+            local = result.get(key)
+            if not local:
+                result[key] = dict(remote, evidence='cold-start portfolio')
+                result[key]['effective_n'] = round(remote['effective_n'] * 0.35, 3)
+            else:
+                weight = min(0.35, 0.35 * remote['effective_n'] / max(MIN_EFFECTIVE_SAMPLES, remote['effective_n']))
+                total = local['effective_n'] + remote['effective_n'] * weight
+                local['avg'] = (local['avg'] * local['effective_n'] + remote['avg'] * remote['effective_n'] * weight) / max(total, 1e-9)
+                local['effective_n'] = total
+                local['evidence'] = 'local + cold-start portfolio'
+    return result
 
 
 def report(page_id):
