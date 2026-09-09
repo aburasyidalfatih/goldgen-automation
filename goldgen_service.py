@@ -122,6 +122,8 @@ class GoldGenService:
         try:
             with open(Path(__file__).parent / 'data' / 'layouts.json', 'r', encoding='utf-8') as f:
                 self.layouts = json.load(f)
+            from core.layout_policy import curate_layouts
+            self.layouts = curate_layouts(self.layouts)
             from core.topic_catalog import load_catalog, allowed
             self.source_topics, self.catalog_topics = load_catalog(Path(__file__).parent / 'data' / 'topics.json')
             self.topics = [t for t in self.catalog_topics if allowed(t)]
@@ -134,6 +136,9 @@ class GoldGenService:
         # disimpan di layouts.json (bukan dihapus) supaya keputusan ini bisa
         # ditinjau ulang dan komposisi promptnya tidak hilang.
         self.active_layouts = [l for l in self.layouts if not l.get('retired')]
+        from core.layout_policy import compatible
+        self.topics = [topic for topic in self.topics
+                       if any(compatible(topic, layout) for layout in self.active_layouts)]
 
     def _get_audience_preferences(self, page_id=None, limit=10):
         """Ambil top topic preferences dari analisis komentar.
@@ -372,7 +377,7 @@ class GoldGenService:
         print(f"   📚 Topik dipilih dari performa: {judul[:44]} ({asal})")
         return i
 
-    def _choose_layout(self, page_id, fallback_index):
+    def _choose_layout(self, page_id, fallback_index, topic=None):
         """Pilih layout memakai Thompson Sampling (Gamma-Poisson).
 
         Kenapa bukan sekadar "pilih yang rata-ratanya tertinggi":
@@ -401,12 +406,14 @@ class GoldGenService:
 
         Eksplorasi muncul dari ketidakpastian itu sendiri, tidak perlu slot acak.
         """
-        if not self.active_layouts:
+        from core.layout_policy import compatible
+        layouts = [layout for layout in self.active_layouts if compatible(topic, layout)]
+        if not layouts:
             return None, 'no-layout'
 
         perf = self._get_layout_performance(page_id)
         if not perf:
-            return self.active_layouts[fallback_index % len(self.active_layouts)], "rotasi (belum ada data)"
+            return layouts[fallback_index % len(layouts)], "rotasi (belum ada data)"
 
         page_mean, page_sd = self._get_page_engagement_stats(page_id)
         if page_mean <= 0:
@@ -422,7 +429,7 @@ class GoldGenService:
         obs_precision_unit = 1.0 / (sigma ** 2)
 
         best_layout, best_sample, best_note = None, float('-inf'), ''
-        for layout in self.active_layouts:
+        for layout in layouts:
             d = perf.get(layout['name'])
             n = d['n'] if d else 0
 
@@ -451,7 +458,7 @@ class GoldGenService:
                                  f"-> perkiraan wajar {post_mean:.2f}x, undian {sample:.2f}")
 
         if not best_layout:
-            return self.active_layouts[fallback_index % len(self.active_layouts)], "rotasi (fallback)"
+            return layouts[fallback_index % len(layouts)], "rotasi (fallback)"
 
         return best_layout, best_note
 
@@ -764,7 +771,7 @@ deposits, invented statistics, or universal equipment settings.
             if news_topic and allowed(news_topic):
                 print(f"   🚨 Found breaking news: {news_topic['headline']}")
                 # Layout tetap dipilih berdasarkan performa page, bukan acak murni
-                layout, why = self._choose_layout(page_id, random.randrange(len(self.active_layouts) or 1))
+                layout, why = self._choose_layout(page_id, random.randrange(len(self.active_layouts) or 1), news_topic)
                 if layout:
                     news_topic['layout'] = layout['name']
                     news_topic['composition'] = layout['composition']
@@ -812,7 +819,7 @@ deposits, invented statistics, or universal equipment settings.
         )
         if performa_index is not None:
             topic = self.topics[performa_index].copy()
-            layout, why = self._choose_layout(page_id, performa_index)
+            layout, why = self._choose_layout(page_id, performa_index, topic)
             if layout:
                 topic['layout'] = layout['name']
                 topic['composition'] = layout['composition']
@@ -892,7 +899,7 @@ deposits, invented statistics, or universal equipment settings.
             topic['explore_mode'] = True
 
         # Assign layout — berdasarkan performa nyata di page ini, bukan rotasi buta
-        layout, why = self._choose_layout(page_id, selected_index)
+        layout, why = self._choose_layout(page_id, selected_index, topic)
         if layout:
             topic['layout'] = layout['name']
             topic['composition'] = layout['composition']
@@ -982,9 +989,12 @@ Required opening style: {requested_hook}
 {minigame_instruction}
 REFERENCE CONTEXT AND LIMITS:
 {FACT_CONTEXT}
+Topic reference for attribution (a URL is not a retrieved source): {topic.get('reference_url', 'No topic-specific reference supplied')}
 
 Teach one useful observation, explain why it matters, and give one practical
-sampling step. Use approachable conversational American English and imperial units.
+sampling step when appropriate. For microscopic, historical or conceptual topics,
+give an observation or evidence-checking step instead of inventing field sampling advice.
+Use approachable conversational American English and imperial units.
 Use 300–1000 characters, up to four hashtags, and at most one relevant question.
 Only name minerals relevant to this topic. An indicator is a reason to sample,
 not proof that gold is present. Show uncertainty when appropriate.
@@ -1125,7 +1135,23 @@ COMPOSITION GUIDE: {topic['composition']}
             base_prompt += "\n".join([f"- {v}" for v in visual_styles]) + "\n\n"
         
         # Add specific visual instructions based on layout
-        if "CROSS-SECTION" in layout_name:
+        if layout_name == 'DEEP CUTAWAY EXPLAINER':
+            mode = topic.get('visual_mode', 'cutaway')
+            scenes = {
+                'cutaway': 'Show the surface in the upper fifth and a dominant geological cross-section below. Depict only the relevant layers and structures.',
+                'journey': 'Show a connected source-to-slope-to-valley section. A few directional arrows explain release and transport, not a fixed travel distance.',
+                'micro': 'Make one mineral specimen the dominant object, with schematic magnified surface or internal details. Do not draw a landscape, trench or soil profile.',
+            }
+            visual_instruction = 'VISUAL EXECUTION:\n' + scenes.get(mode, scenes['cutaway']) + """
+Use 2-3 circular magnified insets connected to exact features in the main scene.
+Use realistic earth and mineral textures, strong contrast, restrained gold highlights and clear negative space.
+The insets share the existing label budget; do not add separate captions or extra labels for every layer.
+This is a conceptual educational illustration, not a real excavation, assay, micrograph or discovery.
+Do not invent numerical depths, scale bars, measurements, gold abundance or a universal geological sequence.
+Do not depict gold in every layer. Follow the topic-specific limitations in WHAT TO DEPICT.
+For microbes, show schematic surface processes only; no rapid nugget growth or invented thermal environment."""
+
+        elif "CROSS-SECTION" in layout_name:
             visual_instruction = """VISUAL EXECUTION:
 Create a realistic cross-section illustration showing underground layers. Display the surface at top, then soil/gravel layers, and bedrock at bottom. Show gold deposits trapped in crevices or layers. Use natural earth tones with clear labeling lines pointing to key features. Style: Educational textbook diagram with scientific accuracy."""
 

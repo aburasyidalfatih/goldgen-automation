@@ -1,5 +1,10 @@
 [
     {
+        "name": "DEEP CUTAWAY EXPLAINER",
+        "topic_series": ["Hidden Gold: Beneath the Surface"],
+        "composition": "Reference-inspired educational reveal in vertical 9:16. For geological profiles, reserve about 20 percent at the top for the surface landscape and use the rest for a large realistic cutaway. Connect 2-3 circular detail insets to their actual locations with thin leader lines. For material journeys, use a connected source-to-valley section. For microscopic topics, replace the landscape with one large specimen and magnified insets; never invent soil layers. Warm earth tones, realistic textures, restrained metallic gold highlights, strong contrast and generous space for the existing short-label budget. Depict only the topic's specific mechanism, not a treasure-filled pit."
+    },
+    {
         "name": "GAMIFICATION_QUIZ",
         "composition": "A 2x2 grid showing 4 distinct rock or mineral samples. Label them clearly A, B, C, and D. Only one should look like real raw gold, the others should be fool's gold (pyrite), chalcopyrite, or mica. High resolution, macro photography style, engaging interactive quiz format."
     },

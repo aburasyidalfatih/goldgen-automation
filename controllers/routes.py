@@ -479,6 +479,7 @@ def get_topic_info():
         
         # Get current state
         state_file = DATA_DIR / "topic_state.json"
+        state = {}
         if state_file.exists():
             with open(state_file, 'r') as f:
                 state = json.load(f)
@@ -491,30 +492,35 @@ def get_topic_info():
 
         # Indeks tersimpan bisa menunjuk ke luar batas setelah topik dirapikan
         # (mis. pembersihan duplikat), jadi selalu dilipat dulu.
-        current_index = current_index % len(service.topics)
+        from core.topic_catalog import remap_state
+        state = remap_state(state, service.source_topics, service.topics)
+        current_index = state['current_topic_index'] % len(service.topics)
         current_topic = service.topics[current_index]
         next_index = (current_index + 1) % len(service.topics)
         next_topic = service.topics[next_index]
 
         # Hanya layout aktif yang ditampilkan — layout yang sudah dipensiunkan
         # tidak akan pernah benar-benar dipakai, jadi memajangnya menyesatkan.
-        pool = service.active_layouts or service.layouts
-        current_layout = pool[current_index % len(pool)]
-        next_layout = pool[next_index % len(pool)]
+        from core.layout_policy import compatible
+        pool = service.active_layouts
+        current_pool = [layout for layout in pool if compatible(current_topic, layout)]
+        next_pool = [layout for layout in pool if compatible(next_topic, layout)]
+        current_layout = current_pool[current_index % len(current_pool)] if current_pool else None
+        next_layout = next_pool[next_index % len(next_pool)] if next_pool else None
 
         return jsonify({
             'current': {
                 'id': current_topic['id'],
                 'name': current_topic['headline'],
                 'subtitle': current_topic['subtitle'],
-                'layout': current_layout['name'],
+                'layout': current_layout['name'] if current_layout else None,
                 'index': current_index
             },
             'next': {
                 'id': next_topic['id'],
                 'name': next_topic['headline'],
                 'subtitle': next_topic['subtitle'],
-                'layout': next_layout['name'],
+                'layout': next_layout['name'] if next_layout else None,
                 'index': next_index
             },
             'total_topics': len(service.topics),

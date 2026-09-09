@@ -3,6 +3,8 @@ import json
 import tempfile
 from pathlib import Path
 from core.topic_catalog import curate,allowed,remap_state
+from core.topic_catalog import ADDITIONS
+from core.hidden_gold_catalog import ADDITIONS as HIDDEN_ADDITIONS
 
 
 class CatalogTests(unittest.TestCase):
@@ -20,12 +22,12 @@ class CatalogTests(unittest.TestCase):
         self.assertNotEqual(['a'],output[0]['list_points'])
         self.assertEqual(6,output[3]['canonical_topic_id'])
         self.assertFalse(allowed(output[4]))
-        self.assertEqual(2,len([t for t in output if t.get('curation_key')]))
+        self.assertEqual(len(ADDITIONS) + len(HIDDEN_ADDITIONS),len([t for t in output if t.get('curation_key')]))
         self.assertEqual(['a'],original[0]['list_points'])
 
     def test_conflicting_reserved_id_not_overwritten(self):
         output=curate([self.topic(10001,'Existing distinct subject')])
-        self.assertEqual(3,len(set(t['id'] for t in output)))
+        self.assertEqual(1 + len(ADDITIONS) + len(HIDDEN_ADDITIONS),len(set(t['id'] for t in output)))
         self.assertEqual('Existing distinct subject',output[0]['headline'])
         self.assertEqual(output,curate(output))
 

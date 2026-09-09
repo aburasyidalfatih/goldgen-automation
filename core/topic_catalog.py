@@ -122,8 +122,15 @@ def curate(topics):
                                   'Include the explanation in this post.',
                                   'An illustration cannot confirm a real mineral specimen.']
         topic['catalog_revision']=REVISION
-    for addition in ADDITIONS:
+    from core.hidden_gold_catalog import ADDITIONS as hidden_gold_additions
+    for addition in ADDITIONS + hidden_gold_additions:
         if any(t.get('curation_key')==addition['curation_key'] for t in result):
+            continue
+        # An older volume may already contain this headline without our key.
+        # Preserve its identity and retirement decision instead of adding a
+        # duplicate that only becomes retired on the next startup.
+        if any(t.get('headline', '').strip().casefold() == addition['headline'].strip().casefold()
+               for t in result):
             continue
         new=copy.deepcopy(addition)
         if new['id'] in ids:

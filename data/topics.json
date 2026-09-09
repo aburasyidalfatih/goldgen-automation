@@ -1364,5 +1364,511 @@
         "research_source": "https://www.reddit.com/r/Prospecting/comments/1hiwmrm/",
         "catalog_revision": "us-prospecting-2026-09-v1",
         "experimental_topic": true
+    },
+    {
+        "id": 11001,
+        "curation_key": "hidden-gold-river-bend",
+        "headline": "BENEATH THE RIVER BEND",
+        "subtitle": "Reveal gravel and bedrock beneath a river bend.",
+        "editorial_angle": "Reveal gravel and bedrock beneath a river bend.",
+        "series": "Hidden Gold: Beneath the Surface",
+        "topic_family": "river",
+        "visual_mode": "cutaway",
+        "allowed_layouts": [
+            "DEEP CUTAWAY EXPLAINER"
+        ],
+        "list_header": "BENEATH THE SURFACE",
+        "list_points": [
+            "Show a bend with water above a gravel cross-section and irregular bedrock below.",
+            "Explain that local flow, sediment supply and bed geometry affect deposition; an inside bend is not guaranteed paydirt.",
+            "Use a conceptual illustration, not a surveyed site or a prediction of gold presence.",
+            "Do not invent fixed depths, grades, yields, time scales or abundant nuggets throughout the scene."
+        ],
+        "reference_url": "https://pubs.usgs.gov/gip/prospect1/goldgip.html",
+        "catalog_revision": "us-prospecting-2026-09-v1",
+        "experimental_topic": true
+    },
+    {
+        "id": 11002,
+        "curation_key": "hidden-gold-bedrock-crack",
+        "headline": "INSIDE A BEDROCK CRACK",
+        "subtitle": "Look inside one possible natural sediment trap.",
+        "editorial_angle": "Look inside one possible natural sediment trap.",
+        "series": "Hidden Gold: Beneath the Surface",
+        "topic_family": "river",
+        "visual_mode": "cutaway",
+        "allowed_layouts": [
+            "DEEP CUTAWAY EXPLAINER"
+        ],
+        "list_header": "BENEATH THE SURFACE",
+        "list_points": [
+            "Zoom from a riverbed into a narrow crack containing packed sediment and a few illustrative heavy grains.",
+            "Explain possible physical trapping without implying every crack contains gold.",
+            "Use a conceptual illustration, not a surveyed site or a prediction of gold presence.",
+            "Do not invent fixed depths, grades, yields, time scales or abundant nuggets throughout the scene."
+        ],
+        "reference_url": "https://pubs.usgs.gov/gip/prospect1/goldgip.html",
+        "catalog_revision": "us-prospecting-2026-09-v1",
+        "experimental_topic": true
+    },
+    {
+        "id": 11003,
+        "curation_key": "hidden-gold-boulder",
+        "headline": "BEHIND THE BOULDER",
+        "subtitle": "See how an obstacle changes the surrounding sediment pattern.",
+        "editorial_angle": "See how an obstacle changes the surrounding sediment pattern.",
+        "series": "Hidden Gold: Beneath the Surface",
+        "topic_family": "river",
+        "visual_mode": "cutaway",
+        "allowed_layouts": [
+            "DEEP CUTAWAY EXPLAINER"
+        ],
+        "list_header": "BENEATH THE SURFACE",
+        "list_points": [
+            "Show water moving around a boulder and a cutaway of adjacent gravel pockets.",
+            "Treat deposition and scour as locally variable; do not mark one side as a certain gold location.",
+            "Use a conceptual illustration, not a surveyed site or a prediction of gold presence.",
+            "Do not invent fixed depths, grades, yields, time scales or abundant nuggets throughout the scene."
+        ],
+        "reference_url": "https://pubs.usgs.gov/gip/prospect1/goldgip.html",
+        "catalog_revision": "us-prospecting-2026-09-v1",
+        "experimental_topic": true
+    },
+    {
+        "id": 11004,
+        "curation_key": "hidden-gold-waterfall",
+        "headline": "UNDER THE WATERFALL POOL",
+        "subtitle": "Reveal the shape of a pool floor beneath moving water.",
+        "editorial_angle": "Reveal the shape of a pool floor beneath moving water.",
+        "series": "Hidden Gold: Beneath the Surface",
+        "topic_family": "river",
+        "visual_mode": "cutaway",
+        "allowed_layouts": [
+            "DEEP CUTAWAY EXPLAINER"
+        ],
+        "list_header": "BENEATH THE SURFACE",
+        "list_points": [
+            "Show a conceptual bedrock depression with sediment pockets and a zoom of mixed gravel.",
+            "Discuss possible sediment retention and removal, not guaranteed gold; do not depict entering turbulent water or underwater excavation.",
+            "Use a conceptual illustration, not a surveyed site or a prediction of gold presence.",
+            "Do not invent fixed depths, grades, yields, time scales or abundant nuggets throughout the scene."
+        ],
+        "reference_url": "https://pubs.usgs.gov/gip/prospect1/goldgip.html",
+        "catalog_revision": "us-prospecting-2026-09-v1",
+        "experimental_topic": true
+    },
+    {
+        "id": 11005,
+        "curation_key": "hidden-gold-buried-river",
+        "headline": "THE RIVER BENEATH THE HILLSIDE",
+        "subtitle": "Explore an illustrative old channel hidden by younger material.",
+        "editorial_angle": "Explore an illustrative old channel hidden by younger material.",
+        "series": "Hidden Gold: Beneath the Surface",
+        "topic_family": "ancient-river",
+        "visual_mode": "cutaway",
+        "allowed_layouts": [
+            "DEEP CUTAWAY EXPLAINER"
+        ],
+        "list_header": "BENEATH THE SURFACE",
+        "list_points": [
+            "Show buried channel-shaped gravel beneath a hillside and distinguish it from surrounding rock.",
+            "Explain that an ancient channel requires geological evidence; a hillside alone cannot reveal its presence or grade.",
+            "Use a conceptual illustration, not a surveyed site or a prediction of gold presence.",
+            "Do not invent fixed depths, grades, yields, time scales or abundant nuggets throughout the scene."
+        ],
+        "reference_url": "https://pubs.usgs.gov/wsp/0314/report.pdf",
+        "catalog_revision": "us-prospecting-2026-09-v1",
+        "experimental_topic": true
+    },
+    {
+        "id": 11006,
+        "curation_key": "hidden-gold-river-terrace",
+        "headline": "WHEN THE RIVER RAN HIGHER",
+        "subtitle": "Connect a hillside terrace with an earlier river level.",
+        "editorial_angle": "Connect a hillside terrace with an earlier river level.",
+        "series": "Hidden Gold: Beneath the Surface",
+        "topic_family": "ancient-river",
+        "visual_mode": "cutaway",
+        "allowed_layouts": [
+            "DEEP CUTAWAY EXPLAINER"
+        ],
+        "list_header": "BENEATH THE SURFACE",
+        "list_points": [
+            "Show terrace gravel above the present channel with an inset of the gravel contact.",
+            "Explain preservation of older deposits without assuming every terrace is gold-bearing.",
+            "Use a conceptual illustration, not a surveyed site or a prediction of gold presence.",
+            "Do not invent fixed depths, grades, yields, time scales or abundant nuggets throughout the scene."
+        ],
+        "reference_url": "https://pubs.usgs.gov/wsp/0314/report.pdf",
+        "catalog_revision": "us-prospecting-2026-09-v1",
+        "experimental_topic": true
+    },
+    {
+        "id": 11007,
+        "curation_key": "hidden-gold-dry-wash",
+        "headline": "BENEATH A DRY WASH",
+        "subtitle": "A dry surface can cover deposits left by earlier flows.",
+        "editorial_angle": "A dry surface can cover deposits left by earlier flows.",
+        "series": "Hidden Gold: Beneath the Surface",
+        "topic_family": "ancient-river",
+        "visual_mode": "cutaway",
+        "allowed_layouts": [
+            "DEEP CUTAWAY EXPLAINER"
+        ],
+        "list_header": "BENEATH THE SURFACE",
+        "list_points": [
+            "Show a dry desert channel over several contrasting sediment lenses and uneven bedrock.",
+            "Explain episodic sediment transport without imposing a universal layer sequence or gold depth.",
+            "Use a conceptual illustration, not a surveyed site or a prediction of gold presence.",
+            "Do not invent fixed depths, grades, yields, time scales or abundant nuggets throughout the scene."
+        ],
+        "reference_url": "https://pubs.usgs.gov/gip/prospect1/goldgip.html",
+        "catalog_revision": "us-prospecting-2026-09-v1",
+        "experimental_topic": true
+    },
+    {
+        "id": 11008,
+        "curation_key": "hidden-gold-old-channel",
+        "headline": "OLD CHANNEL, NEW RIVER",
+        "subtitle": "Compare a former channel with the present river.",
+        "editorial_angle": "Compare a former channel with the present river.",
+        "series": "Hidden Gold: Beneath the Surface",
+        "topic_family": "ancient-river",
+        "visual_mode": "cutaway",
+        "allowed_layouts": [
+            "DEEP CUTAWAY EXPLAINER"
+        ],
+        "list_header": "BENEATH THE SURFACE",
+        "list_points": [
+            "Show an offset buried gravel channel beside a modern river in one valley cross-section.",
+            "Distinguish a conceptual reconstruction from a mapped discovery; neither channel guarantees gold.",
+            "Use a conceptual illustration, not a surveyed site or a prediction of gold presence.",
+            "Do not invent fixed depths, grades, yields, time scales or abundant nuggets throughout the scene."
+        ],
+        "reference_url": "https://pubs.usgs.gov/wsp/0314/report.pdf",
+        "catalog_revision": "us-prospecting-2026-09-v1",
+        "experimental_topic": true
+    },
+    {
+        "id": 11009,
+        "curation_key": "hidden-gold-vein-valley",
+        "headline": "FROM VEIN TO VALLEY",
+        "subtitle": "Follow material from a mineralized source toward a valley.",
+        "editorial_angle": "Follow material from a mineralized source toward a valley.",
+        "series": "Hidden Gold: Beneath the Surface",
+        "topic_family": "gold-source",
+        "visual_mode": "journey",
+        "allowed_layouts": [
+            "DEEP CUTAWAY EXPLAINER"
+        ],
+        "list_header": "BENEATH THE SURFACE",
+        "list_points": [
+            "Connect a weathering vein, slope debris and stream gravel with a few directional arrows.",
+            "Explain release, transport and possible concentration as separate processes, without a fixed distance or timescale.",
+            "Use a conceptual illustration, not a surveyed site or a prediction of gold presence.",
+            "Do not invent fixed depths, grades, yields, time scales or abundant nuggets throughout the scene."
+        ],
+        "reference_url": "https://pubs.usgs.gov/gip/prospect1/goldgip.html",
+        "catalog_revision": "us-prospecting-2026-09-v1",
+        "experimental_topic": true
+    },
+    {
+        "id": 11010,
+        "curation_key": "hidden-gold-weathered-vein",
+        "headline": "INSIDE A WEATHERED QUARTZ VEIN",
+        "subtitle": "Compare intact rock with a weathered portion of a vein.",
+        "editorial_angle": "Compare intact rock with a weathered portion of a vein.",
+        "series": "Hidden Gold: Beneath the Surface",
+        "topic_family": "gold-source",
+        "visual_mode": "cutaway",
+        "allowed_layouts": [
+            "DEEP CUTAWAY EXPLAINER"
+        ],
+        "list_header": "BENEATH THE SURFACE",
+        "list_points": [
+            "Show fractured quartz in host rock, loose fragments and an inset of the weathered contact.",
+            "Quartz can occur without gold; show only sparse illustrative gold where the scenario explicitly assumes mineralization.",
+            "Use a conceptual illustration, not a surveyed site or a prediction of gold presence.",
+            "Do not invent fixed depths, grades, yields, time scales or abundant nuggets throughout the scene."
+        ],
+        "reference_url": "https://pubs.usgs.gov/bul/b1693/html/bull8x2r.htm",
+        "catalog_revision": "us-prospecting-2026-09-v1",
+        "experimental_topic": true
+    },
+    {
+        "id": 11011,
+        "curation_key": "hidden-gold-outcrop",
+        "headline": "WHAT LIES BELOW THE OUTCROP?",
+        "subtitle": "A surface exposure is only part of a geological structure.",
+        "editorial_angle": "A surface exposure is only part of a geological structure.",
+        "series": "Hidden Gold: Beneath the Surface",
+        "topic_family": "gold-source",
+        "visual_mode": "cutaway",
+        "allowed_layouts": [
+            "DEEP CUTAWAY EXPLAINER"
+        ],
+        "list_header": "BENEATH THE SURFACE",
+        "list_points": [
+            "Show an exposed vein with a visibly schematic possible continuation below the surface.",
+            "State that depth, continuity and gold content cannot be determined from surface appearance alone.",
+            "Use a conceptual illustration, not a surveyed site or a prediction of gold presence.",
+            "Do not invent fixed depths, grades, yields, time scales or abundant nuggets throughout the scene."
+        ],
+        "reference_url": "https://pubs.usgs.gov/bul/b1693/html/bull8x2r.htm",
+        "catalog_revision": "us-prospecting-2026-09-v1",
+        "experimental_topic": true
+    },
+    {
+        "id": 11012,
+        "curation_key": "hidden-gold-near-source",
+        "headline": "GOLD NEAR ITS SOURCE",
+        "subtitle": "Compare material near a source with material moved downslope.",
+        "editorial_angle": "Compare material near a source with material moved downslope.",
+        "series": "Hidden Gold: Beneath the Surface",
+        "topic_family": "gold-source",
+        "visual_mode": "journey",
+        "allowed_layouts": [
+            "DEEP CUTAWAY EXPLAINER"
+        ],
+        "list_header": "BENEATH THE SURFACE",
+        "list_points": [
+            "Show weathered source rock, nearby debris and transported sediment as connected zones.",
+            "Do not infer an exact source distance from grain shape or confuse residual material with all transported deposits.",
+            "Use a conceptual illustration, not a surveyed site or a prediction of gold presence.",
+            "Do not invent fixed depths, grades, yields, time scales or abundant nuggets throughout the scene."
+        ],
+        "reference_url": "https://pubs.usgs.gov/gip/prospect1/goldgip.html",
+        "catalog_revision": "us-prospecting-2026-09-v1",
+        "experimental_topic": true
+    },
+    {
+        "id": 11013,
+        "curation_key": "hidden-gold-false-bedrock",
+        "headline": "FALSE BEDROCK EXPLAINED",
+        "subtitle": "A resistant sediment layer is not always the underlying bedrock.",
+        "editorial_angle": "A resistant sediment layer is not always the underlying bedrock.",
+        "series": "Hidden Gold: Beneath the Surface",
+        "topic_family": "hidden-layers",
+        "visual_mode": "cutaway",
+        "allowed_layouts": [
+            "DEEP CUTAWAY EXPLAINER"
+        ],
+        "list_header": "BENEATH THE SURFACE",
+        "list_points": [
+            "Show a resistant layer within sediment above a separate true bedrock surface.",
+            "Explain false bedrock as a possible trapping horizon; neither resistant layers nor deeper bedrock guarantee gold.",
+            "Use a conceptual illustration, not a surveyed site or a prediction of gold presence.",
+            "Do not invent fixed depths, grades, yields, time scales or abundant nuggets throughout the scene."
+        ],
+        "reference_url": "https://pubs.usgs.gov/mf/0880-B/plate-2.pdf",
+        "catalog_revision": "us-prospecting-2026-09-v1",
+        "experimental_topic": true
+    },
+    {
+        "id": 11014,
+        "curation_key": "hidden-gold-black-sand",
+        "headline": "BLACK SAND BENEATH THE SURFACE",
+        "subtitle": "Inspect a dark band of mixed heavy minerals.",
+        "editorial_angle": "Inspect a dark band of mixed heavy minerals.",
+        "series": "Hidden Gold: Beneath the Surface",
+        "topic_family": "hidden-layers",
+        "visual_mode": "cutaway",
+        "allowed_layouts": [
+            "DEEP CUTAWAY EXPLAINER"
+        ],
+        "list_header": "BENEATH THE SURFACE",
+        "list_points": [
+            "Show a dark sediment lens with a circular enlargement of different mineral grains.",
+            "Black sand is not proof of gold; avoid identifying every dark grain as magnetite.",
+            "Use a conceptual illustration, not a surveyed site or a prediction of gold presence.",
+            "Do not invent fixed depths, grades, yields, time scales or abundant nuggets throughout the scene."
+        ],
+        "reference_url": "https://pubs.usgs.gov/gip/prospect1/goldgip.html",
+        "catalog_revision": "us-prospecting-2026-09-v1",
+        "experimental_topic": true
+    },
+    {
+        "id": 11015,
+        "curation_key": "hidden-gold-rust-ground",
+        "headline": "BENEATH THE RUST-COLORED GROUND",
+        "subtitle": "Investigate weathering beneath an iron-stained surface.",
+        "editorial_angle": "Investigate weathering beneath an iron-stained surface.",
+        "series": "Hidden Gold: Beneath the Surface",
+        "topic_family": "hidden-layers",
+        "visual_mode": "cutaway",
+        "allowed_layouts": [
+            "DEEP CUTAWAY EXPLAINER"
+        ],
+        "list_header": "BENEATH THE SURFACE",
+        "list_points": [
+            "Show rusty fractures and contrasting weathered and less-weathered rock in a conceptual profile.",
+            "Iron staining alone does not establish gold mineralization; do not draw a guaranteed gold seam under red soil.",
+            "Use a conceptual illustration, not a surveyed site or a prediction of gold presence.",
+            "Do not invent fixed depths, grades, yields, time scales or abundant nuggets throughout the scene."
+        ],
+        "reference_url": "https://pubs.usgs.gov/bul/b1693/html/bull8x2r.htm",
+        "catalog_revision": "us-prospecting-2026-09-v1",
+        "experimental_topic": true
+    },
+    {
+        "id": 11016,
+        "curation_key": "hidden-gold-gravel-layers",
+        "headline": "ONE GRAVEL BED, DIFFERENT LAYERS",
+        "subtitle": "Look at variation within a single sediment deposit.",
+        "editorial_angle": "Look at variation within a single sediment deposit.",
+        "series": "Hidden Gold: Beneath the Surface",
+        "topic_family": "hidden-layers",
+        "visual_mode": "cutaway",
+        "allowed_layouts": [
+            "DEEP CUTAWAY EXPLAINER"
+        ],
+        "list_header": "BENEATH THE SURFACE",
+        "list_points": [
+            "Show irregular sand and gravel lenses with different grain sizes rather than perfectly uniform stripes.",
+            "Explain differing depositional conditions; compare layers without inventing assays or a richest depth.",
+            "Use a conceptual illustration, not a surveyed site or a prediction of gold presence.",
+            "Do not invent fixed depths, grades, yields, time scales or abundant nuggets throughout the scene."
+        ],
+        "reference_url": "https://pubs.usgs.gov/gip/prospect1/goldgip.html",
+        "catalog_revision": "us-prospecting-2026-09-v1",
+        "experimental_topic": true
+    },
+    {
+        "id": 11017,
+        "curation_key": "hidden-gold-tailings",
+        "headline": "INSIDE AN OLD TAILINGS PILE",
+        "subtitle": "Reveal the mixed material left by earlier processing.",
+        "editorial_angle": "Reveal the mixed material left by earlier processing.",
+        "series": "Hidden Gold: Beneath the Surface",
+        "topic_family": "historic-mining",
+        "visual_mode": "cutaway",
+        "allowed_layouts": [
+            "DEEP CUTAWAY EXPLAINER"
+        ],
+        "list_header": "BENEATH THE SURFACE",
+        "list_points": [
+            "Show a conceptual pile of processed gravel with variable internal lenses and a grain-detail inset.",
+            "Do not assume historical equipment missed recoverable gold or encourage disturbing potentially contaminated waste.",
+            "Use a conceptual illustration, not a surveyed site or a prediction of gold presence.",
+            "Do not invent fixed depths, grades, yields, time scales or abundant nuggets throughout the scene."
+        ],
+        "reference_url": "https://pubs.usgs.gov/gip/prospect1/goldgip.html",
+        "catalog_revision": "us-prospecting-2026-09-v1",
+        "experimental_topic": true
+    },
+    {
+        "id": 11018,
+        "curation_key": "hidden-gold-old-workings",
+        "headline": "WHAT OLD WORKINGS REVEAL",
+        "subtitle": "Read historical workings as clues that require context.",
+        "editorial_angle": "Read historical workings as clues that require context.",
+        "series": "Hidden Gold: Beneath the Surface",
+        "topic_family": "historic-mining",
+        "visual_mode": "cutaway",
+        "allowed_layouts": [
+            "DEEP CUTAWAY EXPLAINER"
+        ],
+        "list_header": "BENEATH THE SURFACE",
+        "list_points": [
+            "Show a schematic surface working beside a vein exposure, with no people entering openings.",
+            "Historical excavation does not prove remaining reserves; distinguish documented evidence from reconstruction.",
+            "Use a conceptual illustration, not a surveyed site or a prediction of gold presence.",
+            "Do not invent fixed depths, grades, yields, time scales or abundant nuggets throughout the scene."
+        ],
+        "reference_url": "https://pubs.usgs.gov/bul/b1693/html/bull8x2r.htm",
+        "catalog_revision": "us-prospecting-2026-09-v1",
+        "experimental_topic": true
+    },
+    {
+        "id": 11019,
+        "curation_key": "hidden-gold-mining-landscape",
+        "headline": "BENEATH A HISTORIC MINING LANDSCAPE",
+        "subtitle": "Connect surface traces with an illustrative geological section.",
+        "editorial_angle": "Connect surface traces with an illustrative geological section.",
+        "series": "Hidden Gold: Beneath the Surface",
+        "topic_family": "historic-mining",
+        "visual_mode": "cutaway",
+        "allowed_layouts": [
+            "DEEP CUTAWAY EXPLAINER"
+        ],
+        "list_header": "BENEATH THE SURFACE",
+        "list_points": [
+            "Show old surface workings, sediment and underlying rock in a conceptual landscape cutaway.",
+            "Do not invent a named mine, mapped tunnel network or hidden treasure; do not portray entry into abandoned workings.",
+            "Use a conceptual illustration, not a surveyed site or a prediction of gold presence.",
+            "Do not invent fixed depths, grades, yields, time scales or abundant nuggets throughout the scene."
+        ],
+        "reference_url": "https://pubs.usgs.gov/wsp/0314/report.pdf",
+        "catalog_revision": "us-prospecting-2026-09-v1",
+        "experimental_topic": true
+    },
+    {
+        "id": 11020,
+        "curation_key": "hidden-gold-gold-grain",
+        "headline": "INSIDE A GOLD GRAIN",
+        "subtitle": "Explore textures that a normal field photograph cannot resolve.",
+        "editorial_angle": "Explore textures that a normal field photograph cannot resolve.",
+        "series": "Hidden Gold: Beneath the Surface",
+        "topic_family": "microscopic",
+        "visual_mode": "micro",
+        "allowed_layouts": [
+            "DEEP CUTAWAY EXPLAINER"
+        ],
+        "list_header": "BENEATH THE SURFACE",
+        "list_points": [
+            "Use one enlarged gold grain as the main object with insets of pores and surface texture.",
+            "Present a conceptual scientific illustration, not a laboratory image or evidence of the origin of a particular specimen.",
+            "Use a conceptual illustration, not a surveyed site or a prediction of gold presence.",
+            "Do not invent fixed depths, grades, yields, time scales or abundant nuggets throughout the scene."
+        ],
+        "reference_url": "https://digital.library.adelaide.edu.au/items/775a84e1-7925-4b3b-991e-d39abea04558",
+        "catalog_revision": "us-prospecting-2026-09-v1",
+        "experimental_topic": true
+    },
+    {
+        "id": 11021,
+        "curation_key": "hidden-gold-tiny-gold",
+        "headline": "GOLD TOO SMALL TO SEE",
+        "subtitle": "Gold can occur at scales beyond unaided vision.",
+        "editorial_angle": "Gold can occur at scales beyond unaided vision.",
+        "series": "Hidden Gold: Beneath the Surface",
+        "topic_family": "microscopic",
+        "visual_mode": "micro",
+        "allowed_layouts": [
+            "DEEP CUTAWAY EXPLAINER"
+        ],
+        "list_header": "BENEATH THE SURFACE",
+        "list_points": [
+            "Zoom from a rock sample to schematic tiny inclusions; make the enlargement visually explicit.",
+            "Do not imply invisible gold is present in any ordinary rock or can be confirmed by a photograph; avoid invented scale bars.",
+            "Use a conceptual illustration, not a surveyed site or a prediction of gold presence.",
+            "Do not invent fixed depths, grades, yields, time scales or abundant nuggets throughout the scene."
+        ],
+        "reference_url": "https://pubs.usgs.gov/gip/prospect1/goldgip.html",
+        "catalog_revision": "us-prospecting-2026-09-v1",
+        "experimental_topic": true
+    },
+    {
+        "id": 11022,
+        "curation_key": "hidden-gold-microbes",
+        "headline": "CAN MICROBES CHANGE GOLD?",
+        "subtitle": "Explore microbial contributions to changes on gold surfaces.",
+        "editorial_angle": "Explore microbial contributions to changes on gold surfaces.",
+        "series": "Hidden Gold: Beneath the Surface",
+        "topic_family": "microscopic",
+        "visual_mode": "micro",
+        "allowed_layouts": [
+            "DEEP CUTAWAY EXPLAINER"
+        ],
+        "list_header": "BENEATH THE SURFACE",
+        "list_points": [
+            "Show one gold grain with schematic surface microbes and a close-up of small secondary particles.",
+            "Describe studied dissolution and re-precipitation processes; do not imply rapid nugget growth, universal microbial layers or thermophilic conditions without evidence.",
+            "Use a conceptual illustration, not a surveyed site or a prediction of gold presence.",
+            "Do not invent fixed depths, grades, yields, time scales or abundant nuggets throughout the scene."
+        ],
+        "reference_url": "https://digital.library.adelaide.edu.au/items/775a84e1-7925-4b3b-991e-d39abea04558",
+        "catalog_revision": "us-prospecting-2026-09-v1",
+        "experimental_topic": true
     }
 ]

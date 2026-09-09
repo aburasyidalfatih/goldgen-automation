@@ -3,6 +3,7 @@ import copy
 import json
 import random
 import uuid
+from core.layout_policy import compatible
 from datetime import datetime, timezone
 
 from core.database import get_db_connection
@@ -23,7 +24,7 @@ def pending(page_id, layouts):
             from core.topic_catalog import allowed, MARKETING
             if not allowed(payload['topic']) or MARKETING.search(payload['topic'].get('approved_caption','')):
                 return None
-            if any(name not in active for name in payload['layouts']):
+            if any(name not in active or not compatible(payload['topic'], active[name]) for name in payload['layouts']):
                 return None  # A retired layout must never be resurrected.
             arm = 1 if 0 in done else 0
             topic = copy.deepcopy(payload['topic'])
@@ -42,7 +43,7 @@ def enroll(page_id, topic, caption, layouts):
         return topic
     # A quiz or a procedural caption may require a specific composition.
     excluded = ('QUIZ','GAME','PROCESS','STEP-BY-STEP','BEFORE')
-    eligible = [l for l in layouts if not any(k in l['name'].upper() for k in excluded)]
+    eligible = [l for l in layouts if compatible(topic, l) and not any(k in l['name'].upper() for k in excluded)]
     names = [l['name'] for l in eligible]
     if topic.get('layout') not in names or len(names)<2:
         return topic
