@@ -68,7 +68,14 @@ def init_db():
     cursor = conn.cursor()
     cursor.execute('''CREATE TABLE IF NOT EXISTS post_views_current (
         fb_post_id TEXT PRIMARY KEY, media_views INTEGER, clicks INTEGER,
-        engagement INTEGER, fetched_at TEXT, attempted_at TEXT, error TEXT)''')
+        engagement INTEGER, views_24h INTEGER, views_48h INTEGER,
+        velocity_per_hour REAL, fetched_at TEXT, attempted_at TEXT, error TEXT)''')
+    for column, definition in (('views_24h', 'INTEGER'), ('views_48h', 'INTEGER'), ('velocity_per_hour', 'REAL')):
+        try:
+            cursor.execute(f'ALTER TABLE post_views_current ADD COLUMN {column} {definition}')
+        except sqlite3.OperationalError as exc:
+            if 'duplicate column' not in str(exc).lower():
+                raise
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS posts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

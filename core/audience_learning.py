@@ -20,13 +20,20 @@ def add_view_outcomes(rows, now=None):
     for page in pages:
         members = [r for r in recent if r['page_id'] == page]
         measured = [r for r in members if r.get('media_views') is not None]
-        keys = sorted({(r['media_views'], r.get('engagement') or 0) for r in measured})
+        # Lifetime views remain the primary signal.  Early velocity is the
+        # secondary signal so a fast-rising post wins ties without allowing a
+        # small early spike to outrank a proven high-view post.
+        keys = sorted({(
+            r['media_views'],
+            round(float(r.get('velocity_per_hour') or 0.0), 2),
+            r.get('engagement') or 0
+        ) for r in measured})
         scores = {key: 1 + 3*(i+1)/len(keys) for i,key in enumerate(keys)}
         for row in members:
             row['views_ranked'] = bool(measured)
             # Unmeasured posts cannot outrank measured winners on likes alone.
             row['learning_outcome'] = (
-                scores[(row['media_views'], row.get('engagement') or 0)]
+                scores[(row['media_views'], round(float(row.get('velocity_per_hour') or 0.0), 2), row.get('engagement') or 0)]
                 if row.get('media_views') is not None else
                 None if measured else row.get('rel_engagement'))
     return [row for row in recent if row['learning_outcome'] is not None]
@@ -67,7 +74,7 @@ def page_rows(page_id):
     conn = get_db_connection()
     try:
         return add_view_outcomes([dict(r) for r in conn.execute('''
-            SELECT p.*,v.media_views,v.fetched_at,
+            SELECT p.*,v.media_views,v.views_24h,v.views_48h,v.velocity_per_hour,v.fetched_at,
                    COALESCE(ec.likes+ec.comments,e.engagement) AS engagement,
                    e.rel_engagement
             FROM posts p

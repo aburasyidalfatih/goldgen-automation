@@ -11,7 +11,7 @@ def collect_views(pages, limit=100):
             continue
         conn = get_db_connection()
         try:
-            rows = conn.execute('''SELECT DISTINCT p.fb_post_id FROM posts p
+            rows = conn.execute('''SELECT DISTINCT p.fb_post_id,p.timestamp FROM posts p
                 LEFT JOIN post_views_current v ON v.fb_post_id=p.fb_post_id
                 WHERE p.page_id=? AND p.status='success' AND p.fb_post_id IS NOT NULL
                   AND julianday(p.timestamp) BETWEEN julianday('now','-30 days') AND julianday('now')
@@ -22,6 +22,11 @@ def collect_views(pages, limit=100):
             conn.close()
         for row in rows:
             post_id = row['fb_post_id']
+            from datetime import datetime, timezone
+            stamp = datetime.fromisoformat(row['timestamp'])
+            if stamp.tzinfo is None:
+                stamp = stamp.replace(tzinfo=timezone.utc)
+            age_hours = max(0.0, (datetime.now(timezone.utc) - stamp).total_seconds() / 3600)
             values, error = {}, None
             try:
                 response = requests.get(f'https://graph.facebook.com/v18.0/{post_id}/insights',
@@ -39,13 +44,20 @@ def collect_views(pages, limit=100):
             conn = get_db_connection()
             try:
                 with conn:
-                    conn.execute('''INSERT INTO post_views_current(fb_post_id,media_views,fetched_at,attempted_at,error)
-                        VALUES (?,?,CASE WHEN ? IS NOT NULL THEN CURRENT_TIMESTAMP END,CURRENT_TIMESTAMP,?)
+                    conn.execute('''INSERT INTO post_views_current(fb_post_id,media_views,views_24h,views_48h,velocity_per_hour,fetched_at,attempted_at,error)
+                        VALUES (?,?,?,?,?,CASE WHEN ? IS NOT NULL THEN CURRENT_TIMESTAMP END,CURRENT_TIMESTAMP,?)
                         ON CONFLICT(fb_post_id) DO UPDATE SET
                         media_views=COALESCE(excluded.media_views,post_views_current.media_views),
+                        views_24h=COALESCE(post_views_current.views_24h,excluded.views_24h),
+                        views_48h=COALESCE(post_views_current.views_48h,excluded.views_48h),
+                        velocity_per_hour=COALESCE(excluded.velocity_per_hour,post_views_current.velocity_per_hour),
                         fetched_at=COALESCE(excluded.fetched_at,post_views_current.fetched_at),
                         attempted_at=excluded.attempted_at,error=excluded.error''',
-                        (post_id,values.get('media_views'),values.get('media_views'),error))
+                        (post_id,values.get('media_views'),
+                         values.get('media_views') if 24 <= age_hours < 30 else None,
+                         values.get('media_views') if 48 <= age_hours < 54 else None,
+                         (values.get('media_views') / age_hours) if values.get('media_views') is not None and age_hours > 0 else None,
+                         values.get('media_views'),error))
             finally:
                 conn.close()
             result['failed' if error else 'updated'] += 1
