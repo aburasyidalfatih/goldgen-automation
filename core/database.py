@@ -69,8 +69,9 @@ def init_db():
     cursor.execute('''CREATE TABLE IF NOT EXISTS post_views_current (
         fb_post_id TEXT PRIMARY KEY, media_views INTEGER, clicks INTEGER,
         engagement INTEGER, views_24h INTEGER, views_48h INTEGER,
-        velocity_per_hour REAL, fetched_at TEXT, attempted_at TEXT, error TEXT)''')
-    for column, definition in (('views_24h', 'INTEGER'), ('views_48h', 'INTEGER'), ('velocity_per_hour', 'REAL')):
+        velocity_per_hour REAL, unique_viewers INTEGER, shares INTEGER,
+        fetched_at TEXT, attempted_at TEXT, error TEXT)''')
+    for column, definition in (('views_24h', 'INTEGER'), ('views_48h', 'INTEGER'), ('velocity_per_hour', 'REAL'), ('unique_viewers', 'INTEGER'), ('shares', 'INTEGER')):
         try:
             cursor.execute(f'ALTER TABLE post_views_current ADD COLUMN {column} {definition}')
         except sqlite3.OperationalError as exc:

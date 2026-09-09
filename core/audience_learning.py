@@ -77,7 +77,7 @@ def page_rows(page_id):
     conn = get_db_connection()
     try:
         return add_view_outcomes([dict(r) for r in conn.execute('''
-            SELECT p.*,v.media_views,v.views_24h,v.views_48h,v.velocity_per_hour,v.fetched_at,
+            SELECT p.*,v.media_views,v.views_24h,v.views_48h,v.velocity_per_hour,v.unique_viewers,v.shares,v.fetched_at,
                    COALESCE(ec.likes+ec.comments,e.engagement) AS engagement,
                    e.rel_engagement
             FROM posts p
@@ -108,7 +108,7 @@ def performance(page_id, field, normalize=None):
         conn = get_db_connection()
         try:
             shared_rows = add_view_outcomes([dict(r) for r in conn.execute('''
-                SELECT p.*,v.media_views,v.views_24h,v.views_48h,v.velocity_per_hour,v.fetched_at,
+                SELECT p.*,v.media_views,v.views_24h,v.views_48h,v.velocity_per_hour,v.unique_viewers,v.shares,v.fetched_at,
                        COALESCE(ec.likes+ec.comments,e.engagement) AS engagement,
                        e.rel_engagement
                 FROM posts p
