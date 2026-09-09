@@ -29,6 +29,8 @@ def add_view_outcomes(rows, now=None):
         keys = sorted({(
             r['media_views'],
             round(float(r.get('velocity_per_hour') or 0.0), 2),
+            r.get('unique_viewers') or 0,
+            r.get('shares') or 0,
             r.get('engagement') or 0
         ) for r in measured})
         scores = {key: 1 + 3*(i+1)/len(keys) for i,key in enumerate(keys)}
@@ -36,7 +38,7 @@ def add_view_outcomes(rows, now=None):
             row['views_ranked'] = bool(measured)
             # Unmeasured posts cannot outrank measured winners on likes alone.
             row['learning_outcome'] = (
-                scores[(row['media_views'], round(float(row.get('velocity_per_hour') or 0.0), 2), row.get('engagement') or 0)]
+                scores[(row['media_views'], round(float(row.get('velocity_per_hour') or 0.0), 2), row.get('unique_viewers') or 0, row.get('shares') or 0, row.get('engagement') or 0)]
                 if row.get('media_views') is not None else
                 None if measured else row.get('rel_engagement'))
     return [row for row in recent if row['learning_outcome'] is not None]
