@@ -5,6 +5,9 @@ from datetime import datetime, timezone
 WINDOW_DAYS = 30
 HALF_LIFE_DAYS = 14
 MIN_EFFECTIVE_SAMPLES = 5
+# A page should have a meaningful local history before portfolio priors stop
+# influencing selection. This is intentionally higher than the report minimum.
+MIN_LOCAL_SAMPLES_FOR_AUTONOMY = 15
 
 
 def add_view_outcomes(rows, now=None):
@@ -100,7 +103,7 @@ def performance(page_id, field, normalize=None):
 
     # Cold start: borrow a deliberately weak prior from the same GoldGen
     # portfolio until this page has enough measured evidence of its own.
-    if sum(1 for row in local_rows if row.get('learning_outcome') is not None) < MIN_EFFECTIVE_SAMPLES:
+    if sum(1 for row in local_rows if row.get('learning_outcome') is not None) < MIN_LOCAL_SAMPLES_FOR_AUTONOMY:
         from core.database import get_db_connection
         conn = get_db_connection()
         try:
