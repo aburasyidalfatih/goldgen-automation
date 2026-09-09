@@ -1,7 +1,7 @@
 """Idempotent editorial projection for both repository and persistent catalogs.
 
-Never deletes, reorders or renumbers source records. Headlines remain stable
-for historical learning; editorial angles supply the new presentation.
+Removes confirmed duplicate catalog entries without renumbering survivors.
+Historical post records are untouched; headlines remain stable for learning.
 """
 import copy
 import re
@@ -122,6 +122,16 @@ def curate(topics):
                                   'Include the explanation in this post.',
                                   'An illustration cannot confirm a real mineral specimen.']
         topic['catalog_revision']=REVISION
+    # Remove only a confirmed duplicate whose canonical entry still exists.
+    # IDs in persistent volumes may differ, so never hardcode the removed ID.
+    by_id = {topic['id']: topic for topic in result}
+    def confirmed_duplicate(topic):
+        canonical = by_id.get(topic.get('canonical_topic_id'))
+        return (topic.get('retired') and canonical is not None
+                and canonical['id'] != topic['id'] and not canonical.get('retired')
+                and canonical.get('headline', '').strip().casefold()
+                    == topic.get('headline', '').strip().casefold())
+    result = [topic for topic in result if not confirmed_duplicate(topic)]
     from core.hidden_gold_catalog import ADDITIONS as hidden_gold_additions
     for addition in ADDITIONS + hidden_gold_additions:
         if any(t.get('curation_key')==addition['curation_key'] for t in result):

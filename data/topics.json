@@ -1004,24 +1004,6 @@
         "catalog_revision": "us-prospecting-2026-09-v1"
     },
     {
-        "id": 76,
-        "headline": "GOLD VS PYRITE",
-        "subtitle": "Is It Gold, Pyrite, or Mica? What a Photo Cannot Prove",
-        "list_header": "OBSERVE, TEST, AND COMPARE",
-        "list_points": [
-            "Pyrite, chalcopyrite and weathered mica can resemble gold.",
-            "Appearance in a picture is a clue, not a confirmed identification.",
-            "Gold is malleable; brittle look-alikes behave differently under appropriate physical tests.",
-            "For uncertain or valuable specimens, seek qualified identification rather than a confident photo diagnosis."
-        ],
-        "retired": true,
-        "canonical_topic_id": 6,
-        "retired_reason": "Judul duplikat; riwayat dipertahankan",
-        "editorial_angle": "Is It Gold, Pyrite, or Mica? What a Photo Cannot Prove",
-        "reference_url": "https://www.usgs.gov/faqs/what-fools-gold",
-        "catalog_revision": "us-prospecting-2026-09-v1"
-    },
-    {
         "id": 77,
         "headline": "FIELD TESTS FOR GOLD",
         "subtitle": "Identify gold on the spot \u2014 no lab needed.",
