@@ -321,15 +321,15 @@ Just provide the direct reply without any quotes or explanations."""
             print(f"❌ Error generating reply: {redact(e)}")
             # Fallback pool - variasi agar tidak identik jika API error berulang
             question_fallbacks = [
-                "That's a great question! There's always more to learn when you're out digging in the dirt. Are you panning in rivers or dry washing?",
-                "Good question, friend! Every creek has its own secrets. What kind of ground are you working these days?",
-                "Now that's the right question to ask! The devil is always in the details out in the field. Where are you prospecting?"
+                "Good question. The answer depends on the ground and the material you're testing. What are you seeing in the sample?",
+                "I’m not certain without more detail, but the material and location usually make the difference. What does it look like up close?",
+                "That’s worth checking carefully. A close photo or a little more context would help narrow it down."
             ]
             general_fallbacks = [
-                "Appreciate you dropping by! Keep your pan wet and your eyes open for that yellow metal!",
-                "Love seeing folks excited about the hunt! Tight lines and heavy pans to you. ⛏️",
-                "That's the spirit! The gold doesn't find itself — keep swinging!",
-                "Right on! Every day in the field teaches you something new."
+                "Thanks for stopping by!",
+                "Appreciate the comment.",
+                "Thanks for sharing that.",
+                "Glad you found it useful."
             ]
             if any(word in comment_text.lower() for word in ['what', 'how', 'where']):
                 return random.choice(question_fallbacks)
