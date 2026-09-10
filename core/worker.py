@@ -67,6 +67,19 @@ def job_current_views():
             logger.error('Current views failed: %s', redact(exc))
 
 
+def job_manual_post_sync():
+    """Register Page posts made manually so they can join audience learning."""
+    with ProcessLock('manual_post_sync') as lock:
+        if not lock.acquired:
+            return
+        try:
+            from core.manual_post_sync import sync_from_config
+            logger.info('Manual post sync: %s', sync_from_config())
+        except Exception as exc:
+            from core.safe_log import redact
+            logger.error('Manual post sync failed: %s', redact(exc))
+
+
 def start_worker():
     """Memulai Internal Job Worker (Background Scheduler)"""
     scheduler = BackgroundScheduler(timezone=pytz.timezone('Asia/Jakarta'))
@@ -89,6 +102,9 @@ def start_worker():
                       coalesce=True, misfire_grace_time=300)
     scheduler.add_job(job_current_views, 'interval', minutes=30,
                       id='current_views_job', max_instances=1, coalesce=True)
+    scheduler.add_job(job_manual_post_sync, 'interval', minutes=60,
+                      id='manual_post_sync_job', max_instances=1, coalesce=True,
+                      misfire_grace_time=300)
     scheduler.start()
     logger.info("✅ [WORKER] Internal Job Worker (APScheduler) berhasil dinyalakan! (dengan human-like jitter)")
     return scheduler

@@ -226,6 +226,8 @@ def init_db():
         ('posts', 'image_score', 'REAL'),
         ('posts', 'experiment_id', 'TEXT'),
         ('posts', 'experiment_arm', 'INTEGER'),
+        # Sumber posting: goldgen (default untuk data lama) atau manual.
+        ('posts', 'source', "TEXT DEFAULT 'goldgen'"),
     ]
     for table, col, col_type in migrations:
         try:
