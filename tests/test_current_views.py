@@ -17,7 +17,7 @@ class CurrentViewsTests(unittest.TestCase):
             with patch('core.views_collector.requests.get',return_value=good) as get:
                 self.assertEqual(1,collect_views([{'page_id':'a','access_token':'test'}])['updated'])
                 self.assertEqual(0,collect_views([{'page_id':'a','access_token':'test'}])['updated'])
-                self.assertEqual(1,get.call_count)
+                self.assertEqual(3,get.call_count)
             c=database.get_db_connection();c.execute("UPDATE post_views_current SET attempted_at=datetime('now','-2 hours')");c.commit();c.close()
             with patch('core.views_collector.requests.get',side_effect=RuntimeError('unavailable')):
                 self.assertEqual(1,collect_views([{'page_id':'a','access_token':'test'}])['failed'])

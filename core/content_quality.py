@@ -14,6 +14,13 @@ Editorial limits: More black sand alone does not establish greater gold yield.
 One or two pans do not establish a pay streak or economic viability. Recommend
 further comparable sampling, not immediate excavation based on black sand alone.
 Do not depict entering deep or fast-moving water as a routine prospecting step.
+Never assert a universal gold-bearing depth or show every soil layer as gold-rich.
+Depth labels in hypothetical profiles must be explicitly illustrative, not survey results.
+Do not confuse density relative to water with density relative to river rock.
+Do not invent first-person prospecting experiences or guaranteed financial rewards.
+Visual guidance: use one dominant explanatory diagram, 3-5 concise callouts,
+readable labels and arrows tied to actual features. Avoid paragraphs of tiny text.
+Use magnified insets only when they explain the topic; do not add unrelated microbes.
 '''
 
 

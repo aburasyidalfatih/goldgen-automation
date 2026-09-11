@@ -42,6 +42,7 @@ def collect_views(pages, limit=100):
             except Exception as exc:
                 error = redact(str(exc))[:300]
             # Optional metrics must not invalidate a valid view measurement.
+            unique_status = 'unavailable'
             for metric, key in (('post_total_media_view_unique', 'unique_viewers'),):
                 try:
                     response = requests.get(f'https://graph.facebook.com/v18.0/{post_id}/insights',
@@ -51,14 +52,18 @@ def collect_views(pages, limit=100):
                         if item.get('name') == metric and item.get('values'):
                             value = item['values'][0].get('value')
                             if type(value) is int and value >= 0:
-                                values[key] = value
+                                if value == 0 and values.get('media_views', 0) > 0:
+                                    unique_status = 'inconsistent_zero'
+                                else:
+                                    values[key] = value
+                                    unique_status = 'available'
                 except Exception:
                     pass
             try:
                 response = requests.get(f'https://graph.facebook.com/v18.0/{post_id}',
-                    params={'access_token':page['access_token'],'fields':'shares.summary(true)'}, timeout=25)
+                    params={'access_token':page['access_token'],'fields':'shares'}, timeout=25)
                 response.raise_for_status()
-                value = response.json().get('shares', {}).get('summary', {}).get('total_count')
+                value = response.json().get('shares', {}).get('count')
                 if type(value) is int and value >= 0:
                     values['shares'] = value
             except Exception:
@@ -66,6 +71,11 @@ def collect_views(pages, limit=100):
             conn = get_db_connection()
             try:
                 with conn:
+                    conn.execute('''CREATE TABLE IF NOT EXISTS post_metric_status (
+                        fb_post_id TEXT PRIMARY KEY, unique_status TEXT, checked_at TEXT)''')
+                    conn.execute('''INSERT INTO post_metric_status VALUES (?,?,CURRENT_TIMESTAMP)
+                        ON CONFLICT(fb_post_id) DO UPDATE SET unique_status=excluded.unique_status,
+                        checked_at=excluded.checked_at''', (post_id, unique_status))
                     conn.execute('''INSERT INTO post_views_current(fb_post_id,media_views,views_24h,views_48h,velocity_per_hour,unique_viewers,shares,fetched_at,attempted_at,error)
                         VALUES (?,?,?,?,?,?,?,CASE WHEN ? IS NOT NULL THEN CURRENT_TIMESTAMP END,CURRENT_TIMESTAMP,?)
                         ON CONFLICT(fb_post_id) DO UPDATE SET
@@ -83,6 +93,8 @@ def collect_views(pages, limit=100):
                          (values.get('media_views') / age_hours) if values.get('media_views') is not None and age_hours > 0 else None,
                          values.get('unique_viewers'),values.get('shares'),
                          values.get('media_views'),error))
+                    if unique_status == 'inconsistent_zero':
+                        conn.execute('UPDATE post_views_current SET unique_viewers=NULL WHERE fb_post_id=? AND unique_viewers=0', (post_id,))
             finally:
                 conn.close()
             result['failed' if error else 'updated'] += 1
