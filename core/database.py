@@ -240,6 +240,35 @@ def init_db():
         except Exception as e:
             print(f"WARNING: DB Migration check for {table}.{col}: {e}")
 
+    # Normalize imported Page timestamps and repair legacy duplicate IDs before
+    # enforcing uniqueness. Keep GoldGen metadata in preference to a bare
+    # manual row, and otherwise keep the row with the most useful content.
+    cursor.execute("UPDATE posts SET source='goldgen' WHERE source IS NULL OR source=''")
+    cursor.execute("UPDATE posts SET timestamp=replace(timestamp, '+0000', '+00:00') WHERE timestamp LIKE '%+0000'")
+    duplicate_ids = cursor.execute('''
+        SELECT fb_post_id FROM posts WHERE fb_post_id IS NOT NULL
+        GROUP BY fb_post_id HAVING COUNT(*) > 1
+    ''').fetchall()
+    cursor.execute('CREATE TABLE IF NOT EXISTS posts_duplicate_archive AS SELECT * FROM posts WHERE 0')
+    for (fb_post_id,) in duplicate_ids:
+        rows = cursor.execute('''
+            SELECT id FROM posts WHERE fb_post_id=?
+            ORDER BY CASE WHEN source='goldgen' THEN 0 ELSE 1 END,
+                     CASE WHEN image_path IS NOT NULL AND image_path<>'' THEN 0 ELSE 1 END,
+                     CASE WHEN content IS NOT NULL AND content<>'' THEN 0 ELSE 1 END, id
+        ''', (fb_post_id,)).fetchall()
+        if len(rows) > 1:
+            cursor.executemany('INSERT INTO posts_duplicate_archive SELECT * FROM posts WHERE id=?', [(row[0],) for row in rows[1:]])
+            cursor.executemany('DELETE FROM posts WHERE id=?', [(row[0],) for row in rows[1:]])
+    # Manual posts do not have GoldGen's generated topic metadata; their first
+    # caption line is a safe, auditable topic seed until semantic extraction runs.
+    cursor.execute('''
+        UPDATE posts SET topic_headline=substr(trim(content),1,180)
+        WHERE source='manual' AND (topic_headline IS NULL OR trim(topic_headline)='')
+          AND content IS NOT NULL AND trim(content)<>''
+    ''')
+    cursor.execute('CREATE UNIQUE INDEX IF NOT EXISTS ux_posts_fb_post_id ON posts(fb_post_id) WHERE fb_post_id IS NOT NULL')
+
     # === Auto Migration: Normalisasi tabel yang pernah dibuat dengan skema berbeda ===
     # Versi lama auto_poster.py memakai nama kolom 'last_posted' dan 'caption',
     # sementara sisa aplikasi memakai 'timestamp' dan 'content'.

@@ -16,8 +16,9 @@ def _parse_created(value):
     if not value:
         return None
     try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return parsed if parsed.tzinfo else None
+    except (ValueError, TypeError, AttributeError):
         return None
 
 
@@ -44,7 +45,31 @@ def sync_manual_posts(pages, lookback_hours=72, limit=25):
                     "limit": min(max(int(limit), 1), 50),
                 }, timeout=30)
             response.raise_for_status()
-            rows = response.json().get("data", [])
+            payload = response.json()
+            if 'error' in payload:
+                raise ValueError('Meta rejected Page post discovery')
+            rows = payload.get("data", [])
+            # Follow cursors only on the fixed Graph endpoint; never forward
+            # credentials to a paging URL supplied by the response.
+            seen = set()
+            for _ in range(9):
+                paging = payload.get('paging', {})
+                after = paging.get('cursors', {}).get('after')
+                if not paging.get('next') or not after or after in seen:
+                    break
+                if any((_parse_created(p.get('created_time')) or cutoff) < cutoff for p in payload.get('data', [])):
+                    break
+                seen.add(after)
+                response = requests.get(
+                    f"https://graph.facebook.com/v18.0/{page['page_id']}/posts",
+                    params={'access_token': page['access_token'],
+                            'fields': 'id,message,created_time',
+                            'limit': min(max(int(limit), 1), 50), 'after': after}, timeout=30)
+                response.raise_for_status()
+                payload = response.json()
+                if 'error' in payload:
+                    raise ValueError('Meta rejected Page post pagination')
+                rows.extend(payload.get('data', []))
         except Exception as exc:
             logger.warning("Manual post sync gagal untuk %s: %s", page.get("name"), redact(exc))
             continue
@@ -54,16 +79,18 @@ def sync_manual_posts(pages, lookback_hours=72, limit=25):
             for post in rows:
                 post_id = post.get("id")
                 created = _parse_created(post.get("created_time"))
-                if not post_id or not created or created < cutoff:
+                if not post_id or not created or created < cutoff or created > datetime.now(timezone.utc):
+                    continue
+                if not post_id.startswith(str(page['page_id']) + '_'):
                     continue
                 checked += 1
                 content = (post.get("message") or "").strip()
                 cur = conn.execute(
                     """INSERT OR IGNORE INTO posts
-                    (timestamp,page_name,page_id,content,image_path,fb_post_id,status,source)
-                    VALUES (?,?,?,?,?,?,?,?)""",
-                    (post["created_time"], page.get("name", page["page_id"]),
-                     page["page_id"], content, None, post_id, "success", "manual"),
+                    (timestamp,page_name,page_id,content,image_path,fb_post_id,status,source,topic_headline)
+                    VALUES (?,?,?,?,?,?,?,?,?)""",
+                    (created.astimezone(timezone.utc).isoformat(timespec="seconds"), page.get("name", page["page_id"]),
+                     page["page_id"], content, None, post_id, "success", "manual", content[:180] or None),
                 )
                 if cur.rowcount:
                     imported += 1
