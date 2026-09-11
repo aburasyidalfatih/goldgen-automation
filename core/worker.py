@@ -75,6 +75,10 @@ def job_manual_post_sync():
         try:
             from core.manual_post_sync import sync_from_config
             logger.info('Manual post sync: %s', sync_from_config())
+            import json
+            from core.config import CONFIG_PATH
+            from core.manual_content_analysis import analyze_manual_content
+            analyze_manual_content(json.loads(CONFIG_PATH.read_text()))
         except Exception as exc:
             from core.safe_log import redact
             logger.error('Manual post sync failed: %s', redact(exc))
