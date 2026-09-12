@@ -61,6 +61,17 @@
   .empty-state { text-align: center; padding: 30px 10px; color: #71717a; font-style: italic; font-size: 14px; }
   .loading-state { text-align: center; padding: 60px; color: #FBBF24; font-size: 18px; font-weight: 600; animation: pulse 1.5s infinite; }
 
+  .ranking-card { border: 1px solid #3f3f46; background: #18181b; border-radius: 16px; margin-bottom: 12px; overflow: hidden; transition: border-color .2s, box-shadow .2s; }
+  .ranking-card.is-open { border-color: rgba(251,191,36,.55); box-shadow: 0 12px 36px rgba(0,0,0,.22); }
+  .ranking-toggle { width: 100%; padding: 18px 20px; background: transparent; color: inherit; border: 0; display: flex; align-items: center; justify-content: space-between; gap: 18px; text-align: left; cursor: pointer; }
+  .ranking-toggle:hover { background: rgba(251,191,36,.045); }
+  .ranking-title { color: #fbbf24; font-size: 21px; font-weight: 700; }
+  .ranking-summary { color: #a1a1aa; margin-top: 5px; font-size: 14px; }
+  .ranking-chevron { color: #fbbf24; font-size: 22px; transition: transform .2s; flex: 0 0 auto; }
+  .ranking-card.is-open .ranking-chevron { transform: rotate(180deg); }
+  .ranking-content { display: none; padding: 0 20px 10px; }
+  .ranking-card.is-open .ranking-content { display: block; }
+
   @keyframes pulse {
       0%, 100% { opacity: 1; }
       50% { opacity: 0.5; }
@@ -131,11 +142,27 @@ async function loadViewsRanking() {
         const data = await response.json();
         container.replaceChildren();
         if (!data.groups.length) { container.textContent = 'Belum ada posting berhasil dalam 30 hari terakhir.'; return; }
-        for (const group of data.groups) {
-            const card = el('section', undefined, 'border:1px solid #3f3f46;background:#18181b;border-radius:16px;padding:20px;margin-bottom:20px');
-            card.append(el('h3',group.page_name,'color:#fbbf24;font-size:21px;font-weight:700'));
-            card.append(el('p',`${group.measured} dari ${group.posts.length} konten memiliki data tayangan`,'color:#a1a1aa;margin:6px 0 16px'));
-            if (!group.measured) card.append(el('p','Data tayangan belum terkumpul. Data kosong bukan berarti nol tayangan.','color:#fbbf24;margin-bottom:16px'));
+        data.groups.forEach((group, groupIndex) => {
+            const card = el('section');
+            card.className = 'ranking-card';
+
+            const toggle = el('button');
+            toggle.type = 'button';
+            toggle.className = 'ranking-toggle';
+            toggle.setAttribute('aria-expanded', groupIndex === 0 ? 'true' : 'false');
+            const contentId = `ranking-content-${groupIndex}`;
+            toggle.setAttribute('aria-controls', contentId);
+            const heading = el('div');
+            const title = el('h3', group.page_name); title.className = 'ranking-title';
+            const summary = el('p', `${group.measured} dari ${group.posts.length} konten memiliki data tayangan`); summary.className = 'ranking-summary';
+            heading.append(title, summary);
+            const chevron = el('span', '⌄'); chevron.className = 'ranking-chevron'; chevron.setAttribute('aria-hidden', 'true');
+            toggle.append(heading, chevron);
+
+            const content = el('div');
+            content.className = 'ranking-content';
+            content.id = contentId;
+            if (!group.measured) content.append(el('p','Data tayangan belum terkumpul. Data kosong bukan berarti nol tayangan.','color:#fbbf24;margin-bottom:16px'));
             let rank = 0;
             for (const post of group.posts) {
                 const measured = post.media_views != null;
@@ -155,10 +182,23 @@ async function loadViewsRanking() {
                     const link=el('a','Lihat di Facebook','display:inline-block;color:#fbbf24;padding:10px 0');
                     link.href='https://www.facebook.com/'+post.fb_post_id; link.target='_blank'; link.rel='noopener noreferrer'; body.append(link);
                 }
-                row.append(body);card.append(row);
+                row.append(body);content.append(row);
             }
+            card.append(toggle, content);
+            toggle.addEventListener('click', () => {
+                const willOpen = !card.classList.contains('is-open');
+                container.querySelectorAll('.ranking-card.is-open').forEach(openCard => {
+                    openCard.classList.remove('is-open');
+                    openCard.querySelector('.ranking-toggle').setAttribute('aria-expanded', 'false');
+                });
+                if (willOpen) {
+                    card.classList.add('is-open');
+                    toggle.setAttribute('aria-expanded', 'true');
+                }
+            });
+            if (groupIndex === 0) card.classList.add('is-open');
             container.append(card);
-        }
+        });
     } catch(error) { container.textContent=error.message; }
 }
 
