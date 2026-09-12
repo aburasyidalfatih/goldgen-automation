@@ -12,6 +12,7 @@ Tiga pertanyaan yang dijawab modul ini:
 """
 
 from datetime import datetime
+import math
 
 from core.database import get_db_connection
 
@@ -37,6 +38,24 @@ def _fetch_posts_with_engagement(page_id=None):
     rows = conn.execute(query, params).fetchall()
     conn.close()
     return rows
+
+
+def _fetch_timing_rows(page_id):
+    """All mature 48h outcomes from the last 30 days for schedule learning.
+
+    Unlike layout/topic learning, timing must not discard a valid view snapshot
+    merely because a preceding engagement baseline was not yet available.
+    """
+    conn = get_db_connection()
+    try:
+        return conn.execute('''
+            SELECT timestamp, media_views, engagement, rel_engagement
+            FROM post_engagement
+            WHERE page_id = ? AND source = 'snapshot48'
+              AND julianday(timestamp) BETWEEN julianday('now','-30 days') AND julianday('now')
+        ''', (page_id,)).fetchall()
+    finally:
+        conn.close()
 
 
 def _confident_lower_bound(values, z=1.96, sd_prior=0.9):
@@ -266,33 +285,72 @@ def hook_compliance_report(page_id):
 
 
 def timing_report(page_id):
-    """Rata-rata engagement per jam posting (waktu WIB seperti tersimpan)"""
-    rows = _fetch_posts_with_engagement(page_id)
+    """Performa jam WIB: tayangan 48 jam utama, engagement 48 jam fallback.
+
+    Hasil dirangking pada skala relatif 1-4 agar pertumbuhan page dan satu post
+    viral tidak membuat jam lama otomatis menang. Bukti terbaru diberi bobot
+    lebih besar dengan half-life 14 hari.
+    """
+    rows = _fetch_timing_rows(page_id)
+
+    measured_views = [r for r in rows if r['media_views'] is not None]
+    use_views = len(measured_views) >= 5
+    eligible = [dict(r) for r in (
+        measured_views if use_views else [r for r in rows if r['rel_engagement'] is not None]
+    )]
+
+    if use_views:
+        keys = sorted({(float(r['media_views'] or 0), float(r['engagement'] or 0)) for r in eligible})
+        ranks = {key: 1.0 + 3.0 * (i + 1) / len(keys) for i, key in enumerate(keys)}
+        for r in eligible:
+            r['_timing_outcome'] = ranks[(float(r['media_views'] or 0), float(r['engagement'] or 0))]
+    else:
+        for r in eligible:
+            r['_timing_outcome'] = min(4.0, max(0.0, float(r['rel_engagement'])))
 
     by_hour = {}
-    for r in rows:
+    now = datetime.now()
+    for r in eligible:
         try:
-            hour = datetime.fromisoformat(r['timestamp']).hour
+            stamp = datetime.fromisoformat(r['timestamp'])
+            hour = stamp.hour
+            age_days = max(0.0, (now - stamp.replace(tzinfo=None)).total_seconds() / 86400)
         except Exception:
             continue
-        by_hour.setdefault(hour, []).append(float(r['engagement'] or 0))
+        weight = 2 ** (-age_days / 14.0)
+        by_hour.setdefault(hour, []).append({
+            'outcome': float(r['_timing_outcome']),
+            'raw': float(r['media_views'] if use_views else r['engagement'] or 0),
+            'weight': weight,
+        })
 
     report = []
-    for hour, values in sorted(by_hour.items()):
-        n = len(values)
-        mean = sum(values) / n
+    for hour, observations in sorted(by_hour.items()):
+        n = len(observations)
+        mass = sum(v['weight'] for v in observations)
+        mean = sum(v['outcome'] * v['weight'] for v in observations) / mass
+        variance = sum(v['weight'] * (v['outcome'] - mean) ** 2 for v in observations) / mass
+        # Conservative lower bound. A variance floor prevents false certainty
+        # when a handful of posts happen to have similar results.
+        sd = max(math.sqrt(variance), 0.27)
+        confident = max(0.0, mean - 1.96 * sd / math.sqrt(max(mass, 0.01)))
         report.append({
             'hour': hour,
             'n': n,
-            'avg': round(mean, 1),
-            'confident_score': round(_confident_lower_bound(values), 1),
+            'effective_n': round(mass, 1),
+            'avg': round(sum(v['raw'] for v in observations) / n, 1),
+            'relative_score': round(mean, 2),
+            'confident_score': round(confident, 2),
+            'metric': 'views_48h' if use_views else 'engagement_48h',
+            'evidence': 'matang' if n >= 10 else ('cukup' if n >= 5 else 'tipis'),
         })
     return report
 
 
-def best_hours(page_id, count=4, min_samples=2):
+def best_hours(page_id, count=4, min_samples=5):
     """Rekomendasi jam posting, hanya dari jam yang datanya memadai"""
-    solid = [h for h in timing_report(page_id) if h['n'] >= min_samples]
+    solid = [h for h in timing_report(page_id)
+             if h['n'] >= min_samples and h['effective_n'] >= 3.0]
     solid.sort(key=lambda x: -x['confident_score'])
     return solid[:count]
 

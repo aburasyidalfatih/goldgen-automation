@@ -164,9 +164,10 @@ function render(report) {
       if (t) {
         height = Math.max(6, Math.round((t.avg / maxAvg) * 100));
         const thin = t.n < 3 ? ' bar-thin' : '';
-        cls = 'bar ' + (t.n >= 3 && t.confident_score >= 0.8 * Math.max(...timing.filter(x=>x.n>=3).map(x=>x.confident_score), 0)
+        cls = 'bar ' + (t.n >= 5 && t.confident_score >= 0.8 * Math.max(...timing.filter(x=>x.n>=5).map(x=>x.confident_score), 0)
               ? 'bar-best' : 'bar-data') + thin;
-        tip = `${String(h).padStart(2,'0')}:00 — rata2 ${t.avg} engagement dari ${t.n} post (skor yakin ${t.confident_score})`;
+        const metricName = t.metric === 'views_48h' ? 'tayangan 48 jam' : 'interaksi 48 jam';
+        tip = `${String(h).padStart(2,'0')}:00 — rata2 ${t.avg} ${metricName} dari ${t.n} post (skor relatif yakin ${t.confident_score})`;
       }
       bars += `<div class="bar-wrap" title="${esc(tip)}"><div class="${cls}" style="height:${height}%"></div></div>`;
       axis += `<div class="hour-lbl ${isSched ? 'sched' : ''}">${isSched ? '★' : ''}${String(h).padStart(2,'0')}</div>`;
@@ -174,14 +175,14 @@ function render(report) {
 
     // Tabel jam terbaik
     const best = page.best_hours || [];
-    let table = '<div class="empty-state">Belum ada jam dengan data memadai (butuh minimal 2 postingan per jam).</div>';
+    let table = '<div class="empty-state">Belum ada jam dengan data memadai (butuh minimal 5 postingan per jam).</div>';
     if (best.length) {
-      table = `<table class="hours"><tr><th>#</th><th>Jam</th><th>Rata-rata</th><th>Sampel</th><th>Skor yakin</th><th>Status</th></tr>` +
+      table = `<table class="hours"><tr><th>#</th><th>Jam</th><th>Rata-rata hasil</th><th>Sampel</th><th>Skor relatif yakin</th><th>Status</th></tr>` +
         best.map((h, i) => `<tr>
             <td class="rank">${i + 1}</td>
             <td><strong>${String(h.hour).padStart(2,'0')}:00</strong></td>
             <td>${h.avg}</td>
-            <td>${h.n} post${h.n < 3 ? ' <span style="color:#a16207">(tipis)</span>' : ''}</td>
+            <td>${h.n} post <span style="color:${h.evidence === 'matang' ? '#4ade80' : h.evidence === 'cukup' ? '#fbbf24' : '#a16207'}">(${h.evidence})</span></td>
             <td><strong style="color:#FBBF24">${h.confident_score}</strong></td>
             <td>${sched.includes(h.hour) ? '<span class="chip chip-now">dipakai</span>' : '<span class="chip chip-rec">usulan</span>'}</td>
           </tr>`).join('') + '</table>';
@@ -189,7 +190,7 @@ function render(report) {
 
     // Kesimpulan + tombol terapkan
     const topNew = best.find(h => !sched.includes(h.hour));
-    const schedWithData = sched.filter(h => byHour[h] && byHour[h].n >= 2);
+    const schedWithData = sched.filter(h => byHour[h] && byHour[h].n >= 5 && byHour[h].effective_n >= 3);
     const worst = schedWithData.length
       ? schedWithData.reduce((a, b) => byHour[a].confident_score <= byHour[b].confident_score ? a : b)
       : (sched.length ? sched[0] : null);
@@ -226,14 +227,14 @@ function render(report) {
         </div>
       </div>
 
-      <div class="label">Engagement rata-rata per jam (★ = sedang dijadwalkan)</div>
+      <div class="label">Hasil rata-rata per jam — tayangan 48 jam diutamakan, interaksi 48 jam sebagai fallback (★ = sedang dijadwalkan)</div>
       <div class="chart">${bars}</div>
       <div class="hour-axis">${axis}</div>
       <div class="tip">
         Batang <span style="color:#4ade80">hijau</span> = jam terbaik yang sudah teruji ·
         <span style="color:#FBBF24">kuning</span> = ada data ·
         abu-abu = belum pernah dipakai ·
-        bergaris = sampel masih tipis (&lt;3 post)
+        bergaris = sampel masih tipis (&lt;3 post) · rekomendasi perlu minimal 5 post dan bobot data efektif ≥3
       </div>
 
       <div style="margin-top:22px" class="label">Peringkat jam</div>

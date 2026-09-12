@@ -26,7 +26,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from core.config import CONFIG_PATH  # noqa: E402
 from learning_insights import timing_report  # noqa: E402
 
-MIN_SAMPLES = 3   # jam dengan sampel di bawah ini belum bisa dinilai
+MIN_SAMPLES = 5   # hindari keputusan jadwal dari satu atau dua post viral
 MAX_CHANGES = 1   # ubah maksimal 1 slot per page per eksekusi — perubahan bertahap
 
 
@@ -48,7 +48,8 @@ def main():
             print("   (memakai interval_hours, bukan jadwal per jam — dilewati)")
             continue
 
-        stats = {t['hour']: t for t in timing_report(page['page_id']) if t['n'] >= MIN_SAMPLES}
+        stats = {t['hour']: t for t in timing_report(page['page_id'])
+                 if t['n'] >= MIN_SAMPLES and t.get('effective_n', 0) >= 3}
         if len(stats) < 2:
             print(f"   data belum cukup (butuh >= {MIN_SAMPLES} post per jam)")
             continue
