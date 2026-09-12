@@ -21,6 +21,16 @@ class SharedHeaderTests(unittest.TestCase):
         self.assertIn('justify-content: center', text)
         self.assertNotIn('⌂ Dashboard', text)
 
+    def test_internal_pages_share_the_same_content_width(self):
+        root = Path(__file__).parents[1] / 'templates'
+        header = (root / '_app_header.html').read_text(encoding='utf-8')
+        self.assertIn('max-width: 1280px !important', header)
+        for name in ('dashboard_schedule.html', 'analytics.html',
+                     'schedule_insight.html', 'motion_studio.html', 'app_detail.html'):
+            with self.subTest(template=name):
+                text = (root / name).read_text(encoding='utf-8')
+                self.assertIn('gg-page-container', text)
+
 
 if __name__ == '__main__':
     unittest.main()
