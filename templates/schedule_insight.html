@@ -88,16 +88,10 @@
 </style>
 </head>
 <body class="selection:bg-amber-500/30">
-<div class="topbar">
-  <h1>Rekomendasi Jam Posting</h1>
-  <nav>
-    <button class="btn" onclick="loadReport()">🔄 Segarkan</button>
-    <a href="/analytics">🧠 Otak Bot</a>
-    <a href="/dashboard">← Dashboard</a>
-  </nav>
-</div>
+{% include '_app_header.html' %}
 
 <div class="container">
+  <h1 style="font-size:30px;font-weight:800;margin-bottom:12px">Rekomendasi Jam Posting</h1>
   <p class="header-desc">
     Jam posting dinilai dari <strong>engagement nyata</strong> tiap postingan yang pernah tayang.
     Angka <strong>skor yakin</strong> adalah rata-rata yang sudah dipotong sesuai ketidakpastian —
