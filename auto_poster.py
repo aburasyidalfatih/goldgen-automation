@@ -28,6 +28,7 @@ except Exception as _e:
 
 from core.config import BASE_DIR, DATA_DIR, LOGS_DIR, IMAGES_DIR, DB_PATH, CONFIG_PATH
 from core.database import get_db_connection, init_db
+from core.art_director import render_art_direction
 from core.model_catalog import image_size_for_model, normalize_image_model
 from core.safe_log import redact
 from comment_analyzer import CommentAnalyzer
@@ -207,6 +208,7 @@ Reply ONLY with JSON:
         # variabel yang belum sempat terbentuk saat error terjadi di sini.
         try:
             image_prompt = self.goldgen.generate_image_prompt(topic, page_id)
+            image_prompt = self._apply_art_direction(topic, image_prompt)
             self._preflight_image_plan(topic, image_prompt)
             image_prompt += ("\nFACTUAL REQUIREMENTS: Illustrate the approved caption below. "
                              "Do not invent recovery percentages, guaranteed deposits, or chemical "
@@ -290,6 +292,55 @@ Reply ONLY with JSON:
             return path_pakai
 
         return self._generate_fallback_image(topic, fanspage_name)
+
+    def _apply_art_direction(self, topic, base_prompt):
+        """Ask the text model to refine visual execution without changing facts.
+
+        This advisory step is fail-open: API or JSON failures leave the proven,
+        deterministic GoldGen prompt untouched, so a scheduled post still runs.
+        """
+        topic['art_direction_used'] = False
+        request_prompt = f"""You are the AI Art Director for a Facebook educational infographic.
+
+Refine visual execution BEFORE image generation. Preserve the approved topic,
+caption, factual limits, selected layout, and allowed-text budget exactly. Do
+not invent facts, measurements, recovery rates, guarantees, or extra labels.
+Prioritize a strong focal subject, phone-readable hierarchy, useful information
+density, and the visual style selected from this page's measured audience data.
+
+APPROVED TOPIC: {topic.get('headline', '')}
+APPROVED CAPTION: {topic.get('approved_caption', '')}
+SELECTED LAYOUT: {topic.get('layout', '')}
+CURRENT IMAGE BRIEF:
+{base_prompt}
+
+Return JSON only:
+{{
+  "focal_subject": "one concrete dominant visual subject",
+  "composition_adjustment": "specific placement, hierarchy and visual flow",
+  "palette_and_contrast": "brief color and mobile-legibility direction",
+  "label_plan": ["up to four labels, each at most three words"],
+  "avoid": "specific clutter, ambiguity or visual mistakes to avoid"
+}}"""
+        try:
+            from google.genai import types
+
+            client = genai.Client(api_key=self.gemini_api_key)
+            response = client.models.generate_content(
+                model=self.text_model,
+                contents=request_prompt,
+                config=types.GenerateContentConfig(response_mime_type='application/json'),
+            )
+            direction = render_art_direction(getattr(response, 'text', ''))
+            if not direction:
+                print("   ⚠️  AI Art Director returned an invalid plan; using base prompt")
+                return base_prompt
+            topic['art_direction_used'] = True
+            print("   🎨 AI Art Director refined the image plan")
+            return base_prompt + direction
+        except Exception as e:
+            print(f"   ⚠️  AI Art Director unavailable: {redact(e)}; using base prompt")
+            return base_prompt
 
     def _preflight_image_plan(self, topic, prompt):
         """Validate the visual plan before spending an image-generation call.
