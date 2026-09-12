@@ -17,6 +17,9 @@ class SharedHeaderTests(unittest.TestCase):
             self.assertIn(f'href="{href}"', text)
         self.assertIn("fetch('/api/auth/logout'", text)
         self.assertIn('aria-label="Menu utama"', text)
+        self.assertIn('grid-template-columns: 220px minmax(0,1fr) 90px', text)
+        self.assertIn('justify-content: center', text)
+        self.assertNotIn('⌂ Dashboard', text)
 
 
 if __name__ == '__main__':

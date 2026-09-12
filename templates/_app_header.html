@@ -1,12 +1,12 @@
 <style>
   .gg-header, .gg-header * { box-sizing: border-box; }
   .gg-header { position: sticky; top: 0; z-index: 100; width: 100%; background: rgba(9,9,11,.92); border-bottom: 1px solid rgba(63,63,70,.75); backdrop-filter: blur(18px); font-family: 'Outfit', sans-serif; }
-  .gg-header-inner { max-width: 1280px; min-height: 68px; margin: 0 auto; padding: 10px 20px; display: flex; align-items: center; gap: 24px; }
+  .gg-header-inner { max-width: 1280px; min-height: 68px; margin: 0 auto; padding: 10px 20px; display: grid; grid-template-columns: 220px minmax(0,1fr) 90px; align-items: center; gap: 18px; }
   .gg-brand { flex: 0 0 auto; display: flex !important; align-items: center; gap: 10px; padding: 5px 0 !important; color: #f4f4f5 !important; border: 0 !important; text-decoration: none !important; }
-  .gg-brand-mark { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 11px; color: #18181b; background: linear-gradient(135deg,#fbbf24,#b8860b); font-size: 19px; box-shadow: 0 5px 18px rgba(251,191,36,.18); }
+  .gg-brand-mark { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 11px; color: #18181b; background: linear-gradient(135deg,#fbbf24,#b8860b); font-size: 17px; font-weight: 800; box-shadow: 0 5px 18px rgba(251,191,36,.18); }
   .gg-brand-copy strong { display: block; font-size: 18px; line-height: 1; color: #fbbf24; }
   .gg-brand-copy small { display: block; margin-top: 4px; color: #71717a; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; }
-  .gg-nav { min-width: 0; flex: 1; display: flex; align-items: center; gap: 5px; overflow-x: auto; scrollbar-width: none; }
+  .gg-nav { min-width: 0; display: flex; align-items: center; justify-content: center; gap: 5px; overflow-x: auto; scrollbar-width: none; }
   .gg-nav::-webkit-scrollbar { display: none; }
   .gg-nav-link { flex: 0 0 auto; display: inline-flex !important; align-items: center; gap: 7px; min-height: 40px; margin: 0 !important; padding: 9px 12px !important; border: 1px solid transparent !important; border-radius: 10px !important; color: #a1a1aa !important; background: transparent !important; font-size: 14px !important; font-weight: 600 !important; line-height: 1 !important; text-decoration: none !important; transition: .2s !important; }
   .gg-nav-link:hover { color: #f4f4f5 !important; background: #18181b !important; }
@@ -14,7 +14,7 @@
   .gg-logout { flex: 0 0 auto; min-height: 40px; margin: 0 !important; padding: 9px 12px !important; border: 1px solid rgba(248,113,113,.2) !important; border-radius: 10px !important; color: #f87171 !important; background: rgba(239,68,68,.07) !important; font: 600 14px/1 'Outfit',sans-serif !important; cursor: pointer; }
   .gg-logout:hover { background: rgba(239,68,68,.14) !important; }
   @media (max-width: 760px) {
-    .gg-header-inner { padding: 9px 12px 8px; display: grid; grid-template-columns: 1fr auto; gap: 7px 12px; }
+    .gg-header-inner { padding: 9px 12px 8px; grid-template-columns: 1fr auto; gap: 7px 12px; }
     .gg-brand-copy small { display: none; }
     .gg-nav { grid-column: 1 / -1; grid-row: 2; width: 100%; padding-bottom: 1px; }
     .gg-nav-link { min-height: 36px; padding: 8px 10px !important; font-size: 13px !important; }
@@ -25,15 +25,15 @@
 <header class="gg-header">
   <div class="gg-header-inner">
     <a class="gg-brand" href="/dashboard" aria-label="GoldGen Dashboard">
-      <span class="gg-brand-mark" aria-hidden="true">◆</span>
+      <span class="gg-brand-mark" aria-hidden="true">G</span>
       <span class="gg-brand-copy"><strong>GoldGen</strong><small>Audience Intelligence</small></span>
     </a>
     <nav class="gg-nav" aria-label="Menu utama">
-      <a class="gg-nav-link {{ 'is-active' if current_path == '/dashboard' else '' }}" href="/dashboard">⌂ Dashboard</a>
-      <a class="gg-nav-link {{ 'is-active' if current_path == '/analytics' else '' }}" href="/analytics">▥ Analitik</a>
-      <a class="gg-nav-link {{ 'is-active' if current_path == '/schedule-insight' else '' }}" href="/schedule-insight">◷ Jam Terbaik</a>
-      <a class="gg-nav-link {{ 'is-active' if current_path == '/motion-studio' else '' }}" href="/motion-studio">▶ Motion</a>
-      <a class="gg-nav-link {{ 'is-active' if current_path == '/detail' else '' }}" href="/detail">⚙ Status</a>
+      <a class="gg-nav-link {{ 'is-active' if current_path == '/dashboard' else '' }}" href="/dashboard">Dashboard</a>
+      <a class="gg-nav-link {{ 'is-active' if current_path == '/analytics' else '' }}" href="/analytics">Analitik</a>
+      <a class="gg-nav-link {{ 'is-active' if current_path == '/schedule-insight' else '' }}" href="/schedule-insight">Jam Terbaik</a>
+      <a class="gg-nav-link {{ 'is-active' if current_path == '/motion-studio' else '' }}" href="/motion-studio">Motion</a>
+      <a class="gg-nav-link {{ 'is-active' if current_path == '/detail' else '' }}" href="/detail">Status</a>
     </nav>
     <button class="gg-logout" type="button" onclick="ggLogout()">Keluar</button>
   </div>
