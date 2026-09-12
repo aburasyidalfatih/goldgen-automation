@@ -644,7 +644,7 @@ def get_config():
 def update_config():
     """Update configuration"""
     try:
-        data = request.json
+        data = request.get_json(silent=True) or {}
         
         if CONFIG_PATH.exists():
             with open(CONFIG_PATH, 'r') as f:
@@ -1059,7 +1059,7 @@ def get_app_info():
 def update_settings():
     """Update settings (API key and image model)"""
     try:
-        data = request.json
+        data = request.get_json(silent=True) or {}
         
         config = {}
         if CONFIG_PATH.exists():

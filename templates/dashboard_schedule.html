@@ -363,7 +363,7 @@
 
 
                 <div class="flex gap-3 mt-6">
-                    <button type="submit" class="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-800 text-white rounded font-semibold transition-colors">
+                    <button id="settingsSaveButton" type="submit" class="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-800 text-white rounded font-semibold transition-colors disabled:opacity-60 disabled:cursor-wait">
                         Save Settings
                     </button>
                     <button type="button" onclick="closeSettingsModal()" class="flex-1 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded font-semibold transition-colors">
@@ -373,6 +373,8 @@
             </form>
         </div>
     </div>
+
+    <div id="settingsToast" class="hidden fixed top-5 right-5 z-[70] max-w-sm rounded-xl border px-4 py-3 shadow-2xl" role="status" aria-live="polite"></div>
 
     <script>
         const API_BASE = '';
@@ -1004,6 +1006,19 @@ function closeSettingsModal() {
     document.getElementById('settingsForm').reset();
 }
 
+let settingsToastTimer;
+function showSettingsToast(message, success = true) {
+    const toast = document.getElementById('settingsToast');
+    clearTimeout(settingsToastTimer);
+    toast.textContent = message;
+    toast.className = `fixed top-5 right-5 z-[70] max-w-sm rounded-xl border px-4 py-3 shadow-2xl ${
+        success
+            ? 'bg-emerald-950 border-emerald-600 text-emerald-100'
+            : 'bg-red-950 border-red-600 text-red-100'
+    }`;
+    settingsToastTimer = setTimeout(() => toast.classList.add('hidden'), 4000);
+}
+
 // Handle settings form submit
 document.getElementById('settingsForm').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -1011,31 +1026,17 @@ document.getElementById('settingsForm').addEventListener('submit', async (e) => 
     const apiKey = document.getElementById('settingsApiKey').value;
     const imageModel = document.getElementById('settingsImageModel').value;
     const textModel = document.getElementById('settingsTextModel').value;
+    const saveButton = document.getElementById('settingsSaveButton');
     
     const settings = {
         gemini_api_key: apiKey,
         image_model: imageModel,
-        text_model: textModel,
-        instagram_config: {
-            enabled: document.getElementById('settingsIgEnabled').checked
-        },
-        twitter_config: {
-            api_key: document.getElementById('settingsTwApiKey').value,
-            api_secret: document.getElementById('settingsTwApiSecret').value === '********' ? config.twitter_config?.api_secret : document.getElementById('settingsTwApiSecret').value,
-            access_token: document.getElementById('settingsTwAccessToken').value === '********' ? config.twitter_config?.access_token : document.getElementById('settingsTwAccessToken').value,
-            token_secret: document.getElementById('settingsTwTokenSecret').value === '********' ? config.twitter_config?.token_secret : document.getElementById('settingsTwTokenSecret').value
-        },
-        pinterest_config: {
-            access_token: document.getElementById('settingsPinToken').value === '********' ? config.pinterest_config?.access_token : document.getElementById('settingsPinToken').value,
-            board_id: document.getElementById('settingsPinBoardId').value
-        },
-        threads_config: {
-            access_token: document.getElementById('settingsThreadsToken').value === '********' ? config.threads_config?.access_token : document.getElementById('settingsThreadsToken').value,
-            user_id: document.getElementById('settingsThreadsUserId').value
-        }
+        text_model: textModel
     };
     
     try {
+        saveButton.disabled = true;
+        saveButton.textContent = 'Saving...';
         const res = await fetch('/api/settings', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
@@ -1045,14 +1046,17 @@ document.getElementById('settingsForm').addEventListener('submit', async (e) => 
         const data = await res.json();
         
         if (res.ok) {
-            alert('Settings saved successfully!');
             closeSettingsModal();
             await loadConfig();
+            showSettingsToast('Settings berhasil disimpan.', true);
         } else {
-            alert('Error: ' + (data.error || 'Failed to save settings'));
+            showSettingsToast(data.error || 'Settings gagal disimpan.', false);
         }
     } catch (e) {
-        alert('Error: ' + e.message);
+        showSettingsToast('Settings gagal disimpan: ' + e.message, false);
+    } finally {
+        saveButton.disabled = false;
+        saveButton.textContent = 'Save Settings';
     }
 });
 
