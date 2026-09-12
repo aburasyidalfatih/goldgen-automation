@@ -207,6 +207,9 @@ class CommentReplier:
             return None
     
     def generate_reply(self, comment_text, post_context="", user_name="User", user_history=None, ml_insights=None, image_b64=None):
+        from core.comment_filter import is_promotional_spam
+        if is_promotional_spam(comment_text):
+            return None
         """Generate reply using Gemini AI with language detection and ML context"""
         
         # Inject ML context if available

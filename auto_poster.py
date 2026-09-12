@@ -28,6 +28,7 @@ except Exception as _e:
 
 from core.config import BASE_DIR, DATA_DIR, LOGS_DIR, IMAGES_DIR, DB_PATH, CONFIG_PATH
 from core.database import get_db_connection, init_db
+from core.model_catalog import normalize_image_model
 from core.safe_log import redact
 from comment_analyzer import CommentAnalyzer
 
@@ -74,7 +75,7 @@ class GoldGenAutoPoster:
             with open(CONFIG_PATH, 'r') as f:
                 config = json.load(f)
                 self.gemini_api_key = config.get('gemini_api_key')
-                self.image_model = config.get('image_model', 'gemini-3.1-flash-image')
+                self.image_model = normalize_image_model(config.get('image_model'))
                 self.text_model = config.get('text_model', 'gemini-3.5-flash')
                 self.fanspages = config.get('fanspages', [])
                 self.fanspage_delay_minutes = config.get('fanspage_delay_minutes', 60)

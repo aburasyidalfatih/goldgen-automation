@@ -1124,6 +1124,10 @@ TEXT ALLOWED IN THE IMAGE — nothing else may be written:
 LAYOUT STYLE: {layout_name}
 COMPOSITION GUIDE: {topic['composition']}
 """
+        from core.visual_evidence import density_guidance
+        evidence = density_guidance(page_id)
+        if evidence:
+            base_prompt += '\nMEASURED COMPOSITION EVIDENCE:\n' + evidence + '\n'
         
         insights = self._get_latest_insights(page_id)
         # Saring nilai kosong seperti "none identified" — kalau diteruskan, string

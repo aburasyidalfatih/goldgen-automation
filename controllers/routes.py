@@ -25,6 +25,10 @@ from core.motion_assets import search_assets, scan_existing_images, select_asset
 from core.motion_renderer import default_manifest, render_manifest
 from core.motion_tts import generate_voiceover
 from core.motion_qa import validate_render
+from core.model_catalog import (
+    IMAGE_MODELS,
+    normalize_image_model,
+)
 
 
 def require_pin(f):
@@ -623,7 +627,11 @@ def get_config():
         return jsonify({
             'configured': True,
             'has_gemini_key': bool(config.get('gemini_api_key')),
-            'image_model': config.get('image_model', 'gemini-3.1-flash-image'),
+            'image_model': normalize_image_model(config.get('image_model')),
+            'image_models': [
+                {'id': model_id, 'name': model_name}
+                for model_id, model_name in IMAGE_MODELS.items()
+            ],
             'text_model': config.get('text_model', 'gemini-3.5-flash'),
             'fanspage_delay_minutes': config.get('fanspage_delay_minutes', 60),
             'fanspages': fanspages
@@ -1073,7 +1081,15 @@ def update_settings():
             config['gemini_api_key'] = api_key
         
         if 'image_model' in data:
-            config['image_model'] = data['image_model']
+            requested_model = str(data['image_model'] or '').strip()
+            image_model = normalize_image_model(requested_model)
+            if image_model not in IMAGE_MODELS:
+                return jsonify({
+                    'success': False,
+                    'error': f'Unsupported image model: {requested_model}',
+                    'supported_models': list(IMAGE_MODELS),
+                }), 400
+            config['image_model'] = image_model
             
         if 'text_model' in data:
             config['text_model'] = data['text_model']
