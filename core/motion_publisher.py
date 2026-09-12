@@ -10,8 +10,8 @@ from pathlib import Path
 import requests
 
 
-def publish_video(page_id, access_token, video_path, caption, api_version=None):
-    if os.getenv("MOTION_AUTO_PUBLISH_ENABLED", "false").lower() != "true":
+def publish_video(page_id, access_token, video_path, caption, api_version=None, manual=False):
+    if not manual and os.getenv("MOTION_AUTO_PUBLISH_ENABLED", "false").lower() != "true":
         raise RuntimeError("Automatic video publishing is disabled")
     path = Path(video_path)
     if not path.is_file():

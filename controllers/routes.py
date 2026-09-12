@@ -64,7 +64,9 @@ def serve_dashboard():
 @require_pin
 def serve_motion_studio():
     """Serve the isolated Motion Studio UI."""
-    return render_template("motion_studio.html", topics=list_topics(), jobs=list_jobs())
+    config = json.loads(CONFIG_PATH.read_text(encoding='utf-8')) if CONFIG_PATH.is_file() else {}
+    fanspages = config.get('fanspages', [])
+    return render_template("motion_studio.html", topics=list_topics(), jobs=list_jobs(), fanspages=fanspages)
 
 @bp.route('/api/motion/jobs', methods=['GET', 'POST'])
 @require_pin
@@ -145,31 +147,26 @@ def render_motion_job(job_id):
     job = next((item for item in list_jobs(100) if item['id'] == job_id), None)
     if not job:
         return jsonify({'success': False, 'error': 'Motion job tidak ditemukan'}), 404
-    topic = next((item for item in list_topics() if item['id'] == job['topic_id']), None)
-    try:
-        update_job(job_id, status='rendering', progress_percent=12, current_stage='preparing', current_detail='Preparing topic, assets, and scene plan', scene_current=0, scene_total=6, error_message=None)
-        from core.motion_studio import MOTION_RENDERS_DIR
-        audio_path = MOTION_RENDERS_DIR / f'{job_id}.wav'
-        ada_suara = audio_path.is_file()
-        update_job(job_id, progress_percent=22, current_stage='assets', current_detail='Matching approved internal assets')
-        manifest = default_manifest(topic, select_assets_for_topic(topic))
-        def report(scene_current, scene_total, stage, detail):
-            percent = 35 + round((scene_current / max(scene_total, 1)) * 50)
-            update_job(job_id, progress_percent=percent, current_stage=stage, current_detail=detail, scene_current=scene_current, scene_total=scene_total)
-        result = render_manifest(job_id, manifest, audio_path=audio_path, progress_callback=report)
-        update_job(job_id, progress_percent=92, current_stage='quality_check',
-                   current_detail='Memeriksa video, subtitle, format potret' + (', dan audio' if ada_suara else ''))
-        qa = validate_render(result['output_path'], result['manifest_path'], expect_audio=ada_suara)
-        if not qa['ok']:
-            update_job(job_id, status='failed', output_path=result['output_path'], error_message='; '.join(qa['errors']))
-            return jsonify({'success': False, 'error': 'Video gagal QA', 'qa': qa}), 422
-        updated = update_job(job_id, status='ready', progress_percent=100, current_stage='complete',
-                             current_detail='Video siap' + ('' if qa.get('has_audio') else ' (tanpa suara)'),
-                             output_path=result['output_path'])
-        return jsonify({'success': True, 'job': updated, 'render': result, 'qa': qa})
-    except (OSError, RuntimeError) as exc:
-        update_job(job_id, status='failed', current_stage='failed', current_detail='Motion job failed', error_message=str(exc))
-        return jsonify({'success': False, 'error': str(exc)}), 503
+    
+    updated = update_job(
+        job_id,
+        status='queued',
+        progress_percent=5,
+        current_stage='queued',
+        current_detail='Dimasukkan ke antrean render...',
+        error_message=None
+    )
+    
+    # Process immediately in a background thread so web request never times out
+    import threading
+    from motion_worker import process_one
+    threading.Thread(target=process_one, args=(updated,), daemon=True).start()
+    
+    return jsonify({
+        'success': True,
+        'message': 'Rendering dimulai di latar belakang',
+        'job': updated
+    }), 202
 
 @bp.route('/api/motion/jobs/<job_id>/voiceover', methods=['POST'])
 @require_pin
@@ -205,6 +202,39 @@ def preview_motion_job(job_id):
     if not job or job.get('status') != 'ready' or not job.get('output_path'):
         return jsonify({'success': False, 'error': 'Video belum siap dipreview'}), 404
     return send_file(job['output_path'], mimetype='video/mp4', as_attachment=False)
+
+@bp.route('/api/motion/jobs/<job_id>/publish', methods=['POST'])
+@require_pin
+def publish_motion_job(job_id):
+    job = next((item for item in list_jobs(100) if item['id'] == job_id), None)
+    if not job or job.get('status') != 'ready' or not job.get('output_path'):
+        return jsonify({'success': False, 'error': 'Video belum siap diposting'}), 400
+    
+    data = request.get_json(silent=True) or {}
+    page_id = str(data.get('page_id') or '').strip()
+    
+    config = json.loads(CONFIG_PATH.read_text(encoding='utf-8')) if CONFIG_PATH.is_file() else {}
+    fanspages = config.get('fanspages', [])
+    fanspage = next((p for p in fanspages if str(p.get('page_id')) == page_id), None)
+    if not fanspage:
+        return jsonify({'success': False, 'error': 'Fanspage tujuan tidak ditemukan atau belum dipilih'}), 400
+    
+    caption = str(data.get('caption') or '').strip()
+    if not caption:
+        caption = f"{job['topic_headline']}\n\n#GoldProspecting #GoldMining #Reels"
+        
+    try:
+        from core.motion_publisher import publish_video
+        result = publish_video(
+            page_id=fanspage['page_id'],
+            access_token=fanspage['access_token'],
+            video_path=job['output_path'],
+            caption=caption,
+            manual=True
+        )
+        return jsonify({'success': True, 'result': result})
+    except Exception as exc:
+        return jsonify({'success': False, 'error': str(exc)}), 500
 
 
 

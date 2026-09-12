@@ -84,6 +84,19 @@ def job_manual_post_sync():
             logger.error('Manual post sync failed: %s', redact(exc))
 
 
+def job_motion_worker():
+    """Tugas untuk menjalankan render antrean Motion Studio di background"""
+    with ProcessLock('motion_worker_scheduler') as lock:
+        if not lock.acquired:
+            return
+        try:
+            from motion_worker import run_once
+            run_once()
+        except Exception as exc:
+            from core.safe_log import redact
+            logger.error('Motion worker failed: %s', redact(exc))
+
+
 def start_worker():
     """Memulai Internal Job Worker (Background Scheduler)"""
     scheduler = BackgroundScheduler(timezone=pytz.timezone('Asia/Jakarta'))
@@ -109,15 +122,19 @@ def start_worker():
     scheduler.add_job(job_manual_post_sync, 'interval', minutes=60,
                       id='manual_post_sync_job', max_instances=1, coalesce=True,
                       misfire_grace_time=300)
+
+    # 6. Motion Studio Worker (Setiap 30 detik memproses antrean video draft/queued)
+    scheduler.add_job(job_motion_worker, 'interval', seconds=30,
+                      id='motion_worker_job', max_instances=1, coalesce=True)
+
     scheduler.start()
-    logger.info("✅ [WORKER] Internal Job Worker (APScheduler) berhasil dinyalakan! (dengan human-like jitter)")
+    logger.info("✅ [WORKER] Internal Job Worker (APScheduler) berhasil dinyalakan! (dengan Motion Studio worker)")
     return scheduler
 
 if __name__ == '__main__':
     # Uji coba langsung dari command line (berguna untuk testing lokal)
     print("Menjalankan worker di foreground...")
     from apscheduler.schedulers.blocking import BlockingScheduler
-
-    scheduler = BlockingScheduler(timezone=pytz.timezone('Asia/Jakarta'))
-    scheduler.add_job(job_auto_poster, 'cron', minute='*/1', max_instances=1, coalesce=True)  # Tes tiap 1 menit
-    scheduler.start()
+    sched = BlockingScheduler(timezone=pytz.timezone('Asia/Jakarta'))
+    sched.add_job(job_auto_poster, 'cron', minute='*/1', max_instances=1, coalesce=True)
+    sched.start()

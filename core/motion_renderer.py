@@ -120,8 +120,9 @@ def render_manifest(job_id, manifest, audio_path=None, progress_callback=None):
             text_file.write_text(str(text), encoding="utf-8")
             clip = temp / f"scene-{index}.mp4"
             # textfile avoids shell escaping and keeps facts out of a filter string.
+            escaped_text_file = text_file.as_posix().replace(":", "\\\\:")
             vf = (
-                f"drawtext=font='Arial':textfile='{text_file.as_posix()}':"
+                f"drawtext=font='Arial':textfile={escaped_text_file}:"
                 "fontcolor=white:fontsize=64:line_spacing=14:"
                 "box=1:boxcolor=black@0.55:boxborderw=28:"
                 "fade=t=in:st=0:d=0.35,fade=t=out:st=" + str(max(seconds - 0.35, 0.1)) + ":d=0.35"
@@ -148,6 +149,15 @@ def render_manifest(job_id, manifest, audio_path=None, progress_callback=None):
             background = scene.get("background")
             background_path = Path(background) if background else None
             if background_path and background_path.is_file():
+                if background_path.suffix.lower() == ".svg":
+                    # FFmpeg standard builds cannot decode SVG without librsvg; rasterize to PNG
+                    from PIL import Image, ImageDraw
+                    raster_bg = temp / f"raster-bg-{index}.png"
+                    img = Image.new("RGB", (WIDTH, HEIGHT), color=(23, 18, 11))
+                    draw = ImageDraw.Draw(img)
+                    draw.ellipse([810-230, 460-230, 810+230, 460+230], fill=(91, 66, 29))
+                    img.save(raster_bg, "PNG")
+                    background_path = raster_bg
                 source = ["-loop", "1", "-i", str(background_path)]
                 camera = scene.get("camera", "hold")
                 if camera == "push-in":
@@ -161,6 +171,7 @@ def render_manifest(job_id, manifest, audio_path=None, progress_callback=None):
                 source = ["-f", "lavfi", "-i", f"color=c=0x11100d:s={WIDTH}x{HEIGHT}:r={FPS}"]
             subprocess.run([
                 binary, "-y", *source, "-vf", vf, "-t", str(seconds), "-an",
+                "-c:v", "libx264", "-preset", "veryfast",
                 "-pix_fmt", "yuv420p", str(clip),
             ], check=True, capture_output=True, text=True)
             clips.append(clip)
