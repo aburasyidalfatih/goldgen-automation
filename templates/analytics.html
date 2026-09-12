@@ -154,7 +154,7 @@ async function loadViewsRanking() {
             toggle.setAttribute('aria-controls', contentId);
             const heading = el('div');
             const title = el('h3', group.page_name); title.className = 'ranking-title';
-            const summary = el('p', `${group.measured} dari ${group.posts.length} konten memiliki data tayangan`); summary.className = 'ranking-summary';
+            const summary = el('p', `${number(group.total_views)} total tayangan 30 hari · ${group.measured} dari ${group.posts.length} konten terukur`); summary.className = 'ranking-summary';
             heading.append(title, summary);
             const chevron = el('span', '⌄'); chevron.className = 'ranking-chevron'; chevron.setAttribute('aria-hidden', 'true');
             toggle.append(heading, chevron);

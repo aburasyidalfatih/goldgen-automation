@@ -1271,13 +1271,9 @@ def views_ranking():
             ORDER BY p.page_name,p.page_id,v.media_views IS NULL,v.media_views DESC,
                      engagement DESC,p.id DESC
         ''').fetchall()
-        groups = {}
-        for r in rows:
-            group = groups.setdefault(r['page_id'], {'page_id':r['page_id'],
-                'page_name':r['page_name'],'posts':[], 'measured':0})
-            group['measured'] += r['media_views'] is not None
-            group['posts'].append(dict(r))
-        return jsonify({'groups':list(groups.values()),'window_days':30,
+        from core.views_ranking import group_views_by_page
+        groups = group_views_by_page(rows)
+        return jsonify({'groups':groups,'window_days':30,
                         'metric':'post_media_view','measurement':'current_lifetime'})
     finally:
         conn.close()
