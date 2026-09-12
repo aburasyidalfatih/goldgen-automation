@@ -3,6 +3,7 @@ import unittest
 from core.model_catalog import (
     DEFAULT_IMAGE_MODEL,
     IMAGE_MODELS,
+    image_size_for_model,
     is_supported_image_model,
     normalize_image_model,
 )
@@ -20,6 +21,11 @@ class ModelCatalogTests(unittest.TestCase):
 
     def test_unknown_model_is_not_accepted(self):
         self.assertFalse(is_supported_image_model("made-up-model"))
+
+    def test_resolution_matches_model_capability(self):
+        self.assertEqual("1K", image_size_for_model("gemini-3.1-flash-lite-image"))
+        self.assertEqual("2K", image_size_for_model("gemini-3.1-flash-image"))
+        self.assertEqual("2K", image_size_for_model("gemini-3-pro-image"))
 
 
 if __name__ == "__main__":

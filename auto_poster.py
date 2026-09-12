@@ -28,7 +28,7 @@ except Exception as _e:
 
 from core.config import BASE_DIR, DATA_DIR, LOGS_DIR, IMAGES_DIR, DB_PATH, CONFIG_PATH
 from core.database import get_db_connection, init_db
-from core.model_catalog import normalize_image_model
+from core.model_catalog import image_size_for_model, normalize_image_model
 from core.safe_log import redact
 from comment_analyzer import CommentAnalyzer
 
@@ -234,7 +234,8 @@ Reply ONLY with JSON:
                 from google.genai import types
 
                 label = f"{self.image_model}" + (" (retry)" if attempt else "")
-                print(f"   Generating image with {label}...")
+                image_size = image_size_for_model(self.image_model)
+                print(f"   Generating {image_size} image with {label}...")
 
                 client = genai.Client(api_key=self.gemini_api_key)
                 response = client.models.generate_content(
@@ -244,7 +245,7 @@ Reply ONLY with JSON:
                         response_modalities=['TEXT', 'IMAGE'],
                         image_config=types.ImageConfig(
                             aspect_ratio="9:16",
-                            image_size="2K"
+                            image_size=image_size
                         )
                     )
                 )

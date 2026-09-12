@@ -8,6 +8,14 @@ IMAGE_MODELS = {
     "gemini-3-pro-image": "Nano Banana Pro (Gemini 3 Pro)",
 }
 
+IMAGE_MODEL_SIZES = {
+    # Flash Lite only accepts 1K. The other supported models use 2K so text
+    # and small infographic details remain readable on Facebook.
+    "gemini-3.1-flash-lite-image": "1K",
+    "gemini-3.1-flash-image": "2K",
+    "gemini-3-pro-image": "2K",
+}
+
 # Imagen 4 was retired. Keep this mapping so an older config cannot break the
 # next scheduled post after the application is upgraded.
 LEGACY_IMAGE_MODELS = {
@@ -28,3 +36,9 @@ def normalize_image_model(value):
 
 def is_supported_image_model(value):
     return normalize_image_model(value) in IMAGE_MODELS
+
+
+def image_size_for_model(value):
+    """Return a resolution accepted by the selected image model."""
+    model = normalize_image_model(value)
+    return IMAGE_MODEL_SIZES.get(model, "1K")
