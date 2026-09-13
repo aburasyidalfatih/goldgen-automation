@@ -70,6 +70,17 @@ class ImagePromptTests(unittest.TestCase):
             self.assertTrue(title.isascii(), topic.get('headline'))
             self.assertLessEqual(len(title.split()), 6, topic.get('headline'))
 
+    def test_question_has_separate_budget_without_changing_topic(self):
+        topic = dict(TOPIC)
+        before = dict(topic)
+        prompt = self._prompt(topic)
+        self.assertEqual(before, topic)
+        self.assertIn('Exactly ONE discussion question in English, 8-14 words', prompt)
+        self.assertIn('budget separate from the title and labels', prompt)
+        self.assertIn('No sentences except that question', prompt)
+        self.assertIn('Do not ask for likes, shares, tags, or votes', prompt)
+        self.assertIn('clear of the watermark, main subject, and diagram labels', prompt)
+
 
 if __name__ == '__main__':
     unittest.main()

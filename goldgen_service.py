@@ -1120,6 +1120,18 @@ TEXT ALLOWED IN THE IMAGE — nothing else may be written:
 2. At most {MAX_EXTRA_LABELS} additional labels of your own choosing, each no more than
    3 short everyday English words, naming things visible in the illustration.
    Choose only words you can spell with certainty.
+3. Exactly ONE discussion question in English, 8-14 words, with its own text
+   budget separate from the title and labels. Compose it from THIS topic and
+   the depicted mechanism or objects, consistent with the approved caption.
+   Invite reasoning, a real sampling choice, or relevant field experience.
+   Vary the question naturally with the topic; do not reuse a generic slogan.
+   Do not invent a controversy, false facts, guaranteed finds, or a false
+   either/or choice. Use A/B only if those alternatives are actually shown.
+   For settled facts, ask about experience or interpretation instead of
+   suggesting the fact is disputed. Do not ask for likes, shares, tags, or votes.
+   Place the question in a compact, high-contrast box near the bottom, inside
+   safe margins and clear of the watermark, main subject, and diagram labels.
+   Keep it phone-readable; reserve space rather than shrinking the text.
 
 LAYOUT STYLE: {layout_name}
 COMPOSITION GUIDE: {topic['composition']}
@@ -1239,7 +1251,7 @@ MANDATORY REQUIREMENTS:
 - Atmosphere: Educational, scientific, professional
 - Quality: High detail, sharp focus on key elements, photorealistic rendering where applicable.
 - NO ABSTRACT ART. NO CARTOONS. Must look like a professional reference guide.
-- TEXT BUDGET (most important rule): render ONLY the short labels listed above. No sentences, no paragraphs, no captions, no footnotes, no fine print, no formulas, no equations, no citations, no invented words. Every label must be a real, correctly spelled English word in a bold sans-serif face, large enough to read on a phone. If you are unsure how to spell something, draw it instead of writing it. Fewer words rendered perfectly beats more words rendered badly.
+- TEXT BUDGET (most important rule): render ONLY the title, short labels, and ONE discussion question authorized above, plus the requested corner watermark. No sentences except that question, no paragraphs, no captions, no footnotes, no fine print, no formulas, no equations, no citations, no invented words. Every label and the question must use real, correctly spelled English words in a bold sans-serif face, large enough to read on a phone. Keep the question separate from the label budget. Fewer words rendered perfectly beats more words rendered badly.
 """
         
         from core.content_feedback import feedback_prompt

@@ -4,7 +4,7 @@ import json
 import re
 
 
-MAX_LABELS = 4
+MAX_LABELS = 3
 
 
 def _short_text(value, limit):
@@ -54,5 +54,8 @@ AI ART DIRECTOR — execution refinement only; the approved topic and facts abov
 - PALETTE AND PHONE CONTRAST: {plan['palette_and_contrast'] or 'follow the selected layout with strong mobile contrast'}
 - SHORT LABEL PLAN: {labels}
 - VISUAL CLUTTER / ERRORS TO AVOID: {plan['avoid'] or 'long text, decorative clutter, and unsupported details'}
-Do not introduce new facts, quantities, claims, or extra text.
+Preserve the separately authorized ONE discussion question (8-14 English words).
+Reserve a readable bottom box for it, clear of the main diagram and watermark.
+The question is not a short label. Do not introduce new facts, quantities,
+claims, or extra text beyond the base prompt's authorized text budget.
 """

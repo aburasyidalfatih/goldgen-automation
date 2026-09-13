@@ -166,8 +166,15 @@ Score the image 1-10 against these criteria, in order of importance:
 dangerous chemical instructions, misleading geology, and contradiction with the caption.
 If any factual defect is present, or text is unreadable, score at most 6.
 
+Also review the separately authorized discussion question: exactly one,
+8-14 English words, related to the depicted topic, readable, and clear of
+the main diagram and watermark. It must not invent controversy or request
+likes, shares, tags, or votes. Report any question issue in discussion_feedback
+as advice for FUTURE posts only; do not lower the score for question quality
+or absence. Do not confuse this authorized question with forbidden extra labels.
+
 Reply ONLY with JSON:
-{{"score": <1-10>, "verdict": "<one short sentence>", "worst_problem": "<the single most damaging flaw, or 'none'>"}}"""
+{{"score": <1-10>, "verdict": "<one short sentence>", "worst_problem": "<the single most damaging flaw, or 'none'>", "discussion_feedback": "<question improvement for future posts, or 'none'>"}}"""
 
         try:
             with open(str(image_path), 'rb') as f:
@@ -196,6 +203,9 @@ Reply ONLY with JSON:
             from core.content_quality import valid_score
             skor = valid_score(hasil.get('score'))
             catatan = str(hasil.get('worst_problem') or hasil.get('verdict') or '')[:200]
+            discussion = str(hasil.get('discussion_feedback') or '').strip()
+            if discussion and discussion.lower() != 'none':
+                catatan += ' | Discussion question: ' + discussion[:400]
             return skor, catatan
         except Exception as e:
             print(f"   ⚠️  Kritikus gambar error: {type(e).__name__}: {redact(e)}")
@@ -307,6 +317,9 @@ caption, factual limits, selected layout, and allowed-text budget exactly. Do
 not invent facts, measurements, recovery rates, guarantees, or extra labels.
 Prioritize a strong focal subject, phone-readable hierarchy, useful information
 density, and the visual style selected from this page's measured audience data.
+Preserve exactly one topic-specific discussion question of 8-14 English words
+in its own bottom box. This is separate from the three short labels. Do not
+change the topic, invent controversy, or add engagement bait.
 
 APPROVED TOPIC: {topic.get('headline', '')}
 APPROVED CAPTION: {topic.get('approved_caption', '')}
@@ -319,7 +332,7 @@ Return JSON only:
   "focal_subject": "one concrete dominant visual subject",
   "composition_adjustment": "specific placement, hierarchy and visual flow",
   "palette_and_contrast": "brief color and mobile-legibility direction",
-  "label_plan": ["up to four labels, each at most three words"],
+  "label_plan": ["up to three labels, each at most three words; not the question"],
   "avoid": "specific clutter, ambiguity or visual mistakes to avoid"
 }}"""
         try:
@@ -455,8 +468,8 @@ Return JSON only:
         
         # Footer text
         y_pos = height - 200
-        draw.text((width/2, y_pos), "Learn the signs. Find the gold.", 
-                 fill='#AAAAAA', font=footer_font, anchor="mm")
+        draw.multiline_text((width/2, y_pos), "Which detail here matches what\nyou have seen in the field?",
+                 fill='#AAAAAA', font=footer_font, anchor="mm", align="center")
         
         y_pos += 60
         draw.text((width/2, y_pos), "🤖 Content created with AI assistance", 

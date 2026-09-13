@@ -13,6 +13,7 @@ class ArtDirectorTests(unittest.TestCase):
         rendered = render_art_direction(raw)
         self.assertIn("DOMINANT FOCAL SUBJECT", rendered)
         self.assertIn("Do not introduce new facts", rendered)
+        self.assertIn('separately authorized ONE discussion question', rendered)
 
     def test_invalid_or_incomplete_plan_falls_back(self):
         self.assertIsNone(render_art_direction("not json"))
@@ -20,7 +21,7 @@ class ArtDirectorTests(unittest.TestCase):
 
     def test_excess_labels_are_limited(self):
         raw = '{"focal_subject":"river", "composition_adjustment":"clear cutaway", "label_plan":["ONE", "TWO", "THREE", "FOUR", "FIVE"]}'
-        self.assertEqual(4, len(parse_art_direction(raw)["label_plan"]))
+        self.assertEqual(3, len(parse_art_direction(raw)["label_plan"]))
 
 
 if __name__ == "__main__":
