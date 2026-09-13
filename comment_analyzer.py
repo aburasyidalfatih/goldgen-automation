@@ -4,6 +4,7 @@ Comment Analyzer - Goldgen Automation
 Analisis komentar Facebook untuk extract topik yang diminati audience
 dan pengaruhi konten berikutnya.
 """
+from core.meta_api import GRAPH_API_BASE
 
 import json
 import sqlite3
@@ -116,7 +117,7 @@ class CommentAnalyzer:
             for row in rows:
                 try:
                     post_id = row['fb_post_id']
-                    response = requests.get(f'https://graph.facebook.com/v18.0/{post_id}',
+                    response = requests.get(f'{GRAPH_API_BASE}/{post_id}',
                                             params={'fields': fields, 'access_token': page['access_token']},
                                             timeout=30)
                     response.raise_for_status()
@@ -168,7 +169,7 @@ class CommentAnalyzer:
         """Ambil nilai terbaru sebuah metrik level page (None kalau tidak tersedia)"""
         try:
             r = requests.get(
-                f"https://graph.facebook.com/v18.0/{page_id}/insights",
+                f"{GRAPH_API_BASE}/{page_id}/insights",
                 params={'access_token': access_token, 'metric': metric, 'period': 'day'},
                 timeout=30
             ).json()
@@ -191,7 +192,7 @@ class CommentAnalyzer:
         """
         try:
             r = requests.get(
-                f"https://graph.facebook.com/v18.0/{page_id}",
+                f"{GRAPH_API_BASE}/{page_id}",
                 params={'access_token': access_token, 'fields': 'fan_count,followers_count'},
                 timeout=30
             ).json()
@@ -222,7 +223,7 @@ class CommentAnalyzer:
         """Total displays, not unique reach or monetization revenue."""
         try:
             response = requests.get(
-                f'https://graph.facebook.com/v18.0/{fb_post_id}/insights',
+                f'{GRAPH_API_BASE}/{fb_post_id}/insights',
                 params={'access_token': access_token, 'metric': 'post_media_view'}, timeout=30)
             response.raise_for_status()
             for metric in response.json().get('data', []):
@@ -238,7 +239,7 @@ class CommentAnalyzer:
         """Read post clicks when available. Clicks are not reach or unique viewers."""
         try:
             r = requests.get(
-                f"https://graph.facebook.com/v18.0/{fb_post_id}/insights",
+                f"{GRAPH_API_BASE}/{fb_post_id}/insights",
                 params={'access_token': access_token, 'metric': 'post_clicks'},
                 timeout=30
             ).json()
@@ -251,7 +252,7 @@ class CommentAnalyzer:
 
     def get_recent_comments(self, page_id, access_token, days=3):
         """Ambil komentar yang dibuat dalam N hari terakhir, dari 30 postingan terakhir"""
-        url = f"https://graph.facebook.com/v18.0/{page_id}/posts"
+        url = f"{GRAPH_API_BASE}/{page_id}/posts"
         params = {
             'access_token': access_token,
             'fields': 'id,message,created_time',
@@ -272,7 +273,7 @@ class CommentAnalyzer:
             hook_type = hook_types.get(post['id'], "Unknown")
 
             # Get comments
-            comments_url = f"https://graph.facebook.com/v18.0/{post['id']}/comments"
+            comments_url = f"{GRAPH_API_BASE}/{post['id']}/comments"
             try:
                 r = requests.get(comments_url, params={
                     'access_token': access_token,
@@ -309,7 +310,7 @@ class CommentAnalyzer:
 
     def get_silent_engagement_metrics(self, page_id, access_token, days=3):
         """Ambil metrik Like, Share, dan Reactions dari postingan untuk mendeteksi emosi audiens (positif & negatif)"""
-        url = f"https://graph.facebook.com/v18.0/{page_id}/posts"
+        url = f"{GRAPH_API_BASE}/{page_id}/posts"
         params = {
             'access_token': access_token,
             'fields': 'id,message,created_time,likes.summary(true),comments.summary(true),shares,reactions.type(LOVE).limit(0).summary(total_count).as(love),reactions.type(HAHA).limit(0).summary(total_count).as(haha),reactions.type(WOW).limit(0).summary(total_count).as(wow),reactions.type(ANGRY).limit(0).summary(total_count).as(angry),reactions.type(SAD).limit(0).summary(total_count).as(sad)',
@@ -451,7 +452,7 @@ class CommentAnalyzer:
         """
         import os
 
-        url = f"https://graph.facebook.com/v18.0/{page_id}/posts"
+        url = f"{GRAPH_API_BASE}/{page_id}/posts"
         try:
             r = requests.get(url, params={
                 'access_token': access_token,

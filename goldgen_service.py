@@ -672,7 +672,7 @@ REPLY ONLY WITH THIS EXACT JSON FORMAT:
     def _get_breaking_news(self):
         """Use duckduckgo-search to find breaking news about gold prospecting in the US"""
         try:
-            from duckduckgo_search import DDGS
+            from ddgs import DDGS
             with DDGS() as ddgs:
                 results = list(ddgs.news("gold prospecting OR gold rush OR gold nugget discovery USA", max_results=3))
                 if results:

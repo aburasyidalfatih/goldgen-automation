@@ -12,6 +12,7 @@ services:
       - goldgen_data:/app/data
       - goldgen_images:/app/generated_images
       - goldgen_logs:/app/logs
+      - goldgen_motion:/app/motion_studio
     environment:
       - PORT=18794
       - HOST=0.0.0.0
@@ -25,6 +26,8 @@ services:
     image: goldgen-automation:latest
     container_name: goldgen-motion-worker
     command: ["python", "motion_worker.py"]
+    cpus: 2.0
+    mem_limit: 3g
     restart: unless-stopped
     volumes:
       - goldgen_data:/app/data
@@ -35,6 +38,8 @@ services:
       - PYTHONUNBUFFERED=1
       - TZ=Asia/Jakarta
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - MOTION_RENDER_CONCURRENCY=1
+      - MOTION_RENDER_TIMEOUT=1800
 
 volumes:
   goldgen_data:

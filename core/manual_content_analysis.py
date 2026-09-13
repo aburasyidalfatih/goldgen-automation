@@ -1,4 +1,5 @@
 """Bounded visual classification of manual Page images; no publishing actions."""
+from core.meta_api import GRAPH_API_BASE
 import base64
 import json
 from urllib.parse import urlparse
@@ -54,7 +55,7 @@ def analyze_manual_content(config, limit=2):
                 DO UPDATE SET attempted_at=CURRENT_TIMESTAMP''', (row['fb_post_id'],))
             conn.commit()
             try:
-                response = requests.get('https://graph.facebook.com/v18.0/'+row['fb_post_id'],
+                response = requests.get(f'{GRAPH_API_BASE}/'+row['fb_post_id'],
                     params={'fields':'full_picture','access_token':page['access_token']}, timeout=25)
                 response.raise_for_status()
                 url = response.json().get('full_picture', '')

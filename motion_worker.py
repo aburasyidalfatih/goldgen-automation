@@ -1,71 +1,53 @@
-"""Standalone Motion Studio worker.
-
-Run this process separately from api.py/auto-poster. It only handles Motion
-Studio jobs and can later be managed by its own Windows service or systemd
-unit on the VPS.
-"""
-
+"""Single leased Motion worker. Requests enqueue; drafts are never rendered."""
+import json
 import logging
+import threading
 import time
-
-from core.locks import ProcessLock
-from core.motion_renderer import default_manifest, render_manifest
-from core.motion_assets import select_assets_for_topic
-from core.motion_qa import validate_render
-from core.motion_studio import get_job, list_jobs, list_topics, update_job, init_motion_storage, MOTION_RENDERS_DIR
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - motion-worker - %(levelname)s - %(message)s")
-logger = logging.getLogger("motion_worker")
-
+from core import motion_studio as storage
+from core.motion_projects import claim_job, project, heartbeat, progress, finish, save_project
+from core.motion_pipeline import render_project, generate_speech, generate_storyboard, generate_scene_image, Cancelled
+logger=logging.getLogger('motion-worker')
 
 def process_one(job):
-    topic = next((item for item in list_topics() if item["id"] == job["topic_id"]), None)
-    if not topic:
-        update_job(job["id"], status="failed", error_message="Topic tidak ditemukan")
-        return
+    token=job.get('lease_token')
+    if not token:
+        raise ValueError('Worker must atomically claim a queued job first')
+    cancel=threading.Event(); done=threading.Event()
+    def pulse():
+        while not done.is_set():
+            try:
+                if not heartbeat(job['id'],token): cancel.set(); return
+            except Exception:
+                cancel.set(); return
+            done.wait(5)
+    thread=threading.Thread(target=pulse,daemon=True); thread.start()
+    report=lambda p,d: progress(job['id'],token,p,d)
     try:
-        update_job(job["id"], status="rendering", progress_percent=12, current_stage="preparing", current_detail="Preparing topic, assets, and scene plan", scene_current=0, scene_total=6, error_message=None)
-        # Voice-over bersifat opsional dan dibuat lewat endpoint terpisah.
-        # Kalau belum ada, video tetap dirender tanpa suara — tapi itu harus
-        # terlihat pada hasilnya, bukan diam-diam.
-        audio_path = MOTION_RENDERS_DIR / f'{job["id"]}.wav'
-        ada_suara = audio_path.is_file()
-        update_job(job["id"], progress_percent=22, current_stage="assets", current_detail="Matching approved internal assets")
-        manifest = default_manifest(topic, select_assets_for_topic(topic))
-        update_job(job["id"], progress_percent=32, current_stage="voiceover",
-                   current_detail="Voice-over ditemukan" if ada_suara else "Tanpa voice-over (belum dibuat)")
-        def report(scene_current, scene_total, stage, detail):
-            percent = 35 + round((scene_current / max(scene_total, 1)) * 50)
-            update_job(job["id"], progress_percent=percent, current_stage=stage, current_detail=detail, scene_current=scene_current, scene_total=scene_total)
-        result = render_manifest(job["id"], manifest, audio_path=audio_path, progress_callback=report)
-        update_job(job["id"], progress_percent=92, current_stage="quality_check",
-                   current_detail="Memeriksa video, subtitle, format potret"
-                                  + (", dan audio" if ada_suara else ""))
-        qa = validate_render(result["output_path"], result["manifest_path"], expect_audio=ada_suara)
-        if not qa["ok"]:
-            update_job(job["id"], status="failed", output_path=result["output_path"], error_message="; ".join(qa["errors"]))
-            return
-        update_job(job["id"], status="ready", progress_percent=100, current_stage="complete",
-                   current_detail="Video siap" + ("" if qa.get("has_audio") else " (tanpa suara)"),
-                   output_path=result["output_path"])
-        logger.info("Motion job %s siap", job["id"])
+        manifest=project(job['id'],job['revision'])
+        options=json.loads(job['action_json'])
+        if job['action']=='render':
+            folder=storage.MOTION_RENDERS_DIR/job['id']/token
+            output,qa=render_project(manifest,folder,cancel,report)
+            finish(job['id'],token,'ready',output=output,qa=qa,revision=job['revision'])
+        else:
+            if job['action']=='voiceover': manifest=generate_speech(manifest,options,cancel,report)
+            elif job['action']=='storyboard': manifest=generate_storyboard(manifest,cancel)
+            elif job['action']=='image': manifest=generate_scene_image(manifest,options,cancel)
+            save_project(job['id'],manifest,job['revision'],token=token)
+            finish(job['id'],token,'draft')
     except Exception as exc:
-        update_job(job["id"], status="failed", current_stage="failed", current_detail="Motion job failed", error_message=f"{type(exc).__name__}: {exc}")
-        logger.exception("Motion job %s gagal", job["id"])
-
+        logger.exception('Motion attempt failed: %s',token)
+        finish(job['id'],token,'cancelled' if isinstance(exc,Cancelled) else 'failed',error=str(exc)[:1500])
+    finally:
+        done.set(); thread.join(timeout=6)
 
 def run_once():
-    init_motion_storage()
-    with ProcessLock("motion-render") as lock:
-        if not lock.acquired:
-            logger.info("Worker Motion Studio lain sedang berjalan")
-            return
-        pending = [job for job in list_jobs(100) if job["status"] in {"draft", "queued"}]
-        if pending:
-            process_one(pending[0])
+    storage.init_motion_storage()
+    job=claim_job()
+    if job: process_one(job)
 
-
-if __name__ == "__main__":
+if __name__=='__main__':
+    logging.basicConfig(level=logging.INFO)
     while True:
         run_once()
-        time.sleep(15)
+        time.sleep(2)

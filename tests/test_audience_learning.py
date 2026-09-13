@@ -79,7 +79,7 @@ class ExperimentTests(unittest.TestCase):
         conn.commit();conn.close()
         self.assertIsNone(pending('a',self.layouts))
 
-    def test_evidence_is_page_isolated_and_dashboard_uses_same_weights(self):
+    def test_cold_start_evidence_and_dashboard_use_same_weights(self):
         from core.audience_learning import update_rankings
         conn=database.get_db_connection()
         for page,value in [('a',1),('b',4)]:
@@ -93,7 +93,11 @@ class ExperimentTests(unittest.TestCase):
         self.assertAlmostEqual(1,a['GRID']['avg'])
         item=update_rankings([{'layout':'GRID','confident_score':999}], 'a','layout_name','layout')[0]
         self.assertEqual(1,item['relatif'])
-        self.assertEqual('terbatas',item['evidence'])
+        # Pages below MIN_LOCAL_SAMPLES_FOR_AUTONOMY intentionally borrow a
+        # weak portfolio prior. The dashboard must expose that provenance,
+        # while n still counts local observations rather than other pages.
+        self.assertEqual('local + cold-start portfolio', a['GRID']['evidence'])
+        self.assertEqual(a['GRID']['evidence'], item['evidence'])
 
 
 if __name__=='__main__':

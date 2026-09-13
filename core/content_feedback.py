@@ -7,6 +7,8 @@ from core.safe_log import redact
 def save_feedback(page_id, topic, kind, score, note):
     if not page_id:
         return
+    if kind == 'image' and topic.get('visual_feedback'):
+        note = json.dumps({'summary': str(note)[:250], 'improvements': topic['visual_feedback']}, ensure_ascii=True)
     conn = None
     try:
         conn = get_db_connection()

@@ -10,6 +10,12 @@ from core.motion_studio import MOTION_ASSETS_DIR, MOTION_DATA_DIR, motion_db
 
 ASSET_DB_PATH = MOTION_DATA_DIR / "assets.db"
 
+def get_asset(asset_id):
+    with motion_db(ASSET_DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        row = conn.execute('SELECT * FROM assets WHERE id=?', (asset_id,)).fetchone()
+    return dict(row) if row else None
+
 
 def init_asset_storage():
     MOTION_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
@@ -33,6 +39,9 @@ def register_asset(path, asset_type="graphic", tags=(), status="draft", source_u
         raise FileNotFoundError(source)
     digest = hashlib.sha256(source.read_bytes()).hexdigest()
     asset_id = digest[:16]
+    existing = get_asset(asset_id)
+    if existing and Path(existing['source_path']).is_file():
+        return asset_id
     now = datetime.now(timezone.utc).isoformat()
     with motion_db(ASSET_DB_PATH) as conn:
         conn.execute("""INSERT OR REPLACE INTO assets
@@ -84,5 +93,5 @@ def scan_existing_images(root):
     registered = []
     for path in root.rglob("*"):
         if path.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp"} and path.is_file():
-            registered.append(register_asset(path, asset_type="existing-image", tags=("goldgen", "reusable"), status="approved"))
+            registered.append(register_asset(path, asset_type="existing-image", tags=("goldgen", "reusable", path.stem.replace('_', ' ').replace('-', ' ')), status="approved"))
     return registered

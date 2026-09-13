@@ -3,6 +3,7 @@
 Auto Reply Comments - Goldgen Automation
 Membalas setiap komentar di Facebook Page menggunakan Gemini AI
 """
+from core.meta_api import GRAPH_API_BASE
 
 import json
 import requests
@@ -44,7 +45,7 @@ class CommentReplier:
     
     def get_recent_posts(self, page_id, access_token, limit=5):
         """Get recent posts from page"""
-        url = f"https://graph.facebook.com/v18.0/{page_id}/posts"
+        url = f"{GRAPH_API_BASE}/{page_id}/posts"
         params = {
             'access_token': access_token,
             'fields': 'id,message,created_time',
@@ -62,7 +63,7 @@ class CommentReplier:
     
     def get_comments(self, post_id, access_token, page_id):
         """Get comments from a post"""
-        url = f"https://graph.facebook.com/v18.0/{post_id}/comments"
+        url = f"{GRAPH_API_BASE}/{post_id}/comments"
         params = {
             'access_token': access_token,
             'fields': 'id,from,message,created_time,attachment',
@@ -341,7 +342,7 @@ Just provide the direct reply without any quotes or explanations."""
     
     def post_reply(self, comment_id, reply_text, access_token):
         """Post reply to a comment"""
-        url = f"https://graph.facebook.com/v18.0/{comment_id}/comments"
+        url = f"{GRAPH_API_BASE}/{comment_id}/comments"
         params = {
             'access_token': access_token,
             'message': reply_text
@@ -385,7 +386,7 @@ Just provide the direct reply without any quotes or explanations."""
         log tidak cuma bilang "invalid" tanpa menjelaskan kenapa.
         """
         try:
-            url = f"https://graph.facebook.com/v18.0/{page_id}"
+            url = f"{GRAPH_API_BASE}/{page_id}"
             params = {'access_token': access_token, 'fields': 'id,name'}
             response = requests.get(url, params=params, timeout=10)
             if response.status_code == 200:
@@ -407,7 +408,7 @@ Just provide the direct reply without any quotes or explanations."""
 
     def hide_comment(self, comment_id, access_token):
         """Hide a malicious comment using Facebook Graph API"""
-        url = f"https://graph.facebook.com/v18.0/{comment_id}"
+        url = f"{GRAPH_API_BASE}/{comment_id}"
         params = {
             'access_token': access_token,
             'is_hidden': 'true'

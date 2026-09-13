@@ -3,6 +3,7 @@
 GoldGen Auto Poster - Automated Facebook Posting
 Generates gold price posters and posts to Facebook every 3 hours
 """
+from core.meta_api import GRAPH_API_BASE
 
 import os
 import json
@@ -154,6 +155,7 @@ INTENDED TOPIC: {judul}
 INTENDED LAYOUT: {layout}
 INTENDED COMPOSITION: {komposisi}
 CAPTION TO ILLUSTRATE: {topic.get('approved_caption', '')}
+APPROVED IMAGE COPY AND DENSITY: {json.dumps(topic.get('visual_plan', {}))}
 FACTUAL LIMITS: {FACT_CONTEXT}
 
 Score the image 1-10 against these criteria, in order of importance:
@@ -173,8 +175,11 @@ likes, shares, tags, or votes. Report any question issue in discussion_feedback
 as advice for FUTURE posts only; do not lower the score for question quality
 or absence. Do not confuse this authorized question with forbidden extra labels.
 
+Give actionable future-post improvements by category: text, layout, color, facts,
+and question. Use an empty string when no correction is needed. Do not merely praise.
+These suggestions are advisory and never add a publication gate.
 Reply ONLY with JSON:
-{{"score": <1-10>, "verdict": "<one short sentence>", "worst_problem": "<the single most damaging flaw, or 'none'>", "discussion_feedback": "<question improvement for future posts, or 'none'>"}}"""
+{{"improvements": {{"text": "", "layout": "", "color": "", "facts": "", "question": ""}}, "score": <1-10>, "verdict": "<one short sentence>", "worst_problem": "<the single most damaging flaw, or 'none'>", "discussion_feedback": "<question improvement for future posts, or 'none'>"}}"""
 
         try:
             with open(str(image_path), 'rb') as f:
@@ -203,6 +208,10 @@ Reply ONLY with JSON:
             from core.content_quality import valid_score
             skor = valid_score(hasil.get('score'))
             catatan = str(hasil.get('worst_problem') or hasil.get('verdict') or '')[:200]
+            from core.visual_plan import CATEGORIES
+            categorized = hasil.get('improvements')
+            if isinstance(categorized, dict):
+                topic['visual_feedback'] = {k: str(categorized.get(k) or '')[:220] for k in CATEGORIES}
             discussion = str(hasil.get('discussion_feedback') or '').strip()
             if discussion and discussion.lower() != 'none':
                 catatan += ' | Discussion question: ' + discussion[:400]
@@ -213,6 +222,7 @@ Reply ONLY with JSON:
 
     def generate_image(self, topic, fanspage_name=None, page_id=None):
         """Generate educational infographic using Gemini image model"""
+        topic['_visual_page_id'] = page_id
         topic['image_score'] = None
         # Prompt dibangun di luar blok retry supaya retry tidak crash karena
         # variabel yang belum sempat terbentuk saat error terjadi di sini.
@@ -278,6 +288,8 @@ Reply ONLY with JSON:
                 skor, catatan = self._review_image(image_path, topic, fanspage_name)
                 from core.content_feedback import save_feedback
                 save_feedback(page_id, topic, 'image', skor, catatan)
+                from core.visual_plan import save_plan
+                save_plan(page_id, image_path, topic)
                 topic['image_score'] = skor
                 return image_path
 
@@ -309,21 +321,37 @@ Reply ONLY with JSON:
         This advisory step is fail-open: API or JSON failures leave the proven,
         deterministic GoldGen prompt untouched, so a scheduled post still runs.
         """
+        from core.visual_plan import fallback_plan, parse_plan, render_plan
         topic['art_direction_used'] = False
+        topic['visual_plan'] = fallback_plan(topic)
+        evidence = {}
+        try:
+            from core.visual_plan import design_report
+            evidence = design_report(topic.get('_visual_page_id'))
+            evidence['groups'] = [g for g in evidence.get('groups', [])
+                                  if g['samples'] >= 5 and g['layout'] == topic.get('layout')][:12]
+        except Exception:
+            pass
         request_prompt = f"""You are the AI Art Director for a Facebook educational infographic.
 
 Refine visual execution BEFORE image generation. Preserve the approved topic,
-caption, factual limits, selected layout, and allowed-text budget exactly. Do
+caption, factual limits, and selected layout exactly. Finalize image copy now. Do
 not invent facts, measurements, recovery rates, guarantees, or extra labels.
 Prioritize a strong focal subject, phone-readable hierarchy, useful information
 density, and the visual style selected from this page's measured audience data.
 Preserve exactly one topic-specific discussion question of 8-14 English words
-in its own bottom box. This is separate from the three short labels. Do not
+in its own bottom box. Choose light (2 labels, 3 words each), medium (3 labels,
+5 words each), or detail (4 labels, 8 words each). Use light for a specimen,
+medium for comparison, and detail only for a process requiring explanation.
+These budgets replace the base brief label limits. Self-check English spelling
+and every label against the approved caption. No new claims or quantities. Do not
 change the topic, invent controversy, or add engagement bait.
 
 APPROVED TOPIC: {topic.get('headline', '')}
 APPROVED CAPTION: {topic.get('approved_caption', '')}
 SELECTED LAYOUT: {topic.get('layout', '')}
+MEASURED DESIGN EVIDENCE (same page, same layout, 48-hour views;
+observational guidance only, no automatic winner): {json.dumps(evidence)}
 CURRENT IMAGE BRIEF:
 {base_prompt}
 
@@ -332,7 +360,13 @@ Return JSON only:
   "focal_subject": "one concrete dominant visual subject",
   "composition_adjustment": "specific placement, hierarchy and visual flow",
   "palette_and_contrast": "brief color and mobile-legibility direction",
-  "label_plan": ["up to three labels, each at most three words; not the question"],
+  "title": "final English title, at most six words",
+  "labels": ["final text following the selected density budget"],
+  "question": "final topic-specific English question, 8-14 words ending in ?",
+  "question_type": "experience or sampling_choice or interpretation",
+  "density": "light or medium or detail",
+  "caption_consistent": true,
+  "selection_reason": "why this density and question fit this topic and available evidence",
   "avoid": "specific clutter, ambiguity or visual mistakes to avoid"
 }}"""
         try:
@@ -344,16 +378,20 @@ Return JSON only:
                 contents=request_prompt,
                 config=types.GenerateContentConfig(response_mime_type='application/json'),
             )
-            direction = render_art_direction(getattr(response, 'text', ''))
-            if not direction:
+            raw = getattr(response, 'text', '')
+            plan = parse_plan(raw, topic)
+            direction = render_art_direction(raw)
+            if not direction or not plan:
                 print("   ⚠️  AI Art Director returned an invalid plan; using base prompt")
-                return base_prompt
+                return render_plan(base_prompt, topic['visual_plan'])
+            topic['visual_plan'] = plan
+            plan['evidence_used'] = evidence
             topic['art_direction_used'] = True
             print("   🎨 AI Art Director refined the image plan")
-            return base_prompt + direction
+            return render_plan(base_prompt, plan) + direction
         except Exception as e:
             print(f"   ⚠️  AI Art Director unavailable: {redact(e)}; using base prompt")
-            return base_prompt
+            return render_plan(base_prompt, topic['visual_plan'])
 
     def _preflight_image_plan(self, topic, prompt):
         """Validate the visual plan before spending an image-generation call.
@@ -479,6 +517,12 @@ Return JSON only:
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         image_path = IMAGES_DIR / f"gold_prospecting_{timestamp}.png"
         img.save(image_path, 'PNG', quality=95)
+        # Record the actual fallback rather than attributing it to AI art direction.
+        from core.visual_plan import fallback_plan, save_plan
+        topic['visual_plan'] = fallback_plan(topic)
+        topic['visual_plan']['density'] = 'fallback'
+        topic['visual_plan']['selection_reason'] = 'PIL fallback; legacy body copy'
+        save_plan(topic.get('_visual_page_id'), image_path, topic)
         
         print(f"   ✅ Infographic generated successfully")
         return image_path
@@ -536,7 +580,7 @@ Return JSON only:
 
     def validate_token(self, fanspage, max_retries=3):
         """Validate Facebook token before posting with network retry"""
-        url = f"https://graph.facebook.com/v18.0/{fanspage['page_id']}"
+        url = f"{GRAPH_API_BASE}/{fanspage['page_id']}"
         params = {'access_token': fanspage['access_token'], 'fields': 'name'}
         
         for attempt in range(max_retries):
@@ -641,7 +685,7 @@ Return JSON only:
         max_retries = 1 if single_attempt else 3
         for attempt in range(max_retries):
             try:
-                url = f"https://graph.facebook.com/v18.0/{fanspage['page_id']}/photos"
+                url = f"{GRAPH_API_BASE}/{fanspage['page_id']}/photos"
                 
                 with open(image_path, 'rb') as image_file:
                     files = {'source': image_file}

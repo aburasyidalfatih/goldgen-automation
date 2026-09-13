@@ -1,4 +1,5 @@
 """Refresh lifetime views independently from fixed-age learning snapshots."""
+from core.meta_api import GRAPH_API_BASE
 import requests
 from core.database import get_db_connection
 from core.safe_log import redact
@@ -29,7 +30,7 @@ def collect_views(pages, limit=100):
             age_hours = max(0.0, (datetime.now(timezone.utc) - stamp).total_seconds() / 3600)
             values, error = {}, None
             try:
-                response = requests.get(f'https://graph.facebook.com/v18.0/{post_id}/insights',
+                response = requests.get(f'{GRAPH_API_BASE}/{post_id}/insights',
                     params={'access_token':page['access_token'],'metric':'post_media_view'},timeout=25)
                 response.raise_for_status()
                 for metric in response.json().get('data',[]):
@@ -45,7 +46,7 @@ def collect_views(pages, limit=100):
             unique_status = 'unavailable'
             for metric, key in (('post_total_media_view_unique', 'unique_viewers'),):
                 try:
-                    response = requests.get(f'https://graph.facebook.com/v18.0/{post_id}/insights',
+                    response = requests.get(f'{GRAPH_API_BASE}/{post_id}/insights',
                         params={'access_token':page['access_token'],'metric':metric}, timeout=25)
                     response.raise_for_status()
                     for item in response.json().get('data', []):
@@ -60,7 +61,7 @@ def collect_views(pages, limit=100):
                 except Exception:
                     pass
             try:
-                response = requests.get(f'https://graph.facebook.com/v18.0/{post_id}',
+                response = requests.get(f'{GRAPH_API_BASE}/{post_id}',
                     params={'access_token':page['access_token'],'fields':'shares'}, timeout=25)
                 response.raise_for_status()
                 value = response.json().get('shares', {}).get('count')

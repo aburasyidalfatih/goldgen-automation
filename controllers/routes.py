@@ -3,6 +3,7 @@
 Web Dashboard for GoldGen Auto Poster
 Simple Flask API to serve dashboard data
 """
+from core.meta_api import GRAPH_API_BASE
 
 from flask import (
     Flask, jsonify, request, session, redirect, url_for,
@@ -60,182 +61,8 @@ def login_page():
 def serve_dashboard():
     return render_template("dashboard_schedule.html")
 
-@bp.route("/motion-studio")
-@require_pin
-def serve_motion_studio():
-    """Serve the isolated Motion Studio UI."""
-    config = json.loads(CONFIG_PATH.read_text(encoding='utf-8')) if CONFIG_PATH.is_file() else {}
-    fanspages = config.get('fanspages', [])
-    return render_template("motion_studio.html", topics=list_topics(), jobs=list_jobs(), fanspages=fanspages)
-
-@bp.route('/api/motion/jobs', methods=['GET', 'POST'])
-@require_pin
-def motion_jobs():
-    if request.method == 'GET':
-        return jsonify({'success': True, 'jobs': list_jobs()})
-    data = request.get_json(silent=True) or {}
-    try:
-        topic_id = int(data.get('topic_id'))
-        return jsonify({'success': True, 'job': create_job(topic_id)}), 201
-    except (TypeError, ValueError) as exc:
-        return jsonify({'success': False, 'error': str(exc)}), 400
-
-@bp.route('/api/motion/jobs/batch-render', methods=['POST'])
-@require_pin
-def batch_render_motion_jobs():
-    data = request.get_json(silent=True) or {}
-    try:
-        limit = min(max(int(data.get('limit', 10)), 1), 50)
-        queued = queue_draft_jobs(limit)
-        return jsonify({'success': True, 'queued_count': len(queued), 'jobs': queued})
-    except (TypeError, ValueError) as exc:
-        return jsonify({'success': False, 'error': str(exc)}), 400
-
-@bp.route('/api/motion/assets', methods=['GET'])
-@require_pin
-def motion_assets():
-    return jsonify({'success': True, 'assets': search_assets(
-        request.args.get('q', ''), request.args.get('type'),
-        request.args.get('approved') == '1'
-    )})
-
-@bp.route('/api/motion/assets/scan', methods=['POST'])
-@require_pin
-def scan_motion_assets():
-    registered = scan_existing_images(IMAGES_DIR)
-    return jsonify({'success': True, 'registered_count': len(registered)})
-
-def _voiceover_pernah_berhasil():
-    """Apakah TTS pernah menghasilkan berkas suara yang berisi?
-
-    Berkas .wav hanya ditulis setelah Gemini mengembalikan audio, jadi
-    keberadaannya adalah bukti nyata — bukan sekadar 'kunci API terpasang'.
-    """
-    try:
-        from core.motion_studio import MOTION_RENDERS_DIR
-        return any(p.stat().st_size > 1024 for p in MOTION_RENDERS_DIR.glob('*.wav'))
-    except OSError:
-        return False
-
-
-@bp.route('/api/motion/readiness', methods=['GET'])
-@require_pin
-def motion_readiness():
-    import os
-    from core.motion_renderer import ffmpeg_path
-    from core.motion_tts import _configured_api_key
-    # 'gemini_tts_configured' hanya berarti KUNCI API tersedia — bukan bahwa
-    # voice-over berhasil dibuat. Selama berbulan-bulan nilainya true padahal
-    # setiap panggilan TTS berakhir HTTP 400, sehingga dasbor menyatakan siap
-    # untuk sesuatu yang tidak pernah bekerja. Namanya dibuat sesuai isinya.
-    return jsonify({
-        'success': True,
-        'ready_for_local_render': bool(ffmpeg_path()),
-        'ffmpeg': bool(ffmpeg_path()),
-        'gemini_tts_key_present': bool(_configured_api_key()),
-        'gemini_tts_configured': bool(_configured_api_key()),  # nama lama, untuk UI yang sudah ada
-        # Bukti, bukan konfigurasi: benar hanya kalau TTS pernah benar-benar
-        # menghasilkan berkas suara. Inilah pembeda yang dulu tidak ada.
-        'voiceover_verified': _voiceover_pernah_berhasil(),
-        'automatic_publishing_enabled': os.getenv('MOTION_AUTO_PUBLISH_ENABLED', 'false').lower() == 'true',
-        'manual_export_enabled': True,
-    })
-
-@bp.route('/api/motion/jobs/<job_id>/render', methods=['POST'])
-@require_pin
-def render_motion_job(job_id):
-    job = next((item for item in list_jobs(100) if item['id'] == job_id), None)
-    if not job:
-        return jsonify({'success': False, 'error': 'Motion job tidak ditemukan'}), 404
-    
-    updated = update_job(
-        job_id,
-        status='queued',
-        progress_percent=5,
-        current_stage='queued',
-        current_detail='Dimasukkan ke antrean render...',
-        error_message=None
-    )
-    
-    # Process immediately in a background thread so web request never times out
-    import threading
-    from motion_worker import process_one
-    threading.Thread(target=process_one, args=(updated,), daemon=True).start()
-    
-    return jsonify({
-        'success': True,
-        'message': 'Rendering dimulai di latar belakang',
-        'job': updated
-    }), 202
-
-@bp.route('/api/motion/jobs/<job_id>/voiceover', methods=['POST'])
-@require_pin
-def motion_voiceover(job_id):
-    job = next((item for item in list_jobs(100) if item['id'] == job_id), None)
-    if not job:
-        return jsonify({'success': False, 'error': 'Motion job tidak ditemukan'}), 404
-    data = request.get_json(silent=True) or {}
-    text = str(data.get('text') or job['topic_headline']).strip()
-    if not text:
-        return jsonify({'success': False, 'error': 'Naskah voice-over kosong'}), 400
-    try:
-        update_job(job_id, progress_percent=10, current_stage='voiceover', current_detail='Generating voice-over audio')
-        path = generate_voiceover(job_id, text, str(data.get('voice') or 'Kore'))
-        update_job(job_id, progress_percent=25, current_stage='voiceover_ready', current_detail='Voice-over ready; render draft to continue')
-        return jsonify({'success': True, 'audio_path': path})
-    except (OSError, RuntimeError) as exc:
-        update_job(job_id, current_stage='failed', current_detail='Voice-over generation failed', error_message=str(exc))
-        return jsonify({'success': False, 'error': str(exc)}), 503
-
-@bp.route('/api/motion/jobs/<job_id>/download', methods=['GET'])
-@require_pin
-def download_motion_job(job_id):
-    job = next((item for item in list_jobs(100) if item['id'] == job_id), None)
-    if not job or job.get('status') != 'ready' or not job.get('output_path'):
-        return jsonify({'success': False, 'error': 'Video belum siap diunduh'}), 404
-    return send_file(job['output_path'], as_attachment=True, download_name=f"goldgen-motion-{job['topic_id']}.mp4")
-
-@bp.route('/api/motion/jobs/<job_id>/preview', methods=['GET'])
-@require_pin
-def preview_motion_job(job_id):
-    job = next((item for item in list_jobs(100) if item['id'] == job_id), None)
-    if not job or job.get('status') != 'ready' or not job.get('output_path'):
-        return jsonify({'success': False, 'error': 'Video belum siap dipreview'}), 404
-    return send_file(job['output_path'], mimetype='video/mp4', as_attachment=False)
-
-@bp.route('/api/motion/jobs/<job_id>/publish', methods=['POST'])
-@require_pin
-def publish_motion_job(job_id):
-    job = next((item for item in list_jobs(100) if item['id'] == job_id), None)
-    if not job or job.get('status') != 'ready' or not job.get('output_path'):
-        return jsonify({'success': False, 'error': 'Video belum siap diposting'}), 400
-    
-    data = request.get_json(silent=True) or {}
-    page_id = str(data.get('page_id') or '').strip()
-    
-    config = json.loads(CONFIG_PATH.read_text(encoding='utf-8')) if CONFIG_PATH.is_file() else {}
-    fanspages = config.get('fanspages', [])
-    fanspage = next((p for p in fanspages if str(p.get('page_id')) == page_id), None)
-    if not fanspage:
-        return jsonify({'success': False, 'error': 'Fanspage tujuan tidak ditemukan atau belum dipilih'}), 400
-    
-    caption = str(data.get('caption') or '').strip()
-    if not caption:
-        caption = f"{job['topic_headline']}\n\n#GoldProspecting #GoldMining #Reels"
-        
-    try:
-        from core.motion_publisher import publish_video
-        result = publish_video(
-            page_id=fanspage['page_id'],
-            access_token=fanspage['access_token'],
-            video_path=job['output_path'],
-            caption=caption,
-            manual=True
-        )
-        return jsonify({'success': True, 'result': result})
-    except Exception as exc:
-        return jsonify({'success': False, 'error': str(exc)}), 500
-
+from controllers.motion_routes import bp as motion_bp
+bp.register_blueprint(motion_bp)
 
 
 @bp.route("/detail")
@@ -1483,7 +1310,7 @@ def get_analytics():
             if not token:
                 return None
             try:
-                url = (f"https://graph.facebook.com/v21.0/{post['fb_post_id']}"
+                url = (f"{GRAPH_API_BASE}/{post['fb_post_id']}"
                        f"?fields=id,likes.summary(true),comments.summary(true)"
                        f"&access_token={token}")
                 r = urllib.request.urlopen(url, timeout=8)

@@ -6,6 +6,7 @@ or auto-poster queues.
 """
 
 import json
+import os
 import sqlite3
 from contextlib import contextmanager
 import uuid
@@ -14,7 +15,7 @@ from pathlib import Path
 
 from core.config import BASE_DIR
 
-MOTION_DIR = BASE_DIR / "motion_studio"
+MOTION_DIR = Path(os.getenv("MOTION_STORAGE_DIR", str(BASE_DIR / "motion_studio")))
 MOTION_DATA_DIR = MOTION_DIR / "data"
 MOTION_ASSETS_DIR = MOTION_DIR / "assets"
 MOTION_RENDERS_DIR = MOTION_DIR / "renders"
@@ -81,6 +82,8 @@ def init_motion_storage():
                 conn.execute(statement)
     from core.motion_assets import init_asset_storage
     init_asset_storage()
+    from core.motion_projects import init_projects
+    init_projects()
 
 
 def list_topics():
@@ -157,9 +160,7 @@ def update_job(job_id, **fields):
 
 
 def queue_draft_jobs(limit=20):
-    now = datetime.now(timezone.utc).isoformat()
+    from core.motion_projects import queue_job
     with motion_db(MOTION_DB_PATH) as conn:
         rows = conn.execute("SELECT id FROM motion_jobs WHERE status = 'draft' ORDER BY created_at ASC LIMIT ?", (limit,)).fetchall()
-        if rows:
-            conn.executemany("UPDATE motion_jobs SET status = 'queued', updated_at = ? WHERE id = ?", [(now, row[0]) for row in rows])
-    return [get_job(row[0]) for row in rows]
+    return [queue_job(row[0]) for row in rows]

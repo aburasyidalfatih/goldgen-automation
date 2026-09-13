@@ -52,7 +52,7 @@ AI ART DIRECTOR — execution refinement only; the approved topic and facts abov
 - DOMINANT FOCAL SUBJECT: {plan['focal_subject']}
 - COMPOSITION REFINEMENT: {plan['composition_adjustment']}
 - PALETTE AND PHONE CONTRAST: {plan['palette_and_contrast'] or 'follow the selected layout with strong mobile contrast'}
-- SHORT LABEL PLAN: {labels}
+- COPY: Use FINAL IMAGE COPY exactly when supplied; otherwise use these labels: {labels}
 - VISUAL CLUTTER / ERRORS TO AVOID: {plan['avoid'] or 'long text, decorative clutter, and unsupported details'}
 Preserve the separately authorized ONE discussion question (8-14 English words).
 Reserve a readable bottom box for it, clear of the main diagram and watermark.

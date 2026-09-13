@@ -1,4 +1,10 @@
 venv/
+.venv/
+.uv-cache/
+.npm-cache/
+motion_engine/node_modules/
+motion_engine/build/
+static/motion/
 __pycache__/
 *.pyc
 *.pyo
@@ -19,3 +25,9 @@ motion_studio/
 *.sqlite
 docker-compose.yml
 DOKPLOY_MIGRATION.md
+
+# Isolated upgrade tools and environments
+.venv-upgrade/
+.python-runtime/
+.node-runtime/
+.upgrade-tools/

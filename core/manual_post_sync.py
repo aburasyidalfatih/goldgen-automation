@@ -1,4 +1,5 @@
 """Discover Page posts created outside GoldGen and register them for learning."""
+from core.meta_api import GRAPH_API_BASE
 import json
 import logging
 from datetime import datetime, timedelta, timezone
@@ -38,7 +39,7 @@ def sync_manual_posts(pages, lookback_hours=72, limit=25):
             continue
         try:
             response = requests.get(
-                f"https://graph.facebook.com/v18.0/{page['page_id']}/posts",
+                f"{GRAPH_API_BASE}/{page['page_id']}/posts",
                 params={
                     "access_token": page["access_token"],
                     "fields": "id,message,created_time",
@@ -61,7 +62,7 @@ def sync_manual_posts(pages, lookback_hours=72, limit=25):
                     break
                 seen.add(after)
                 response = requests.get(
-                    f"https://graph.facebook.com/v18.0/{page['page_id']}/posts",
+                    f"{GRAPH_API_BASE}/{page['page_id']}/posts",
                     params={'access_token': page['access_token'],
                             'fields': 'id,message,created_time',
                             'limit': min(max(int(limit), 1), 50), 'after': after}, timeout=30)

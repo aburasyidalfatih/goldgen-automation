@@ -37,7 +37,13 @@ def validate_render(video_path, manifest_path, expect_audio=False):
         errors.append("Scene manifest tidak ditemukan")
     subtitle_name = manifest.name.replace(".manifest.json", ".srt")
     subtitle = manifest.with_name(subtitle_name)
-    if not subtitle.is_file() or not subtitle.read_text(encoding="utf-8").strip():
+    recipe = {}
+    if manifest.is_file():
+        try:
+            recipe = json.loads(manifest.read_text(encoding='utf8'))
+        except (ValueError, OSError):
+            errors.append('Manifest tidak valid')
+    if not subtitle.is_file() or (not subtitle.read_text(encoding="utf-8").strip() and recipe.get('version') != 2):
         errors.append("Subtitle manifest tidak ditemukan atau kosong")
     details = inspect_media(video) if not errors else {"ok": False, "errors": []}
     streams = details.get("data", {}).get("streams", [])
@@ -47,14 +53,22 @@ def validate_render(video_path, manifest_path, expect_audio=False):
             errors.append("Resolusi video bukan 1080x1920")
         if float(video_stream.get("duration", 0) or 0) <= 0:
             errors.append("Durasi video tidak valid")
+        if recipe.get('version') == 2:
+            expected = sum(s['duration'] for s in recipe['scenes'])
+            if abs(float(video_stream.get('duration', 0)) - expected) > .15:
+                errors.append('Durasi video berbeda dari storyboard')
+            rate = video_stream.get('avg_frame_rate', '0/1').split('/')
+            if len(rate) != 2 or not float(rate[1]) or abs(float(rate[0])/float(rate[1])-30) > .01:
+                errors.append('Frame rate bukan 30 FPS')
     elif not errors:
         errors.append("Video stream tidak ditemukan")
     audio_stream = next((item for item in streams if item.get("codec_type") == "audio"), None)
     if expect_audio and not audio_stream:
         errors.append("Voice-over sudah dibuat tetapi tidak termuat di video")
+    errors += details.get('errors', [])
     return {
         "ok": not errors,
-        "errors": errors + details.get("errors", []),
+        "errors": errors,
         "video_path": str(video),
         "manifest_path": str(manifest),
         "has_audio": bool(audio_stream),

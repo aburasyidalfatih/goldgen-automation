@@ -45,7 +45,7 @@ def generate_voiceover(job_id, text, voice_name="Kore", model=None):
     except ImportError as exc:
         raise RuntimeError("Paket google-genai belum tersedia") from exc
 
-    client = genai.Client(api_key=api_key)
+    client = genai.Client(api_key=api_key, http_options=types.HttpOptions(timeout=120000))
     selected_model = model or os.getenv("GEMINI_TTS_MODEL", "gemini-2.5-flash-preview-tts")
 
     # Urutannya sengaja: generate_content DULU, interactions hanya cadangan.
@@ -103,5 +103,8 @@ def generate_voiceover(job_id, text, voice_name="Kore", model=None):
         rincian = ' | '.join(kegagalan) if kegagalan else 'tidak ada audio pada respons'
         raise RuntimeError(f"Gemini TTS gagal — {rincian}"[:600])
     output = MOTION_RENDERS_DIR / f"{job_id}.wav"
-    _write_wav(output, pcm)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    temporary = output.with_suffix('.tmp.wav')
+    _write_wav(temporary, pcm)
+    temporary.replace(output)
     return str(output)

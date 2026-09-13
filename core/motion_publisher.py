@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 
 import requests
+from core.meta_api import GRAPH_API_VERSION
 
 
 def publish_video(page_id, access_token, video_path, caption, api_version=None, manual=False):
@@ -18,7 +19,7 @@ def publish_video(page_id, access_token, video_path, caption, api_version=None, 
         raise FileNotFoundError(path)
     if not page_id or not access_token:
         raise ValueError("page_id dan access_token wajib diisi")
-    version = api_version or os.getenv("META_GRAPH_API_VERSION", "v21.0")
+    version = api_version or GRAPH_API_VERSION
     url = f"https://graph.facebook.com/{version}/{page_id}/videos"
     with path.open("rb") as video:
         response = requests.post(
