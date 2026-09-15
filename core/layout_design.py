@@ -2,8 +2,8 @@
 DESIGN_VERSION = 'editorial-v3'
 # Exact names are intentional: MODERN VECTOR must never match INDUSTRIAL.
 DESIGNS = {
- 'DEEP CUTAWAY EXPLAINER': ('#122228', '#f2e8d0', '#d8b058', 'One dominant deep stratigraphic cutaway; clear vertical depth profile showing gravels, hardpan, and basal paystreak with circular detail insets. Rich earth tones, realistic mineral strata.'),
- 'CROSS-SECTION CUTAWAY': ('#f5eedb', '#1c2826', '#b38728', 'Expedition Field Guide style: One sweeping 3D river cross-section with crystal-clear water flow, gravel strata, dark magnetite black sand paystreak, and fractured bedrock interface trapping natural gold flakes. Dramatic daylight, photorealistic geological textures.'),
+ 'DEEP CUTAWAY EXPLAINER': ('#122228', '#f2e8d0', '#d8b058', 'Cinematic photorealistic 3D National Geographic deep stratigraphic cutaway render filling the frame edge to edge. Clear vertical depth profile showing natural surface mountain stream, stratified river gravels, dense black magnetite paystreak, and basal bedrock fracture traps with glistening raw gold nuggets. Rich earth tones, 8K photorealistic geological textures, dramatic natural lighting.'),
+ 'CROSS-SECTION CUTAWAY': ('#f5eedb', '#1c2826', '#b38728', 'Expedition Field Guide style: One sweeping photorealistic 3D river cross-section filling the frame edge to edge. Crystal-clear running water with caustics, graded river gravel strata, dense dark magnetite black sand paystreak, and fractured metamorphic bedrock interface trapping natural gold flakes. Dramatic daylight, photorealistic 8K geological textures.'),
  'VISUAL CHECKLIST': ('#f0e7d5', '#29382e', '#aa792e', 'One large field scene with three visually distinct observation details arranged around it. This is a visual inspection guide, not a wall of bullets or an unrelated before/after comparison.'),
  'STEP-BY-STEP PROCESS': ('#f3ead8', '#263a35', '#b28636', 'Three connected stages of the approved mechanism with equal visual rhythm, one clear direction and consistent viewpoint. Do not invent a final gold discovery.'),
  'GAMIFICATION_QUIZ': ('#f4eddf', '#273831', '#a97b2f', 'Four equally sized observation panels in a precise 2x2 grid. Use consistent lighting and scale; depict only the alternatives described by the caption. No answer revealed by exaggerated glow.'),
@@ -12,7 +12,7 @@ DESIGNS = {
  'THE MAGNIFYING GLASS': ('#182b31', '#f3e8d3', '#d2ab57', 'One dominant specimen and one magnified inset showing a specific caption-supported feature. Keep the outer image sharp enough for context; no invented microscopic deposits.'),
  'BEFORE & AFTER': ('#eee6d4', '#23352f', '#ad7e34', 'Two balanced views of the SAME location from the SAME camera angle, separated vertically into left and right panels. Only caption-supported differences; matching scale, horizon and lighting.'),
  "THE GEOLOGIST'S NOTEBOOK": ('#f4ecdc', '#22332a', '#ad7d32', 'Vintage expedition journal on aged parchment paper. Highly detailed watercolor and ink scientific illustration of river deposition or mineral contact zones. Authentic naturalist plate aesthetic.'),
- '3D BLOCK DIAGRAM': ('#f4eedd', '#1f2d27', '#b58832', 'One large 3D isometric geological cutaway block of a riverbed or mountain terrain. Visible stratified layers from surface gravel down to bedrock fracture traps with trapped alluvial gold nuggets. Directional sunlight, clean scientific field manual illustration.'),
+ '3D BLOCK DIAGRAM': ('#f4eedd', '#1f2d27', '#b58832', 'Cinematic photorealistic 3D National Geographic environmental cutaway render filling the frame edge to edge. Crystal-clear flowing mountain stream with sunlight caustics, stratified gravel and cobbles, deep black magnetite sand paystreak layer, and fractured bedrock traps containing gleaming raw gold nuggets. Rich cinematic daylight, 8K realistic textures, high dynamic range. Absolutely NO floating white background cubes, NO line art, NO flat vector sketches.'),
  "THE PROSPECTOR'S MAP": ('#eae6d0', '#263d35', '#af7a2b', 'One readable conceptual terrain map with a dominant blue stream, restrained contours and sparse observation locations. No invented coordinates, treasure X marks or guaranteed deposits.'),
  'TOOLKIT FLATLAY': ('#e8e0cd', '#263932', '#aa7a30', 'Premium overhead field-tool arrangement with one hero item and at most four supporting objects actually relevant to the topic. Natural soft shadows, orderly spacing, no decorative gear border.'),
  'VICTORIAN WOODCUT': ('#f0e2c4', '#302e24', '#ac7935', 'One strong historical engraved geological scene. Dense hatching only in shadow areas, open highlights, crisp silhouettes and very restrained gold accents. Avoid uniform visual noise.'),
@@ -48,6 +48,9 @@ def artwork_prompt(topic, plan):
     import json
     return execution(topic) + '''
 Create ONLY the illustration for a professionally typeset vertical educational poster.
+STYLE & RENDERING: Full-bleed cinematic photorealistic 3D environment filling the entire square image edge to edge.
+NEVER render an isolated object floating in empty whitespace, blank white background, or floating isolated 3D cubes.
+Always embed the cutaway or subject within a complete, rich natural environment with realistic depth, lighting, and textures.
 NO TEXT anywhere: no letters, numbers, labels, symbols resembling writing, titles,
 subtitles, watermarks, legends, pointer lines, arrows, callout boxes, or fake handwriting.
 The application adds all typography, numbered badges, and labels in post-processing.

@@ -275,9 +275,9 @@ Reply ONLY with JSON:
                          + topic.get('approved_caption', ''))
 
         from core.layout_design import artwork_prompt, DESIGN_VERSION
+        from core.visual_plan import safe_trim_words
         topic['visual_plan']['design_version'] = DESIGN_VERSION
-        if not topic['visual_plan'].get('subtitle'):
-            topic['visual_plan']['subtitle'] = topic.get('subtitle', '')
+        topic['visual_plan']['subtitle'] = safe_trim_words(topic['visual_plan'].get('subtitle') or topic.get('subtitle', ''), 120)
         image_prompt = artwork_prompt(topic, topic['visual_plan'])
 
         prompt_saat_ini = image_prompt
@@ -384,12 +384,14 @@ not invent facts, measurements, recovery rates, guarantees, or extra labels.
 Prioritize a strong focal subject, phone-readable hierarchy, useful information
 density, and the visual style selected from this page's measured audience data.
 Preserve exactly one topic-specific discussion question of 8-14 English words
-in its own bottom box. Choose light (2 labels, 3 words each), medium (3 labels,
-5 words each), or detail (4 labels, 8 words each). Use light for a specimen,
-medium for comparison, and detail only for a process requiring explanation.
+in its own bottom box.
+Always provide exactly 4 concise reader-key labels (1 to 4 words each) to fill the 2x2 cheatsheet grid below the illustration.
+Choose light (4 labels, up to 3 words each), medium (4 labels, up to 5 words each), or detail (4 labels, up to 8 words each).
+Identify visible geological strata or features (e.g., surface water flow, stratified river gravel, magnetite paystreak, bedrock crevice trap).
 These budgets replace the base brief label limits. Self-check English spelling
 and every label against the approved caption. No new claims or quantities. Do not
 change the topic, invent controversy, or add engagement bait.
+The visual style must be cinematic, photorealistic 3D National Geographic environmental render filling the frame edge-to-edge. NEVER isolated floating cubes or blank white background.
 The application typesets the final title, labels and question. Labels form a
 reader key below the illustration, not positioned callouts. Do not refer to
 lettered alternatives except on GAMIFICATION_QUIZ, where the application adds
@@ -409,7 +411,7 @@ Return JSON only:
   "composition_adjustment": "specific placement, hierarchy and visual flow",
   "palette_and_contrast": "brief color and mobile-legibility direction",
   "title": "final English title, at most six words",
-  "labels": ["final text following the selected density budget"],
+  "labels": ["exactly 4 concise labels following the selected density budget"],
   "question": "final topic-specific English question, 8-14 words ending in ?",
   "question_type": "experience or sampling_choice or interpretation",
   "density": "light or medium or detail",

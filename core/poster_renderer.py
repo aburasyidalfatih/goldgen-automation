@@ -2,6 +2,7 @@
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 from core.layout_design import design
+from core.visual_plan import safe_trim_words
 
 WIDTH, HEIGHT = 1440, 2560
 
@@ -72,7 +73,7 @@ def compose_poster(artwork, plan, output, watermark=''):
     draw.rectangle((64, SAFE_TOP + 10, 200, SAFE_TOP + 18), fill=accent)
 
     # Render Judul & Subtitle Aforisme
-    subtitle = str(plan.get('subtitle') or '').strip()
+    subtitle = safe_trim_words(plan.get('subtitle') or '', 120)
     if subtitle:
         boxes = [draw_text_box(draw, plan['title'], (64, SAFE_TOP + 36, 1376, SAFE_TOP + 196), 78, ink, True, 44)]
         boxes.append(draw_text_box(draw, subtitle, (64, SAFE_TOP + 204, 1376, SAFE_TOP + 280), 38, accent, True, 24))
@@ -103,7 +104,28 @@ def compose_poster(artwork, plan, output, watermark=''):
             boxes.append(draw_text_box(draw, point, (160, top, 1320, top + 210), 45, ink, minimum=28))
 
     # Pill badge bernomor untuk label petunjuk (Reader Key)
-    labels = plan.get('labels', [])[:4]
+    # Pastikan grid 2x2 selalu seimbang dengan 4 label terisi rapi
+    raw_labels = [str(lbl).strip() for lbl in plan.get('labels', []) if str(lbl).strip()]
+    default_strata = [
+        "Surface Water Flow",
+        "Stratified River Gravel",
+        "Black Sand Paystreak",
+        "Bedrock Crevice Trap"
+    ]
+    if raw_labels:
+        if len(raw_labels) == 1:
+            labels = [raw_labels[0], default_strata[1], default_strata[2], default_strata[3]]
+        elif len(raw_labels) == 2:
+            labels = [raw_labels[0], default_strata[1], raw_labels[1], default_strata[3]]
+        elif len(raw_labels) == 3:
+            labels = [raw_labels[0], raw_labels[1], raw_labels[2], default_strata[3]]
+        else:
+            labels = raw_labels[:4]
+    elif artwork:
+        labels = default_strata
+    else:
+        labels = []
+
     r, g, b = int(bg[1:3], 16), int(bg[3:5], 16), int(bg[5:7], 16)
     is_light = (0.299 * r + 0.587 * g + 0.114 * b) > 128
     card_fill = '#ebe2cd' if is_light else '#162228'

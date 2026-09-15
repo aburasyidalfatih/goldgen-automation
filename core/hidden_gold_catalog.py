@@ -4,7 +4,7 @@ LAYOUT = 'DEEP CUTAWAY EXPLAINER'
 LAYOUT_DEFINITION = {
     'name': LAYOUT,
     'topic_series': ['Hidden Gold: Beneath the Surface'],
-    'composition': 'Reference-inspired educational reveal in vertical 9:16. For geological profiles, reserve about 20 percent at the top for the surface landscape and use the rest for a large realistic cutaway. Connect 2-3 circular detail insets to their actual locations with thin leader lines. For material journeys, use a connected source-to-valley section. For microscopic topics, replace the landscape with one large specimen and magnified insets; never invent soil layers. Warm earth tones, realistic textures, restrained metallic gold highlights, strong contrast and generous space for the existing short-label budget. Depict only the topic\'s specific mechanism, not a treasure-filled pit.',
+    'composition': 'Cinematic photorealistic geological cutaway filling the entire frame edge-to-edge. Natural mountain river landscape at the top surface, transitioning into a deep stratified cross-section below: sedimentary gravels, dense black sand paystreak, and fractured bedrock crevice traps holding glistening raw gold flakes. Warm earth tones, realistic 8K textures, natural cinematic daylight.',
 }
 GOLD = 'https://pubs.usgs.gov/gip/prospect1/goldgip.html'
 CHANNELS = 'https://pubs.usgs.gov/wsp/0314/report.pdf'

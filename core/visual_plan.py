@@ -4,14 +4,25 @@ import re
 import statistics
 from core.database import get_db_connection
 
-BUDGETS = {'light': (2, 3), 'medium': (3, 5), 'detail': (4, 8)}
+BUDGETS = {'light': (4, 3), 'medium': (4, 5), 'detail': (4, 8)}
 CATEGORIES = ('text', 'layout', 'color', 'facts', 'question')
+
+
+def safe_trim_words(text, max_chars=120):
+    """Trim string to word boundary within max_chars, never breaking words."""
+    text = str(text or '').strip()
+    if len(text) <= max_chars:
+        return text
+    trimmed = text[:max_chars]
+    if ' ' in trimmed:
+        trimmed = trimmed.rsplit(' ', 1)[0]
+    return trimmed.rstrip('.,;:!- ')
 
 
 def fallback_plan(topic):
     from goldgen_service import _visual_labels
     return {'title': _visual_labels(topic), 'labels': [],
-            'subtitle': str(topic.get('subtitle', '') or '')[:120],
+            'subtitle': safe_trim_words(topic.get('subtitle', '') or '', 120),
             'question': 'Which detail here matches what you have seen in the field?',
             'question_type': 'experience', 'density': 'light',
             'selection_reason': 'Planner unavailable or invalid; conservative text fallback',
@@ -48,7 +59,7 @@ def parse_plan(raw, topic):
         if data.get('caption_consistent') is not True:
             return None
         return {k: data[k] for k in ('title', 'labels', 'question', 'question_type', 'density')} | {
-            'subtitle': str(topic.get('subtitle', '') or '')[:120],
+            'subtitle': safe_trim_words(topic.get('subtitle', '') or '', 120),
             'layout': topic.get('layout', ''), 'art_direction_used': True,
             'selection_reason': str(data.get('selection_reason', 'Topic-guided'))[:300]}
     except (ValueError, TypeError, AttributeError):
