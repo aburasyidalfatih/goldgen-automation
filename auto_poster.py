@@ -276,6 +276,8 @@ Reply ONLY with JSON:
 
         from core.layout_design import artwork_prompt, DESIGN_VERSION
         topic['visual_plan']['design_version'] = DESIGN_VERSION
+        if not topic['visual_plan'].get('subtitle'):
+            topic['visual_plan']['subtitle'] = topic.get('subtitle', '')
         image_prompt = artwork_prompt(topic, topic['visual_plan'])
 
         prompt_saat_ini = image_prompt

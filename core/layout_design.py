@@ -1,9 +1,9 @@
 """Versioned visual execution for every catalog layout, including old volumes."""
-DESIGN_VERSION = 'editorial-v2'
+DESIGN_VERSION = 'editorial-v3'
 # Exact names are intentional: MODERN VECTOR must never match INDUSTRIAL.
 DESIGNS = {
- 'DEEP CUTAWAY EXPLAINER': ('#14252d', '#f3e8cf', '#d5ac55', 'One dominant geological cutaway; 2-3 circular detail insets connected by thin leader lines. Clearly distinguish rock, sediment and mineral textures.'),
- 'CROSS-SECTION CUTAWAY': ('#f3ead8', '#25342e', '#ac792f', 'One sweeping river cross-section with a coherent flow direction, realistic bedrock and sediment interfaces. At most two detail insets; avoid repeating the main diagram.'),
+ 'DEEP CUTAWAY EXPLAINER': ('#122228', '#f2e8d0', '#d8b058', 'One dominant deep stratigraphic cutaway; clear vertical depth profile showing gravels, hardpan, and basal paystreak with circular detail insets. Rich earth tones, realistic mineral strata.'),
+ 'CROSS-SECTION CUTAWAY': ('#f5eedb', '#1c2826', '#b38728', 'Expedition Field Guide style: One sweeping 3D river cross-section with crystal-clear water flow, gravel strata, dark magnetite black sand paystreak, and fractured bedrock interface trapping natural gold flakes. Dramatic daylight, photorealistic geological textures.'),
  'VISUAL CHECKLIST': ('#f0e7d5', '#29382e', '#aa792e', 'One large field scene with three visually distinct observation details arranged around it. This is a visual inspection guide, not a wall of bullets or an unrelated before/after comparison.'),
  'STEP-BY-STEP PROCESS': ('#f3ead8', '#263a35', '#b28636', 'Three connected stages of the approved mechanism with equal visual rhythm, one clear direction and consistent viewpoint. Do not invent a final gold discovery.'),
  'GAMIFICATION_QUIZ': ('#f4eddf', '#273831', '#a97b2f', 'Four equally sized observation panels in a precise 2x2 grid. Use consistent lighting and scale; depict only the alternatives described by the caption. No answer revealed by exaggerated glow.'),
@@ -11,13 +11,13 @@ DESIGNS = {
  'THE GOLDEN PATH': ('#153339', '#f1e8cf', '#ddb95d', 'One continuous source-to-deposition visual journey. Use an elegant curved flow line and at most three focal stops, not separate disconnected diagrams.'),
  'THE MAGNIFYING GLASS': ('#182b31', '#f3e8d3', '#d2ab57', 'One dominant specimen and one magnified inset showing a specific caption-supported feature. Keep the outer image sharp enough for context; no invented microscopic deposits.'),
  'BEFORE & AFTER': ('#eee6d4', '#23352f', '#ad7e34', 'Two balanced views of the SAME location from the SAME camera angle, separated vertically into left and right panels. Only caption-supported differences; matching scale, horizon and lighting.'),
- "THE GEOLOGIST'S NOTEBOOK": ('#f1e5cb', '#303d30', '#a87530', 'A clean field-journal plate: one precise ink-and-watercolor study and two small detail sketches. Rich mineral colors, crisp lines and disciplined negative space. No fake handwriting or coffee-stain clutter.'),
- '3D BLOCK DIAGRAM': ('#e6e9df', '#263b37', '#ae833b', 'One large isometric geological block with physically coherent faces and layers. Use directional light to separate surfaces. At most two detail callouts; no exploded-layer collage.'),
+ "THE GEOLOGIST'S NOTEBOOK": ('#f4ecdc', '#22332a', '#ad7d32', 'Vintage expedition journal on aged parchment paper. Highly detailed watercolor and ink scientific illustration of river deposition or mineral contact zones. Authentic naturalist plate aesthetic.'),
+ '3D BLOCK DIAGRAM': ('#f4eedd', '#1f2d27', '#b58832', 'One large 3D isometric geological cutaway block of a riverbed or mountain terrain. Visible stratified layers from surface gravel down to bedrock fracture traps with trapped alluvial gold nuggets. Directional sunlight, clean scientific field manual illustration.'),
  "THE PROSPECTOR'S MAP": ('#eae6d0', '#263d35', '#af7a2b', 'One readable conceptual terrain map with a dominant blue stream, restrained contours and sparse observation locations. No invented coordinates, treasure X marks or guaranteed deposits.'),
  'TOOLKIT FLATLAY': ('#e8e0cd', '#263932', '#aa7a30', 'Premium overhead field-tool arrangement with one hero item and at most four supporting objects actually relevant to the topic. Natural soft shadows, orderly spacing, no decorative gear border.'),
  'VICTORIAN WOODCUT': ('#f0e2c4', '#302e24', '#ac7935', 'One strong historical engraved geological scene. Dense hatching only in shadow areas, open highlights, crisp silhouettes and very restrained gold accents. Avoid uniform visual noise.'),
  'MODERN INDUSTRIAL': ('#e9ebe5', '#23343a', '#c5752c', 'One clean technical editorial scene about the APPROVED TOPIC. Use graphite, mineral neutrals and restrained orange accents. Include machinery only if the caption actually discusses it; no generic equipment montage or SAFETY header.'),
- 'DARK MAXIMALIST': ('#101e25', '#f4e5c2', '#dbb360', 'One dramatic geological hero on deep charcoal with controlled metallic highlights. Achieve richness through material detail and directional light, not ornate frames, glowing rivers or piles of treasure. At most two subordinate insets.'),
+ 'DARK MAXIMALIST': ('#101518', '#f5e8c8', '#d4af37', 'Luxury dark collector edition: Moody charcoal-black background with subtle ornate filigree border accents. High-contrast, hyper-detailed mineral specimens or dramatic river cutaway with glowing metallic gold highlights under focused studio lighting.'),
  'MODERN VECTOR': ('#edf0e4', '#173a3d', '#b57f2f', 'A precise FLAT VECTOR educational illustration. Solid mineral colors, clear silhouettes, consistent stroke widths and simple geometry. One dominant mechanism and at most three supporting forms. No photography, 3D machinery or grunge.'),
 }
 
@@ -49,9 +49,10 @@ def artwork_prompt(topic, plan):
     return execution(topic) + '''
 Create ONLY the illustration for a professionally typeset vertical educational poster.
 NO TEXT anywhere: no letters, numbers, labels, symbols resembling writing, titles,
-watermarks, legends or fake handwriting. The application adds all text afterwards.
+subtitles, watermarks, legends, pointer lines, arrows, callout boxes, or fake handwriting.
+The application adds all typography, numbered badges, and labels in post-processing.
 Fill the square image edge to edge with the illustration; keep key objects inside 5% safe margins.
-Use the content below ONLY as semantic reference, never copy its words into the image.
+Use the content below ONLY as semantic reference for visual features to paint, never copy words into the image.
 Do not reserve blank text panels. Labels will appear in a separate reader key below.
 Depict only caption-supported mechanisms; never add chemical extraction instructions.
 Quiz alternatives must match the approved caption, in reading order: top-left,

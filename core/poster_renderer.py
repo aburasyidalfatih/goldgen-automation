@@ -63,49 +63,67 @@ def compose_poster(artwork, plan, output, watermark=''):
     bg, ink, accent, _ = design(plan.get('layout'))
     canvas = Image.new('RGB', (WIDTH, HEIGHT), bg)
     draw = ImageDraw.Draw(canvas)
-    draw.rectangle((64, SAFE_TOP + 10, 164, SAFE_TOP + 18), fill=accent)
-    boxes = [draw_text_box(draw, plan['title'], (64, SAFE_TOP + 52, 1376, SAFE_TOP + 274), 86, ink, True, 48)]
+
+    # Frame perbatasan vintage ekspedisi / field guide ganda
+    draw.rectangle((24, 24, WIDTH - 24, HEIGHT - 24), outline=accent, width=2)
+    draw.rectangle((32, 32, WIDTH - 32, HEIGHT - 32), outline=accent, width=1)
+
+    # Garis aksen header atas
+    draw.rectangle((64, SAFE_TOP + 10, 200, SAFE_TOP + 18), fill=accent)
+
+    # Render Judul & Subtitle Aforisme
+    subtitle = str(plan.get('subtitle') or '').strip()
+    if subtitle:
+        boxes = [draw_text_box(draw, plan['title'], (64, SAFE_TOP + 36, 1376, SAFE_TOP + 196), 78, ink, True, 44)]
+        boxes.append(draw_text_box(draw, subtitle, (64, SAFE_TOP + 204, 1376, SAFE_TOP + 280), 38, accent, True, 24))
+    else:
+        boxes = [draw_text_box(draw, plan['title'], (64, SAFE_TOP + 52, 1376, SAFE_TOP + 274), 86, ink, True, 48)]
+
     ART_TOP, ART_H = SAFE_TOP + 320, 1180
     if artwork:
         with Image.open(artwork) as source:
-            # Isi slot penuh, bukan disisipkan dengan margin.
-            #
-            # `contain` menyisakan celah di kiri-kanan, dan latar krem yang
-            # dihasilkan model tidak pernah sama persis dengan palet poster —
-            # hasilnya tepi kotak yang terlihat seperti gambar tempelan.
-            # Sumbernya kini 1:1 ke slot 1312x1180, jadi `fit` hanya memangkas
-            # sekitar 5% sisi atas-bawah; prompt ilustrasi memang sudah
-            # mensyaratkan objek penting berada di dalam margin aman 5%.
             art = ImageOps.fit(source.convert('RGB'), (1312, ART_H), Image.Resampling.LANCZOS)
         canvas.paste(art, (64, ART_TOP))
+        # Bingkai tipis aksen di sekeliling ilustrasi
+        draw.rectangle((64, ART_TOP, 64 + 1312, ART_TOP + ART_H), outline=accent, width=2)
         if plan.get('layout') == 'GAMIFICATION_QUIZ':
             left, top = 64, ART_TOP
             for i, letter in enumerate('ABCD'):
-                x, y = left+(i % 2)*art.width//2+24, top+(i//2)*art.height//2+24
-                draw.rounded_rectangle((x, y, x+76, y+76), radius=12, fill=bg, outline=accent, width=3)
-                draw.text((x+22, y+13), letter, font=font(43, True), fill=ink)
+                x, y = left + (i % 2) * art.width // 2 + 24, top + (i // 2) * art.height // 2 + 24
+                draw.rounded_rectangle((x, y, x + 76, y + 76), radius=12, fill=bg, outline=accent, width=3)
+                draw.text((x + 22, y + 13), letter, font=font(43, True), fill=ink)
     else:
         # A clearly editorial fallback, not invented geology or a recycled topic image.
-        draw.rounded_rectangle((64, ART_TOP, 1376, ART_TOP+ART_H), radius=28, outline=accent, width=3)
-        boxes.append(draw_text_box(draw, 'FIELD OBSERVATIONS', (112, ART_TOP+60, 1328, ART_TOP+146), 42, accent, True))
+        draw.rounded_rectangle((64, ART_TOP, 1376, ART_TOP + ART_H), radius=28, outline=accent, width=3)
+        boxes.append(draw_text_box(draw, 'FIELD OBSERVATIONS', (112, ART_TOP + 60, 1328, ART_TOP + 146), 42, accent, True))
         points = plan.get('fallback_points', [])[:4]
         for i, point in enumerate(points):
-            top = ART_TOP + 196 + i*244
-            draw.ellipse((112, top+12, 128, top+28), fill=accent)
-            boxes.append(draw_text_box(draw, point, (160, top, 1320, top+210), 45, ink, minimum=28))
-    # Label ikut di dalam zona aman: ia memberi konteks yang membantu orang
-    # memutuskan mengetuk. Ukurannya dinaikkan dari 34 ke 52 karena pada 34px
-    # teks ini hanya ~10px di layar ponsel — tidak terbaca, apalagi dipelajari.
+            top = ART_TOP + 196 + i * 244
+            draw.ellipse((112, top + 12, 128, top + 28), fill=accent)
+            boxes.append(draw_text_box(draw, point, (160, top, 1320, top + 210), 45, ink, minimum=28))
+
+    # Pill badge bernomor untuk label petunjuk (Reader Key)
     labels = plan.get('labels', [])[:4]
+    r, g, b = int(bg[1:3], 16), int(bg[3:5], 16), int(bg[5:7], 16)
+    is_light = (0.299 * r + 0.587 * g + 0.114 * b) > 128
+    card_fill = '#ebe2cd' if is_light else '#162228'
+    badge_fill = accent
+    badge_text = bg
+
     for i, label in enumerate(labels):
         col, row = i % 2, i // 2
-        x, y = 64+col*672, SAFE_BOTTOM-250+row*120
-        draw.line((x, y, x+56, y), fill=accent, width=3)
-        boxes.append(draw_text_box(draw, label, (x, y+14, x+628, y+110), 52, ink, minimum=34))
-    # Di bawah garis potong: hanya terlihat setelah gambar diketuk.
-    draw.rounded_rectangle((64, SAFE_BOTTOM+20, 1376, SAFE_BOTTOM+280), radius=24, outline=accent, width=3)
-    boxes.append(draw_text_box(draw, plan['question'], (100, SAFE_BOTTOM+56, 1340, SAFE_BOTTOM+248), 49, ink, True, 36))
-    if watermark:
-        boxes.append(draw_text_box(draw, watermark[:80], (64, SAFE_BOTTOM+300, 1376, SAFE_BOTTOM+350), 26, ink, minimum=20))
+        x, y = 64 + col * 672, SAFE_BOTTOM - 250 + row * 120
+        draw.rounded_rectangle((x, y + 8, x + 64, y + 52), radius=10, fill=badge_fill)
+        draw.text((x + 16, y + 14), f"0{i+1}", font=font(26, True), fill=badge_text)
+        boxes.append(draw_text_box(draw, label, (x + 78, y + 6, x + 620, y + 104), 48, ink, True, minimum=24))
+
+    # Kartu Pertanyaan Diskusi Lapangan (Field Insight Card)
+    draw.rounded_rectangle((64, SAFE_BOTTOM + 16, 1376, SAFE_BOTTOM + 284), radius=20, fill=card_fill, outline=accent, width=3)
+    boxes.append(draw_text_box(draw, 'FIELD PROSPECTING INSIGHT', (100, SAFE_BOTTOM + 34, 1340, SAFE_BOTTOM + 68), 24, accent, True, minimum=20))
+    boxes.append(draw_text_box(draw, plan['question'], (100, SAFE_BOTTOM + 76, 1340, SAFE_BOTTOM + 266), 46, ink, True, 28))
+
+    # Footer Watermark & Seri Panduan
+    wm_text = (watermark[:60] + '  •  FIELD GUIDE SERIES') if watermark else 'GOLDGEN FIELD GUIDE'
+    boxes.append(draw_text_box(draw, wm_text, (64, SAFE_BOTTOM + 304, 1376, SAFE_BOTTOM + 350), 28, ink, minimum=20))
     canvas.save(output, 'PNG')
     return boxes

@@ -54,8 +54,8 @@ AI ART DIRECTOR — execution refinement only; the approved topic and facts abov
 - PALETTE AND PHONE CONTRAST: {plan['palette_and_contrast'] or 'follow the selected layout with strong mobile contrast'}
 - COPY: Use FINAL IMAGE COPY exactly when supplied; otherwise use these labels: {labels}
 - VISUAL CLUTTER / ERRORS TO AVOID: {plan['avoid'] or 'long text, decorative clutter, and unsupported details'}
-Preserve the separately authorized ONE discussion question (8-14 English words).
-Reserve a readable bottom box for it, clear of the main diagram and watermark.
+Preserve the separately authorized ONE discussion question (8-14 English words) for post-processing typesetting;
+never draw text boxes, watermarks, or letterings inside the illustration canvas.
 The question is not a short label. Do not introduce new facts, quantities,
 claims, or extra text beyond the base prompt's authorized text budget.
 """

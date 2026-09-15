@@ -11,6 +11,7 @@ CATEGORIES = ('text', 'layout', 'color', 'facts', 'question')
 def fallback_plan(topic):
     from goldgen_service import _visual_labels
     return {'title': _visual_labels(topic), 'labels': [],
+            'subtitle': str(topic.get('subtitle', '') or '')[:120],
             'question': 'Which detail here matches what you have seen in the field?',
             'question_type': 'experience', 'density': 'light',
             'selection_reason': 'Planner unavailable or invalid; conservative text fallback',
@@ -47,6 +48,7 @@ def parse_plan(raw, topic):
         if data.get('caption_consistent') is not True:
             return None
         return {k: data[k] for k in ('title', 'labels', 'question', 'question_type', 'density')} | {
+            'subtitle': str(topic.get('subtitle', '') or '')[:120],
             'layout': topic.get('layout', ''), 'art_direction_used': True,
             'selection_reason': str(data.get('selection_reason', 'Topic-guided'))[:300]}
     except (ValueError, TypeError, AttributeError):
