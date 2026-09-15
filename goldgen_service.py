@@ -1098,6 +1098,8 @@ Use it only when consistent with the requirements above:
 
         # Get layout-specific visual instructions
         layout_name = topic.get('layout', 'CROSS-SECTION CUTAWAY')
+        from core.layout_design import execution
+        composition = execution(topic)
 
         # Base prompt with topic content.
         #
@@ -1134,7 +1136,7 @@ TEXT ALLOWED IN THE IMAGE — nothing else may be written:
    Keep it phone-readable; reserve space rather than shrinking the text.
 
 LAYOUT STYLE: {layout_name}
-COMPOSITION GUIDE: {topic['composition']}
+COMPOSITION GUIDE: {composition}
 """
         from core.visual_evidence import density_guidance
         evidence = density_guidance(page_id)
@@ -1150,95 +1152,8 @@ COMPOSITION GUIDE: {topic['composition']}
             base_prompt += "\nAUDIENCE PREFERRED VISUAL STYLES (Incorporate these if possible):\n"
             base_prompt += "\n".join([f"- {v}" for v in visual_styles]) + "\n\n"
         
-        # Add specific visual instructions based on layout
-        if layout_name == 'DEEP CUTAWAY EXPLAINER':
-            mode = topic.get('visual_mode', 'cutaway')
-            scenes = {
-                'cutaway': 'Show the surface in the upper fifth and a dominant geological cross-section below. Depict only the relevant layers and structures.',
-                'journey': 'Show a connected source-to-slope-to-valley section. A few directional arrows explain release and transport, not a fixed travel distance.',
-                'micro': 'Make one mineral specimen the dominant object, with schematic magnified surface or internal details. Do not draw a landscape, trench or soil profile.',
-            }
-            visual_instruction = 'VISUAL EXECUTION:\n' + scenes.get(mode, scenes['cutaway']) + """
-Use 2-3 circular magnified insets connected to exact features in the main scene.
-Use realistic earth and mineral textures, strong contrast, restrained gold highlights and clear negative space.
-The insets share the existing label budget; do not add separate captions or extra labels for every layer.
-This is a conceptual educational illustration, not a real excavation, assay, micrograph or discovery.
-Do not invent numerical depths, scale bars, measurements, gold abundance or a universal geological sequence.
-Do not depict gold in every layer. Follow the topic-specific limitations in WHAT TO DEPICT.
-For microbes, show schematic surface processes only; no rapid nugget growth or invented thermal environment."""
-
-        elif "CROSS-SECTION" in layout_name:
-            visual_instruction = """VISUAL EXECUTION:
-Create a realistic cross-section illustration showing underground layers. Display the surface at top, then soil/gravel layers, and bedrock at bottom. Show gold deposits trapped in crevices or layers. Use natural earth tones with clear labeling lines pointing to key features. Style: Educational textbook diagram with scientific accuracy."""
-
-        elif "CHECKLIST" in layout_name or "SPLIT" in layout_name:
-            visual_instruction = """VISUAL EXECUTION:
-Create a split-screen comparison image with a clear vertical divider. Left side shows one condition/type, right side shows the contrasting condition/type. Each side should be clearly labeled. Use realistic, detailed photography style suitable for a field guide. Make the differences obvious and educational."""
-
-        elif "STEP-BY-STEP" in layout_name or "PROCESS" in layout_name:
-            visual_instruction = """VISUAL EXECUTION:
-Create a sequence of 3-4 distinct panels or a numbered flow showing a progression. First panel shows raw state/discovery, middle panels show the action/process, final panel shows the result/gold. Use arrows or numbers connecting the steps. Clear instructional style."""
-
-        elif "QUIZ" in layout_name or "GAMIFICATION" in layout_name:
-            visual_instruction = """VISUAL EXECUTION:
-Create a 2x2 grid containing 4 distinct rock/mineral samples labeled A, B, C, and D. Make them look very similar (e.g., all shiny metallic), but only ONE is real gold (smooth, buttery yellow, non-crystalline). The others should have cubic structures (Pyrite), flaky textures (Mica), or brassy colors (Chalcopyrite). This is for an interactive Facebook quiz."""
-
-        elif "GRID" in layout_name:
-            visual_instruction = """VISUAL EXECUTION:
-Create a 2x2 or 3x2 grid layout showing distinct close-up images of different indicators or examples. Each grid cell should be clearly separated with borders. Images should be macro-style, highly detailed, and realistic. Each section can have a small label. Focus on texture and detail."""
-
-        elif "GOLDEN PATH" in layout_name or "PATH" in layout_name:
-            visual_instruction = """VISUAL EXECUTION:
-Create a top-down aerial view or map-style illustration. Use arrows to mark flow direction or movement patterns. Highlight specific zones or areas with golden glow, markers, or circles to indicate important locations. Style: Strategic diagram or treasure map with realistic terrain features."""
-
-        elif "MAGNIFYING GLASS" in layout_name:
-            visual_instruction = """VISUAL EXECUTION:
-Create an image showing a surface with a magnifying glass overlay. Inside the lens, show a highly magnified, detailed view revealing features invisible to the naked eye. The focus should be sharp inside the lens and slightly blurred outside. Style: Scientific discovery with emphasis on detail revelation."""
-
-        elif "BEFORE" in layout_name and "AFTER" in layout_name:
-            visual_instruction = """VISUAL EXECUTION:
-Create a split landscape view showing the same location in two different states. Top half labeled 'BEFORE', bottom half labeled 'AFTER'. Show clear changes between the two states. Highlight new features or changes that are significant. Style: Realistic comparative photography."""
-
-        elif "NOTEBOOK" in layout_name or "GEOLOGIST" in layout_name:
-            visual_instruction = """VISUAL EXECUTION:
-Create an image that looks like a page from a field notebook. Feature highly detailed, high-contrast ink and watercolor illustrations. Use strong, bold lines and rich colors. The diagram must be extremely sharp and readable. Add authentic touches like compass, rock samples, or a pencil resting on the side. Background: Aged but clean paper. DO NOT generate blurry or faded pencil sketches. DO NOT generate walls of illegible text."""
-
-        elif "3D" in layout_name or "BLOCK" in layout_name:
-            visual_instruction = """VISUAL EXECUTION:
-Create a 3D isometric block diagram showing a cutaway section of earth. Display surface features on top and underground layers in cross-section. Show how geological features connect from deep underground to the surface. Style: Clean, educational, three-dimensional technical illustration."""
-
-        elif "TOOLKIT" in layout_name or "FLATLAY" in layout_name:
-            visual_instruction = """VISUAL EXECUTION:
-Create a 'knolling' style top-down flatlay image. Show various tools, mineral samples, or equipment arranged meticulously in a neat grid or logical order on a textured surface (like old wood or canvas). The composition must be perfectly aligned, aesthetic, and highly detailed. Use rich, warm lighting. Style: Premium editorial photography, highly organized."""
-
-        elif "MAP" in layout_name or "PROSPECTOR" in layout_name:
-            visual_instruction = """VISUAL EXECUTION:
-Create a highly detailed, colorful topographic map illustration with strong contrast. Mark key features like rivers in vivid blue, and add bold red markers (X marks, circles) at important locations. Use clear, sharp, dark ink for contour lines. Style: Adventurous but professional treasure map with rich colors and sharp details. Avoid faint or blurry lines."""
-
-        elif "VICTORIAN" in layout_name or "WOODCUT" in layout_name:
-            visual_instruction = """VISUAL EXECUTION:
-Create an image mimicking a 19th-century Victorian woodcut or engraving. Use high-contrast, dense black ink cross-hatching to form the shapes. The background should be a solid warm sepia or aged newspaper color. Style: Historical Gold Rush era, rugged, monochrome, very detailed ink work."""
-
-        elif "INDUSTRIAL" in layout_name or "MODERN" in layout_name:
-            visual_instruction = """VISUAL EXECUTION:
-Create a modern, industrial, high-resolution photographic style image. Focus on scale, heavy machinery, or engineering concepts. Use industrial colors like safety orange, metallic silver, and dark grays. Style: Professional mining industry magazine cover, clean and data-driven."""
-
-        elif "MAXIMALIST" in layout_name or "DARK" in layout_name:
-            visual_instruction = """VISUAL EXECUTION:
-Create a dark, moody neo-romantic image. Use a pitch-black or very dark background with ornate, classical framing. The gold or minerals should glow with brilliant metallic reflections (bronze, chrome, gold). Style: Mysterious treasure, maximalist detail, highly intricate and luxurious."""
-
-        elif "VECTOR" in layout_name or "FLAT" in layout_name:
-            visual_instruction = """VISUAL EXECUTION:
-Create a clean, minimalist flat vector graphic illustration. Use bright, solid contrasting colors without dirt or grunge textures. Incorporate bold, massive sans-serif typography elements (if text is needed). Style: Modern infographic poster, highly legible, Kurzgesagt-style simplicity."""
-
-        elif "MINI-GAME" in topic['headline']:
-            visual_instruction = """VISUAL EXECUTION:
-Create an insanely realistic, highly detailed wide-angle shot of a rocky riverbed, bedrock crevices, or a pile of muddy gravel. IN THE SCENE, hide ONE small, distinctly shaped shiny gold nugget. It must be slightly camouflaged but definitely visible to someone looking closely. Style: Hyper-realistic macro nature photography, sharp focus. No text!"""
-
-        else:
-            # Default fallback
-            visual_instruction = """VISUAL EXECUTION:
-Create a realistic educational illustration combining the topic's key visual elements. Use clear composition with labeled features. Style: National Geographic field guide with scientific accuracy and visual appeal."""
+        from core.layout_design import execution
+        visual_instruction = execution(topic)
 
         # Combine all parts
         full_prompt = base_prompt + visual_instruction + f"""
@@ -1250,7 +1165,7 @@ MANDATORY REQUIREMENTS:
 - Texture: Realistic rock, soil, water, and mineral textures
 - Atmosphere: Educational, scientific, professional
 - Quality: High detail, sharp focus on key elements, photorealistic rendering where applicable.
-- NO ABSTRACT ART. NO CARTOONS. Must look like a professional reference guide.
+- Use the selected visual style consistently. Flat vector stays flat; photographic styles stay realistic.
 - TEXT BUDGET (most important rule): render ONLY the title, short labels, and ONE discussion question authorized above, plus the requested corner watermark. No sentences except that question, no paragraphs, no captions, no footnotes, no fine print, no formulas, no equations, no citations, no invented words. Every label and the question must use real, correctly spelled English words in a bold sans-serif face, large enough to read on a phone. Keep the question separate from the label budget. Fewer words rendered perfectly beats more words rendered badly.
 """
         

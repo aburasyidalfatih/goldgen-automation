@@ -177,6 +177,12 @@ or absence. Do not confuse this authorized question with forbidden extra labels.
 
 Give actionable future-post improvements by category: text, layout, color, facts,
 and question. Use an empty string when no correction is needed. Do not merely praise.
+For layout, assess visual hierarchy, focal subject size, separation of detail,
+balanced space and whether every panel adds useful information. For color,
+assess mineral/material separation, contrast and palette coherence. Report
+unrequested lettering inside the illustration as a text defect. The application
+typesets the title, reader key and question; the illustration must contain no
+other lettering. Reader-key labels are not necessarily location callouts.
 These suggestions are advisory and never add a publication gate.
 Reply ONLY with JSON:
 {{"improvements": {{"text": "", "layout": "", "color": "", "facts": "", "question": ""}}, "score": <1-10>, "verdict": "<one short sentence>", "worst_problem": "<the single most damaging flaw, or 'none'>", "discussion_feedback": "<question improvement for future posts, or 'none'>"}}"""
@@ -239,8 +245,9 @@ Reply ONLY with JSON:
             print(f"   ⚠️  Gagal membangun image prompt: {e}, using PIL fallback...")
             return self._generate_fallback_image(topic, fanspage_name)
 
-        if fanspage_name:
-            image_prompt += f"\n\nIMPORTANT INSTRUCTION: Add a subtle text watermark that says '{fanspage_name}' placed clearly in one of the corners of the image (e.g. bottom-right or bottom-left corner). Do NOT put the watermark in the center of the image."
+        from core.layout_design import artwork_prompt, DESIGN_VERSION
+        topic['visual_plan']['design_version'] = DESIGN_VERSION
+        image_prompt = artwork_prompt(topic, topic['visual_plan'])
 
         prompt_saat_ini = image_prompt
         # Satu kali gambar ulang kalau juri menolak. Gambar 2K mahal dan lambat,
@@ -266,7 +273,7 @@ Reply ONLY with JSON:
                     config=types.GenerateContentConfig(
                         response_modalities=['TEXT', 'IMAGE'],
                         image_config=types.ImageConfig(
-                            aspect_ratio="9:16",
+                            aspect_ratio="4:5",
                             image_size=image_size
                         )
                     )
@@ -278,6 +285,8 @@ Reply ONLY with JSON:
                         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_') + str(attempt)
                         image_path = IMAGES_DIR / f"gold_prospecting_{timestamp}.png"
                         image.save(str(image_path))
+                        from core.poster_renderer import compose_poster
+                        compose_poster(image_path, topic['visual_plan'], image_path, fanspage_name or '')
                         print(f"   ✅ Image generated with {label}")
                         break
 
@@ -346,6 +355,10 @@ medium for comparison, and detail only for a process requiring explanation.
 These budgets replace the base brief label limits. Self-check English spelling
 and every label against the approved caption. No new claims or quantities. Do not
 change the topic, invent controversy, or add engagement bait.
+The application typesets the final title, labels and question. Labels form a
+reader key below the illustration, not positioned callouts. Do not refer to
+lettered alternatives except on GAMIFICATION_QUIZ, where the application adds
+A, B, C, D in reading order. Other questions must identify visible features by name.
 
 APPROVED TOPIC: {topic.get('headline', '')}
 APPROVED CAPTION: {topic.get('approved_caption', '')}
@@ -386,6 +399,8 @@ Return JSON only:
                 return render_plan(base_prompt, topic['visual_plan'])
             topic['visual_plan'] = plan
             plan['evidence_used'] = evidence
+            from core.art_director import parse_art_direction
+            plan['art_direction'] = parse_art_direction(raw) or {}
             topic['art_direction_used'] = True
             print("   🎨 AI Art Director refined the image plan")
             return render_plan(base_prompt, plan) + direction
@@ -432,101 +447,21 @@ Return JSON only:
     
     def _generate_fallback_image(self, topic, fanspage_name=None):
         """Generate professional infographic locally with PIL"""
-        # Create image 1080x1920 (vertical format)
-        width, height = 1080, 1920
-        
-        # Create gradient background (dark earth tones)
-        img = Image.new('RGB', (width, height))
-        draw = ImageDraw.Draw(img)
-        
-        # Draw gradient from dark brown to darker
-        for i in range(height):
-            ratio = i / height
-            r = int(42 - ratio * 20)
-            g = int(37 - ratio * 20)
-            b = int(32 - ratio * 20)
-            draw.rectangle([(0, i), (width, i+1)], fill=(r, g, b))
-        
-        # Gold accent borders
-        border_width = 20
-        gold_color = '#D4A523'
-        draw.rectangle([(0, 0), (width, border_width)], fill=gold_color)
-        draw.rectangle([(0, height-border_width), (width, height)], fill=gold_color)
-        draw.rectangle([(0, 0), (border_width, height)], fill=gold_color)
-        draw.rectangle([(width-border_width, 0), (width, height)], fill=gold_color)
-        
-        # Load fonts
-        try:
-            title_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 90)
-            subtitle_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 50)
-            header_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 55)
-            list_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 42)
-            footer_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 32)
-        except:
-            title_font = ImageFont.load_default()
-            subtitle_font = ImageFont.load_default()
-            header_font = ImageFont.load_default()
-            list_font = ImageFont.load_default()
-            footer_font = ImageFont.load_default()
-        
-        # Icon/emoji at top
-        y_pos = 120
-        draw.text((width/2, y_pos), "🪨", font=title_font, anchor="mm")
-        
-        # Headline (gold color, centered)
-        y_pos += 150
-        draw.text((width/2, y_pos), topic['headline'], 
-                 fill=gold_color, font=title_font, anchor="mm", stroke_width=2, stroke_fill='#000000')
-        
-        # Subtitle (white, centered)
-        y_pos += 130
-        draw.text((width/2, y_pos), topic['subtitle'], 
-                 fill='#FFFFFF', font=subtitle_font, anchor="mm")
-        
-        # Decorative line
-        y_pos += 80
-        line_margin = 150
-        draw.rectangle([(line_margin, y_pos), (width-line_margin, y_pos+5)], fill=gold_color)
-        
-        # List header (gold, centered)
-        y_pos += 100
-        draw.text((width/2, y_pos), topic['list_header'], 
-                 fill=gold_color, font=header_font, anchor="mm")
-        
-        # List points (white, left-aligned with bullets)
-        y_pos += 100
-        left_margin = 120
-        for point in topic['list_points']:
-            # Bullet point
-            draw.ellipse([(left_margin, y_pos+15), (left_margin+15, y_pos+30)], fill=gold_color)
-            # Text
-            draw.text((left_margin + 40, y_pos), point, 
-                     fill='#FFFFFF', font=list_font)
-            y_pos += 90
-        
-        # Footer text
-        y_pos = height - 200
-        draw.multiline_text((width/2, y_pos), "Which detail here matches what\nyou have seen in the field?",
-                 fill='#AAAAAA', font=footer_font, anchor="mm", align="center")
-        
-        y_pos += 60
-        draw.text((width/2, y_pos), "🤖 Content created with AI assistance", 
-                 fill='#888888', font=footer_font, anchor="mm")
-        
-        # Save image
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        image_path = IMAGES_DIR / f"gold_prospecting_{timestamp}.png"
-        img.save(image_path, 'PNG', quality=95)
-        # Record the actual fallback rather than attributing it to AI art direction.
+        from core.poster_renderer import compose_poster
         from core.visual_plan import fallback_plan, save_plan
-        topic['visual_plan'] = fallback_plan(topic)
-        topic['visual_plan']['density'] = 'fallback'
-        topic['visual_plan']['selection_reason'] = 'PIL fallback; legacy body copy'
+        from core.layout_design import DESIGN_VERSION
+        import uuid
+        plan = fallback_plan(topic)
+        plan['fallback_points'] = [str(p)[:220] for p in topic.get('list_points', [])[:4]]
+        plan['design_version'] = DESIGN_VERSION
+        plan['density'] = 'fallback'
+        plan['selection_reason'] = 'Typeset fallback with approved topic points; no invented illustration'
+        topic['visual_plan'] = plan
+        image_path = IMAGES_DIR / f"gold_prospecting_{datetime.now():%Y%m%d_%H%M%S}_{uuid.uuid4().hex[:6]}.png"
+        compose_poster(None, plan, image_path, fanspage_name or '')
         save_plan(topic.get('_visual_page_id'), image_path, topic)
-        
-        print(f"   ✅ Infographic generated successfully")
         return image_path
-    
+
     def _describe_fb_error(self, response=None, raw_text=None):
         """Terjemahkan error Facebook jadi alasan yang bisa dibaca manusia.
 
