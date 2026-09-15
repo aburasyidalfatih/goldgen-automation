@@ -46,11 +46,17 @@ Respect topic-specific limitations. Simplify decoration before shrinking meaning
 
 def artwork_prompt(topic, plan):
     import json
-    return execution(topic) + '''
+    from core.prospecting_style import artwork_style
+    # Arahan gaya MENGGANTIKAN instruksi "cinematic photorealistic 3D" yang
+    # dulu ada di sini, bukan menumpuknya. Dua arahan estetika yang
+    # bertentangan dalam satu prompt membuat model memilih salah satu secara
+    # acak — persis kegagalan yang dulu terjadi saat daftar hook generik
+    # tampil berdampingan dengan hook yang diwajibkan.
+    return execution(topic) + '\n' + artwork_style() + '''
 Create ONLY the illustration for a professionally typeset vertical educational poster.
-STYLE & RENDERING: Full-bleed cinematic photorealistic 3D environment filling the entire square image edge to edge.
-NEVER render an isolated object floating in empty whitespace, blank white background, or floating isolated 3D cubes.
-Always embed the cutaway or subject within a complete, rich natural environment with realistic depth, lighting, and textures.
+Fill the entire square image edge to edge with a complete scene.
+NEVER render an isolated object floating in empty whitespace, blank white background, or floating isolated cubes.
+Always embed the cutaway or subject within a full natural environment with real depth, lighting and texture.
 NO TEXT anywhere: no letters, numbers, labels, symbols resembling writing, titles,
 subtitles, watermarks, legends, pointer lines, arrows, callout boxes, or fake handwriting.
 The application adds all typography, numbered badges, and labels in post-processing.

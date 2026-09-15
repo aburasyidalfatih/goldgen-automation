@@ -731,11 +731,18 @@ REPLY ONLY WITH THIS EXACT JSON FORMAT:
         """Generates a brand new topic structure dynamically based on audience keyword"""
         try:
             print(f"   🧠 Generating new dynamic topic for keyword: {keyword}")
+            from core.prospecting_style import headline_style, DENSITY_FACTS
             prompt = f"""You are an expert gold prospecting content strategist.
 The audience is highly interested in the topic/keyword: "{keyword}"
 However, our current knowledge base does not have a topic specifically about this.
 
 Your task is to create a BRAND NEW educational topic structure about this keyword.
+
+{headline_style()}
+
+Keep the headline under six words so it can be typeset large on a poster.
+Teach exactly ONE idea. Each list point is a short field observation, not a sentence.
+{DENSITY_FACTS}
 Format the output EXACTLY as this JSON format, nothing else:
 {{
     "headline": "CATCHY HEADLINE ABOUT THE TOPIC",
