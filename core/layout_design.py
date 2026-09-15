@@ -54,39 +54,64 @@ Use gold only where the topic supports it, at illustrative abundance.
 '''
 
 
-def artwork_prompt(topic, plan):
-    import json
-    from core.prospecting_style import artwork_style
-    # Arahan gaya MENGGANTIKAN instruksi "cinematic photorealistic 3D" yang
-    # dulu ada di sini, bukan menumpuknya. Dua arahan estetika yang
-    # bertentangan dalam satu prompt membuat model memilih salah satu secara
-    # acak — persis kegagalan yang dulu terjadi saat daftar hook generik
-    # tampil berdampingan dengan hook yang diwajibkan.
-    # Blok ini dipangkas dari 14 baris menjadi 5. Yang dibuang bukan aturan
-    # sembarangan, melainkan aturan yang mengurusi TEKS pada gambar yang sudah
-    # dilarang bertekst:
-    #
-    # - "jangan menyisakan panel teks kosong", "label muncul di reader key" —
-    #   sudah tercakup oleh NO TEXT
-    # - "jangan menambahkan instruksi ekstraksi kimia" — itu urusan caption, dan
-    #   menyebutnya di sini malah memasukkan gagasan itu ke konteks visual
-    # - aturan urutan kuis A-D — dikirim ke SEMUA layout padahal
-    #   GAMIFICATION_QUIZ sudah dipensiunkan, dan ia menyuruh model berpikir
-    #   dalam empat panel, persis melawan "one dominant focal subject"
-    # - dua kalimat "fill edge to edge" yang saling menduplikasi
-    return execution(topic) + '\n' + artwork_style() + '''
-Create ONLY the illustration; the application typesets the poster on top of it afterwards.
-NO TEXT anywhere: no letters, numbers, labels, watermarks, legends, pointer lines,
-callout boxes or fake handwriting.
-Fill the tall vertical frame edge to edge with one complete scene in a real
-environment with depth, lighting and texture. The illustration IS the poster
-background: no empty border, no object floating on blank ground.
-Typography is laid over the top eighth and the bottom quarter, so put the dominant
-subject in the middle and keep those two bands quieter.
-Use the content below only as reference for what to paint.
-''' + json.dumps({'topic': topic.get('headline'), 'caption': topic.get('approved_caption'),
-                 'points': topic.get('list_points'), 'visual_mode': topic.get('visual_mode'),
-                 # Dinamai "features_to_depict", bukan "reader_key": ini daftar
-                 # benda yang harus TAMPAK, bukan legenda yang harus ditulis.
-                 'features_to_depict': plan.get('labels', []),
-                 'art_direction': plan.get('art_direction', {})}, ensure_ascii=True)
+def poster_prompt(topic, plan):
+    """Prompt poster utuh: model gambar yang menulis seluruh teksnya.
+
+    Pemilik memilih arsitektur ini secara sadar, menggantikan pembagian lama di
+    mana PIL yang menyusun tipografi. Konsekuensinya diketahui: dari sepuluh
+    infografis acuan yang ia kumpulkan, empat memuat ejaan rusak yang tidak bisa
+    diperbaiki setelah gambar jadi. Karena itu _review_image sekarang benar-benar
+    menolak dan mengulang gambar yang skornya di bawah ambang — sebelumnya skor
+    itu hanya dicatat.
+
+    Palet hex DIKIRIM di sini, berbeda dengan sebelumnya. Dulu palet itu membuat
+    ilustrasi pucat karena ia hanya menempati kotak di tengah poster krem.
+    Sekarang gambar ini ADALAH posternya, jadi paletnya memang miliknya.
+    """
+    from core.prospecting_style import ONE_SECOND_TEST, VISUAL_DNA
+    bg, ink, accent, composition = design(topic.get('layout'))
+    arah = plan.get('art_direction') or {}
+    mode = execution(topic).splitlines()[2:3]
+    poin = '\n'.join(f'- {p}' for p in (topic.get('list_points') or [])[:5])
+    judul = topic.get('headline') or ''
+    subjudul = topic.get('subtitle') or ''
+    header = topic.get('list_header') or 'FIELD INDICATORS'
+
+    return f'''Create a VERTICAL EDUCATIONAL INFOGRAPHIC POSTER about GOLD PROSPECTING.
+
+TEXT CONTENT TO INCLUDE (render every word exactly as written, correctly spelled):
+HEADLINE: "{judul}"
+SUBTITLE: "{subjudul}"
+LIST HEADER: "{header}"
+LIST POINTS:
+{poin}
+
+VISUAL STYLE & COMPOSITION:
+{composition}
+{' '.join(mode)}
+{arah.get('focal_subject', '')}
+{arah.get('composition_adjustment', '')}
+{ONE_SECOND_TEST}
+{VISUAL_DNA}
+
+MANDATORY ART DIRECTION:
+- STYLE: Realistic illustration / field guide / National Geographic diagram.
+- TEXTURE: Detailed rock textures, flowing water, dirt, rust, metallic gold.
+- ATMOSPHERE: Educational, scientific, rugged, outdoors.
+- LAYOUT: Distinct sections, arrows and callouts. Anchor every label with a leader
+  line to the exact feature it names. Set the list points as short captioned blocks
+  beside the artwork they explain, never as a wall of body text.
+- COLOR GRADING: background {bg}, dark/light contrast {ink}, accent {accent}.
+  {arah.get('palette_and_contrast', 'Earth tones, slate grey, river blue, rusty orange, bright gold.')}
+- NO ABSTRACT ART. NO CARTOONS. It must look like a professional reference guide.
+- TYPOGRAPHY: Bold sans-serif, large enough to read on a phone. Spell every word
+  above exactly. Add no other text: no extra labels, no body paragraphs, no
+  signature, no logo, no page numbers. Fewer words rendered perfectly beats more
+  words rendered badly.
+- FEED CROP: Facebook shows only the middle 4:5 of this 9:16 frame in the feed.
+  The headline and subtitle must sit fully inside that middle band, never in the
+  top or bottom eighth. Leave the lower-left corner quiet for a watermark added
+  afterwards.
+- Do not invent depths, coordinates, recovery rates, yields or guarantees.
+- AVOID: {arah.get('avoid', 'plastic-looking nuggets, treasure-chest fantasy, duplicated tools, gold in every layer')}
+'''

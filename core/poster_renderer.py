@@ -87,16 +87,48 @@ def draw_text_box(draw, text, box, size, fill, bold=False, minimum=24):
     raise ValueError('Text exceeds its reserved poster area')
 
 
-def compose_poster(artwork, plan, output, watermark=''):
-    bg, ink, accent, _ = design(plan.get('layout'))
+def stamp_watermark(artwork, output, watermark=''):
+    """Poster sudah utuh dari model gambar; di sini hanya ditambah watermark.
 
-    # Ilustrasi dibentangkan ke seluruh kanvas, bukan ditempel sebagai kotak.
-    if artwork:
-        with Image.open(artwork) as source:
-            canvas = ImageOps.fit(source.convert('RGB'), (WIDTH, HEIGHT),
-                                  Image.Resampling.LANCZOS).convert('RGBA')
-    else:
-        canvas = Image.new('RGBA', (WIDTH, HEIGHT), _rgb(bg) + (255,))
+    Watermark tidak diserahkan ke model gambar karena isinya nama fanspage
+    pemilik. Salah eja pada label kecil masih bisa dimaklumi; salah eja pada
+    nama halaman sendiri tidak.
+
+    Sisanya sengaja tidak disentuh: judul, subjudul, dan daftar poin kini
+    digambar oleh model sebagai bagian dari komposisinya, dan menimpanya dengan
+    tipografi PIL akan menghasilkan teks ganda.
+    """
+    with Image.open(artwork) as source:
+        canvas = ImageOps.fit(source.convert('RGB'), (WIDTH, HEIGHT),
+                              Image.Resampling.LANCZOS).convert('RGBA')
+
+    teks = (watermark[:60] + '  •  FIELD GUIDE SERIES') if watermark else 'GOLDGEN FIELD GUIDE'
+    face = font(26, False)
+    draw = ImageDraw.Draw(canvas)
+    lebar = int(draw.textlength(teks, font=face))
+    kotak = (TEXT_LEFT - 20, HEIGHT - 104, TEXT_LEFT + lebar + 20, HEIGHT - 44)
+
+    overlay = Image.new('RGBA', (WIDTH, HEIGHT), (0, 0, 0, 0))
+    ImageDraw.Draw(overlay).rounded_rectangle(kotak, radius=14, fill=(0, 0, 0, 150))
+    canvas = Image.alpha_composite(canvas, overlay).convert('RGB')
+    ImageDraw.Draw(canvas).text((TEXT_LEFT, HEIGHT - 90), teks, font=face, fill='#f2e8d0')
+    canvas.save(output, 'PNG')
+    return kotak
+
+
+def compose_poster(plan, output, watermark=''):
+    """Poster cadangan tanpa ilustrasi, disusun sepenuhnya oleh PIL.
+
+    Dipakai hanya ketika model gambar gagal. Hasilnya ditandai image_fallback
+    dan ditahan gerbang publikasi, jadi ia berguna untuk pratinjau dan
+    diagnosis, bukan untuk tayang.
+
+    Cabang "tempel ilustrasi lalu ketik di atasnya" sudah dihapus dari sini.
+    Sejak model gambar yang menyusun tipografi, memanggilnya dengan sebuah
+    ilustrasi akan mencetak judul dua kali.
+    """
+    bg, ink, accent, _ = design(plan.get('layout'))
+    canvas = Image.new('RGBA', (WIDTH, HEIGHT), _rgb(bg) + (255,))
 
     # Panel digambar di lapisan terpisah supaya benar-benar tembus pandang;
     # menggambar langsung ke kanvas hanya menghasilkan blok buram.
@@ -142,22 +174,14 @@ def compose_poster(artwork, plan, output, watermark=''):
     else:
         boxes = [draw_text_box(draw, plan['title'], (TEXT_LEFT, SAFE_TOP + 30, TEXT_RIGHT, SAFE_TOP + 272), 86, ink, True, 48)]
 
-    if artwork and plan.get('layout') == 'GAMIFICATION_QUIZ':
-        for i, letter in enumerate('ABCD'):
-            x = TEXT_LEFT + (i % 2) * (WIDTH - 2 * TEXT_LEFT) // 2 + 24
-            y = SAFE_TOP + 340 + (i // 2) * 580
-            draw.rounded_rectangle((x, y, x + 76, y + 76), radius=12, fill=bg, outline=accent, width=3)
-            draw.text((x + 22, y + 13), letter, font=font(43, True), fill=ink)
-    elif not artwork:
-        # A clearly editorial fallback, not invented geology or a recycled topic image.
-        top_area = SAFE_TOP + 340
-        draw.rounded_rectangle((MARGIN, top_area, WIDTH - MARGIN, SAFE_BOTTOM - 340), radius=28, outline=accent, width=3)
-        boxes.append(draw_text_box(draw, 'FIELD OBSERVATIONS', (112, top_area + 44, 1328, top_area + 130), 42, accent, True))
-        points = plan.get('fallback_points', [])[:4]
-        for i, point in enumerate(points):
-            top = top_area + 176 + i * 240
-            draw.ellipse((112, top + 12, 128, top + 28), fill=accent)
-            boxes.append(draw_text_box(draw, point, (160, top, 1320, top + 206), 45, ink, minimum=28))
+    # A clearly editorial fallback, not invented geology or a recycled topic image.
+    top_area = SAFE_TOP + 340
+    draw.rounded_rectangle((MARGIN, top_area, WIDTH - MARGIN, SAFE_BOTTOM - 340), radius=28, outline=accent, width=3)
+    boxes.append(draw_text_box(draw, 'FIELD OBSERVATIONS', (112, top_area + 44, 1328, top_area + 130), 42, accent, True))
+    for i, point in enumerate(plan.get('fallback_points', [])[:4]):
+        top = top_area + 176 + i * 240
+        draw.ellipse((112, top + 12, 128, top + 28), fill=accent)
+        boxes.append(draw_text_box(draw, point, (160, top, 1320, top + 206), 45, ink, minimum=28))
 
     # Pill badge bernomor untuk label petunjuk (Reader Key).
     #

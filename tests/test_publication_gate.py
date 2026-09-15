@@ -88,5 +88,97 @@ class ArtDirectionRetryTests(unittest.TestCase):
         self.assertFalse(topic.get('art_direction_used'))
 
 
+class ImageScoreGateTests(unittest.TestCase):
+    """Ambang skor gambar dihitung sejak lama tapi tidak pernah dipakai.
+
+    Selama PIL yang menyusun tipografi, poster bercacat masih terbaca. Sejak
+    model gambar yang menulis seluruh teksnya, juri inilah satu-satunya yang
+    bisa menangkap ejaan rusak sebelum poster tayang.
+    """
+
+    def _poster(self, skor_berurutan):
+        from auto_poster import GoldGenAutoPoster
+        poster = GoldGenAutoPoster.__new__(GoldGenAutoPoster)
+        poster.image_model = 'gemini-3.1-flash-image'
+        poster.gemini_api_key = 'k'
+        poster.goldgen = type('S', (), {
+            'generate_image_prompt': staticmethod(lambda topic, page_id: 'BASE PROMPT')})()
+        self.skor = list(skor_berurutan)
+        self.dinilai = []
+        return poster
+
+    def _jalankan(self, poster, tmp):
+        from PIL import Image
+        topic = {'headline': 'READING THE RIVER', 'layout': 'CROSS-SECTION CUTAWAY',
+                 'list_points': ['a'], 'approved_caption': 'x' * 120}
+
+        def simpan(path, output, watermark=''):
+            Image.new('RGB', (8, 8)).save(output)
+
+        def nilai(path, _topic, _page=None):
+            skor = self.skor.pop(0)
+            self.dinilai.append((path, skor))
+            return skor, 'catatan'
+
+        def arahan(_topic, prompt):
+            _topic['visual_plan'] = {'labels': [], 'question': 'q'}
+            return prompt
+
+        with patch.object(poster, '_apply_art_direction', side_effect=arahan), \
+                patch.object(poster, '_preflight_image_plan'), \
+                patch.object(poster, '_review_image', side_effect=nilai), \
+                patch('core.poster_renderer.stamp_watermark', side_effect=simpan), \
+                patch('core.content_feedback.save_feedback'), \
+                patch('core.visual_plan.save_plan'), \
+                patch('auto_poster.IMAGES_DIR', tmp), \
+                patch('google.genai.Client', side_effect=self.gemini), \
+                patch('time.sleep'):
+            return poster.generate_image(topic, 'Page', 'pid'), topic
+
+    def gemini(self, **_):
+        from PIL import Image
+
+        class Bagian:
+            def as_image(self):
+                return Image.new('RGB', (8, 8))
+
+        class Balasan:
+            parts = [Bagian()]
+
+        return type('C', (), {'models': type('M', (), {
+            'generate_content': staticmethod(lambda **k: Balasan())})()})()
+
+    def test_low_score_triggers_a_redraw(self):
+        import tempfile
+        from pathlib import Path
+        poster = self._poster([4.0, 8.0])
+        with tempfile.TemporaryDirectory() as tmp:
+            path, topic = self._jalankan(poster, Path(tmp))
+        self.assertEqual(2, len(self.dinilai))
+        self.assertEqual(8.0, topic['image_score'])
+        self.assertEqual(self.dinilai[1][0], path)
+
+    def test_a_good_first_draw_is_not_redrawn(self):
+        import tempfile
+        from pathlib import Path
+        poster = self._poster([9.0])
+        with tempfile.TemporaryDirectory() as tmp:
+            path, topic = self._jalankan(poster, Path(tmp))
+        self.assertEqual(1, len(self.dinilai))
+        self.assertEqual(9.0, topic['image_score'])
+
+    def test_when_every_attempt_is_poor_the_best_one_is_kept(self):
+        """Gambar Gemini yang belum sempurna tetap lebih baik daripada poster
+        teks tanpa ilustrasi, yang justru ditahan gerbang publikasi."""
+        import tempfile
+        from pathlib import Path
+        poster = self._poster([3.0, 5.5, 4.0])
+        with tempfile.TemporaryDirectory() as tmp:
+            path, topic = self._jalankan(poster, Path(tmp))
+        self.assertEqual(3, len(self.dinilai))
+        self.assertEqual(5.5, topic['image_score'])
+        self.assertEqual(self.dinilai[1][0], path)
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -158,8 +158,14 @@ CAPTION TO ILLUSTRATE: {topic.get('approved_caption', '')}
 APPROVED IMAGE COPY AND DENSITY: {json.dumps(topic.get('visual_plan', {}))}
 FACTUAL LIMITS: {FACT_CONTEXT}
 
+The image model renders ALL of this poster's typography, so spelling is the
+defect most likely to be present and the one that cannot be repaired afterwards.
+Read every visible word letter by letter before scoring. Compare the headline,
+subtitle, list header and list points against the approved copy above: a single
+misspelled, invented, duplicated or truncated word means the poster is unusable.
+
 Score the image 1-10 against these criteria, in order of importance:
-1. TEXT LEGIBILITY — is every word real, correctly spelled and readable on a phone? Garbled or nonsense lettering is the single worst defect.
+1. TEXT LEGIBILITY — is every word real, correctly spelled and readable on a phone? Garbled or nonsense lettering is the single worst defect. Score at most 4 if any word is misspelled or nonsensical.
 2. LAYOUT MATCH — does the composition actually deliver the intended layout above? A cross-section must really show a cut through the ground.
 3. SUBJECT CORRECTNESS — is this genuinely about gold prospecting geology, not a generic landscape or unrelated mining scene?
 4. ARTEFACTS — malformed hands, impossible tools, duplicated limbs, melted objects.
@@ -179,11 +185,12 @@ Give actionable future-post improvements by category: text, layout, color, facts
 and question. Use an empty string when no correction is needed. Do not merely praise.
 For layout, assess visual hierarchy, focal subject size, separation of detail,
 balanced space and whether every panel adds useful information. For color,
-assess mineral/material separation, contrast and palette coherence. Report
-unrequested lettering inside the illustration as a text defect. The application
-typesets the title, reader key and question; the illustration must contain no
-other lettering. Reader-key labels are not necessarily location callouts.
-These suggestions are advisory and never add a publication gate.
+assess mineral/material separation, contrast and palette coherence. Report any
+lettering beyond the approved copy — invented labels, body paragraphs, fake
+signatures, page numbers — as a text defect.
+Facebook crops this 9:16 frame to its middle 4:5 in the feed: report a headline
+or subtitle falling in the top or bottom eighth as a layout defect, since a
+reader scrolling past would never see it.
 Reply ONLY with JSON:
 {{"improvements": {{"text": "", "layout": "", "color": "", "facts": "", "question": ""}}, "score": <1-10>, "verdict": "<one short sentence>", "worst_problem": "<the single most damaging flaw, or 'none'>", "discussion_feedback": "<question improvement for future posts, or 'none'>"}}"""
 
@@ -269,20 +276,20 @@ Reply ONLY with JSON:
                 return self._generate_fallback_image(topic, fanspage_name)
 
         # CATATAN: image_prompt di atas TIDAK dikirim ke model gambar. Baris di
-        # bawah menimpanya seluruhnya dengan artwork_prompt(). Yang tersisa dari
-        # tahap art director adalah isi topic['visual_plan'] — judul, label,
-        # pertanyaan, dan dict art_direction — dan itulah yang benar-benar
-        # sampai ke model.
+        # bawah menimpanya seluruhnya. Dari seluruh tahap art director, yang
+        # benar-benar sampai ke model hanyalah dict art_direction di dalam
+        # topic['visual_plan'] — focal_subject, composition_adjustment,
+        # palette_and_contrast, dan avoid.
         #
-        # Dulu di sini ada blok "FACTUAL REQUIREMENTS" yang ditempel ke
-        # image_prompt tepat sebelum baris penimpa ini. Blok itu tidak pernah
-        # terbaca model sekali pun. Saya hapus supaya tidak terlihat seperti
-        # pengaman yang aktif.
-        from core.layout_design import artwork_prompt, DESIGN_VERSION
+        # Sisa isi rencana visual (label, pertanyaan, density) tidak lagi
+        # tercetak di poster sejak model gambar yang menyusun tipografinya;
+        # teks poster diambil langsung dari topiknya. Rencana itu masih dicatat
+        # ke visual_decisions sebagai bahan laporan desain.
+        from core.layout_design import poster_prompt, DESIGN_VERSION
         from core.visual_plan import safe_trim_words
         topic['visual_plan']['design_version'] = DESIGN_VERSION
         topic['visual_plan']['subtitle'] = safe_trim_words(topic['visual_plan'].get('subtitle') or topic.get('subtitle', ''), 120)
-        image_prompt = artwork_prompt(topic, topic['visual_plan'])
+        image_prompt = poster_prompt(topic, topic['visual_plan'])
 
         prompt_saat_ini = image_prompt
         # Satu kali gambar ulang kalau juri menolak. Gambar 2K mahal dan lambat,
@@ -326,8 +333,8 @@ Reply ONLY with JSON:
                         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_') + str(attempt)
                         image_path = IMAGES_DIR / f"gold_prospecting_{timestamp}.png"
                         image.save(str(image_path))
-                        from core.poster_renderer import compose_poster
-                        compose_poster(image_path, topic['visual_plan'], image_path, fanspage_name or '')
+                        from core.poster_renderer import stamp_watermark
+                        stamp_watermark(image_path, image_path, fanspage_name or '')
                         print(f"   ✅ Image generated with {label}")
                         break
 
@@ -340,6 +347,23 @@ Reply ONLY with JSON:
                 save_feedback(page_id, topic, 'image', skor, catatan)
                 from core.visual_plan import save_plan
                 save_plan(page_id, image_path, topic)
+
+                # Ambang ini sebelumnya dihitung lalu tidak pernah dipakai:
+                # gambar dinilai, skornya disimpan, dan tetap terbit berapa pun
+                # nilainya. Selama PIL yang menyusun tipografi hal itu masih bisa
+                # ditolerir. Sekarang model gambar yang menulis seluruh teksnya,
+                # jadi juri inilah satu-satunya yang bisa menangkap ejaan rusak
+                # sebelum poster tayang.
+                if skor is not None and skor < AMBANG_GAMBAR:
+                    if gambar_terbaik is None or skor > gambar_terbaik[0]:
+                        gambar_terbaik = (skor, image_path)
+                    if attempt < max_attempts - 1:
+                        print(f"   ♻️  Skor {skor:.1f} di bawah {AMBANG_GAMBAR}; menggambar ulang. {str(catatan or '')[:120]}")
+                        continue
+                    print(f"   ⚠️  Percobaan habis; memakai gambar terbaik (skor {gambar_terbaik[0]:.1f})")
+                    topic['image_score'] = gambar_terbaik[0]
+                    return gambar_terbaik[1]
+
                 topic['image_score'] = skor
                 return image_path
 
@@ -505,7 +529,7 @@ Return JSON only:
         plan['selection_reason'] = 'Typeset fallback with approved topic points; no invented illustration'
         topic['visual_plan'] = plan
         image_path = IMAGES_DIR / f"gold_prospecting_{datetime.now():%Y%m%d_%H%M%S}_{uuid.uuid4().hex[:6]}.png"
-        compose_poster(None, plan, image_path, fanspage_name or '')
+        compose_poster(plan, image_path, fanspage_name or '')
         save_plan(topic.get('_visual_page_id'), image_path, topic)
         return image_path
 

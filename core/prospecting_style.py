@@ -50,10 +50,12 @@ looking at, which side is better. Teach exactly ONE idea."""
 # sebagai kepastian adalah kesalahan faktual yang paling mudah terjadi, karena
 # label pendek terdengar seperti pernyataan mutlak.
 #
-# Blok ini dipakai oleh PERENCANA LABEL, bukan oleh model gambar. Model gambar
-# dilarang menulis apa pun, jadi mengajarinya memilih kata hanya membuang
-# perhatian — dan menyebut "black sand, quartz, iron staining" di prompt
-# ilustrasi justru menyuruhnya menggambar benda-benda itu, apa pun topiknya.
+# Blok ini dipakai oleh PERENCANA LABEL, bukan dikirim langsung ke model gambar.
+# Sejak model gambar yang menyusun tipografi, teks yang tercetak di poster
+# berasal dari topiknya (headline, subtitle, list_points), bukan dari label
+# rencana visual. Blok ini tetap mengatur cara perencana memilih kata, dan
+# dengan begitu ikut menjaga agar petunjuk geologi tidak ditulis sebagai
+# kepastian.
 UNCERTAINTY_WORDS = """UNCERTAIN INDICATORS — black sand, quartz, iron staining,
 sulfides and altered rock are reasons to sample, never proof of a deposit.
 When labelling them, use hedged wording: "CLUE", "SIGN", "CHECK HERE",
@@ -84,16 +86,6 @@ DENSITY_FACTS = ("Gold specific gravity is about 19.3; quartz about 2.65; "
                  "magnetite about 5.2. Heavy particles tend to concentrate where "
                  "stream energy drops, but real placer behaviour also depends on "
                  "grain size, shape, turbulence and bed roughness.")
-
-
-def artwork_style():
-    """Blok gaya untuk prompt ilustrasi.
-
-    Hanya memuat hal yang KELIHATAN di gambar. Aturan tentang kata — gaya label
-    dan kehati-hatian istilah — pindah ke label_style(), karena model gambar
-    memang dilarang menulis apa pun.
-    """
-    return VISUAL_DNA + '\n\n' + ONE_SECOND_TEST
 
 
 def label_style():
