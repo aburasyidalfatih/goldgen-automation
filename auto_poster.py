@@ -232,18 +232,47 @@ Reply ONLY with JSON:
         topic['image_score'] = None
         # Prompt dibangun di luar blok retry supaya retry tidak crash karena
         # variabel yang belum sempat terbentuk saat error terjadi di sini.
+        # Prompt dasar bersifat deterministik dan sudah patuh aturan; yang bisa
+        # menyelipkan klaim terlarang adalah lapisan Art Director di atasnya.
+        # Karena itu penolakan preflight TIDAK boleh membatalkan ilustrasi —
+        # cukup ulangi arahan seninya, lalu kalau tetap gagal pakai prompt dasar
+        # tanpa arahan seni. Sebelumnya kegagalan di sini langsung jatuh ke
+        # poster teks tanpa gambar, dan itu tetap tayang ke Facebook.
         try:
-            image_prompt = self.goldgen.generate_image_prompt(topic, page_id)
-            image_prompt = self._apply_art_direction(topic, image_prompt)
-            self._preflight_image_plan(topic, image_prompt)
-            image_prompt += ("\nFACTUAL REQUIREMENTS: Illustrate the approved caption below. "
-                             "Do not invent recovery percentages, guaranteed deposits, or chemical "
-                             "extraction instructions. Label schematic illustrations as illustrative. "
-                             "Quiz panels must explain the same question and answer as the caption.\n"
-                             + topic.get('approved_caption', ''))
+            base_prompt = self.goldgen.generate_image_prompt(topic, page_id)
         except Exception as e:
-            print(f"   ⚠️  Gagal membangun image prompt: {e}, using PIL fallback...")
+            print(f"   ⚠️  Gagal membangun image prompt dasar: {redact(e)}, using PIL fallback...")
             return self._generate_fallback_image(topic, fanspage_name)
+
+        image_prompt = None
+        for percobaan in range(2):
+            try:
+                kandidat = self._apply_art_direction(topic, base_prompt)
+                self._preflight_image_plan(topic, kandidat)
+                image_prompt = kandidat
+                break
+            except Exception as e:
+                print(f"   ⚠️  Arahan seni ditolak (percobaan {percobaan + 1}): {redact(e)}")
+
+        if image_prompt is None:
+            # Kembalikan rencana visual ke bentuk konservatif supaya tidak
+            # menyisakan arahan yang baru saja ditolak.
+            from core.visual_plan import fallback_plan
+            topic['visual_plan'] = fallback_plan(topic)
+            topic['art_direction_used'] = False
+            try:
+                self._preflight_image_plan(topic, base_prompt)
+                image_prompt = base_prompt
+                print("   ↩️  Memakai prompt dasar tanpa arahan seni")
+            except Exception as e:
+                print(f"   ⚠️  Prompt dasar pun ditolak: {redact(e)}, using PIL fallback...")
+                return self._generate_fallback_image(topic, fanspage_name)
+
+        image_prompt += ("\nFACTUAL REQUIREMENTS: Illustrate the approved caption below. "
+                         "Do not invent recovery percentages, guaranteed deposits, or chemical "
+                         "extraction instructions. Label schematic illustrations as illustrative. "
+                         "Quiz panels must explain the same question and answer as the caption.\n"
+                         + topic.get('approved_caption', ''))
 
         from core.layout_design import artwork_prompt, DESIGN_VERSION
         topic['visual_plan']['design_version'] = DESIGN_VERSION
@@ -446,11 +475,17 @@ Return JSON only:
             )
     
     def _generate_fallback_image(self, topic, fanspage_name=None):
-        """Generate professional infographic locally with PIL"""
+        """Generate professional infographic locally with PIL.
+
+        Ditandai `image_fallback` supaya pemeriksaan publikasi tahu poster ini
+        TIDAK memuat ilustrasi. Hasilnya masih berguna untuk pratinjau manual
+        dan diagnosis, tapi tidak boleh tayang sebagai konten.
+        """
         from core.poster_renderer import compose_poster
         from core.visual_plan import fallback_plan, save_plan
         from core.layout_design import DESIGN_VERSION
         import uuid
+        topic['image_fallback'] = True
         plan = fallback_plan(topic)
         plan['fallback_points'] = [str(p)[:220] for p in topic.get('list_points', [])[:4]]
         plan['design_version'] = DESIGN_VERSION
@@ -898,7 +933,13 @@ Return JSON only:
                 # Generate poster image
                 print("   Generating infographic...")
                 image_path = self.generate_image(topic, fanspage_name=fanspage['name'], page_id=fanspage['page_id'])
-                
+
+                # Gerbang terakhir sebelum tayang. Dulu fungsi ini ada, diuji,
+                # tapi tidak pernah dipanggil — dan justru inilah yang mestinya
+                # mencegah poster tanpa ilustrasi terbit pada 15 September.
+                from core.content_quality import require_publishable
+                require_publishable(topic)
+
                 # Post to Facebook
                 print("   Posting to Facebook...")
                 fb_post_id, error = self.post_to_facebook(fanspage, content, image_path)
@@ -983,7 +1024,12 @@ Return JSON only:
             # 4. Generate Image
             print(f"   🎨 Generating image...")
             image_path = self.generate_image(topic, fanspage_name=page_name, page_id=page_id)
-            
+
+            # Jalur manual memakai gerbang yang sama dengan jalur terjadwal.
+            # Justru lewat sinilah poster tanpa ilustrasi itu tayang.
+            from core.content_quality import require_publishable
+            require_publishable(topic)
+
             print("   Posting to Facebook...")
             fb_post_id, error = self.post_to_facebook(target_fanspage, caption, image_path)
             

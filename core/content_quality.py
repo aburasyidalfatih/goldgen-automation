@@ -65,6 +65,17 @@ def caption_issues(caption, review, requested_hook):
 def require_publishable(topic):
     if topic.get('caption_approved') is not True:
         raise ContentQualityError('DITAHAN KUALITAS: caption belum lolos pemeriksaan')
+    # Sebuah infografis tanpa grafis bukan konten yang layak tayang.
+    #
+    # Pada 15 September, gerbang keamanan pra-generate menolak rencana visual
+    # yang memuat "guaranteed gold" — itu benar. Tapi penanganannya jatuh ke
+    # fallback PIL yang hanya menggambar kotak teks, lalu postingan tetap
+    # diterbitkan sebagai sukses. Yang tayang di Miners 24 adalah dinding teks
+    # 155 KB tanpa satu pun ilustrasi. Gerbang keamanan berubah menjadi
+    # penerbit konten buruk.
+    if topic.get('image_fallback') is True:
+        raise ContentQualityError(
+            'DITAHAN KUALITAS: ilustrasi gagal dibuat; poster teks tanpa gambar tidak diterbitkan')
     # Image quality is screened before generation. The post-generation vision
     # score is telemetry and a safety signal, not a publication gate: a
     # borderline reviewer score must not waste an already generated image.

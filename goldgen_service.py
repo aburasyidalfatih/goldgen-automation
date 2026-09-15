@@ -97,6 +97,21 @@ def _visual_labels(topic, max_words=MAX_TITLE_WORDS):
 
     judul = str(topic.get('headline') or '')
     judul = unicodedata.normalize('NFKD', judul).encode('ascii', 'ignore').decode('ascii')
+
+    # Potong pada tanda baca pemisah klausa, JANGAN di tengah anak kalimat.
+    #
+    # "Mastering the Sluice Box: The Physics of Particle Settlement" dulu
+    # dipotong pada kata keenam dan menghasilkan judul tayang berbunyi
+    # "MASTERING THE SLUICE BOX THE PHYSICS" — dua penggalan yang ditempel
+    # jadi satu dan terbaca rusak. Bagian sebelum titik dua sudah merupakan
+    # judul utuh; itulah yang dipakai.
+    for pemisah in (':', ' - ', ' — ', ';', '?', '.'):
+        if pemisah in judul:
+            depan = judul.split(pemisah)[0].strip()
+            if len(re.findall(r"[A-Za-z][A-Za-z']*", depan)) >= 2:
+                judul = depan
+                break
+
     kata = re.findall(r"[A-Za-z][A-Za-z']*", judul)
     if not kata:
         return 'GOLD PROSPECTING'
