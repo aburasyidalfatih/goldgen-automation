@@ -308,11 +308,13 @@ Reply ONLY with JSON:
                     config=types.GenerateContentConfig(
                         response_modalities=['TEXT', 'IMAGE'],
                         image_config=types.ImageConfig(
-                            # Slot ilustrasi di poster berukuran 1312x1180
-                            # (rasio 1.11), bukan potret. Meminta 4:5 hanya
-                            # memakai 72% slot; 1:1 memakai 90%. Rasio 9:16
-                            # milik POSTERNYA, bukan ilustrasinya.
-                            aspect_ratio="1:1",
+                            # Ilustrasi kini mengisi seluruh kanvas poster
+                            # 1440x2560, jadi rasionya harus sama dengan
+                            # posternya. Ketika ilustrasi masih ditempel
+                            # sebagai kotak 1312x1180 di tengah, 1:1 memang
+                            # yang paling sedikit terbuang; sekarang 1:1
+                            # berarti membuang 44% tinggi gambar saat dipaskan.
+                            aspect_ratio="9:16",
                             image_size=image_size
                         )
                     )

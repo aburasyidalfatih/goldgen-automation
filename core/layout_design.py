@@ -75,12 +75,14 @@ def artwork_prompt(topic, plan):
     #   dalam empat panel, persis melawan "one dominant focal subject"
     # - dua kalimat "fill edge to edge" yang saling menduplikasi
     return execution(topic) + '\n' + artwork_style() + '''
-Create ONLY the illustration; the application typesets the poster around it afterwards.
+Create ONLY the illustration; the application typesets the poster on top of it afterwards.
 NO TEXT anywhere: no letters, numbers, labels, watermarks, legends, pointer lines,
 callout boxes or fake handwriting.
-Fill the square frame edge to edge with one complete scene set in a real environment
-with depth, lighting and texture, never an object floating on blank background.
-Keep key subjects inside 5% safe margins.
+Fill the tall vertical frame edge to edge with one complete scene in a real
+environment with depth, lighting and texture. The illustration IS the poster
+background: no empty border, no object floating on blank ground.
+Typography is laid over the top eighth and the bottom quarter, so put the dominant
+subject in the middle and keep those two bands quieter.
 Use the content below only as reference for what to paint.
 ''' + json.dumps({'topic': topic.get('headline'), 'caption': topic.get('approved_caption'),
                  'points': topic.get('list_points'), 'visual_mode': topic.get('visual_mode'),
