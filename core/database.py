@@ -359,6 +359,17 @@ def init_db():
         LEFT JOIN engagement_cache ec
                ON ec.fb_post_id = p.fb_post_id
         WHERE p.status = 'success'
+          -- Hanya postingan yang BOT ini buat sendiri.
+          --
+          -- core/manual_post_sync.py menyalin postingan yang dibuat manusia
+          -- langsung di Facebook ke tabel ini agar hasilnya ikut terukur. Itu
+          -- berguna untuk laporan, tapi merusak pembelajaran: 61 dari 82
+          -- postingan manual terlanjur punya layout_name yang tidak pernah
+          -- benar-benar mereka pakai. Akibatnya 36 dari 41 baris
+          -- CROSS-SECTION CUTAWAY sebenarnya postingan manual, dan
+          -- VISUAL CHECKLIST terbaca 0.66x padahal 3.16x di antara postingan
+          -- bot. Bot tidak boleh belajar dari keputusan yang bukan miliknya.
+          AND COALESCE(p.source, 'goldgen') != 'manual'
           AND (
                 s.fb_post_id IS NOT NULL
                 OR (ec.fb_post_id IS NOT NULL

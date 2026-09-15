@@ -81,6 +81,7 @@ def report(page_id):
             rows=conn.execute('''SELECT p.*,e.engagement,e.source FROM posts p
                 LEFT JOIN post_engagement e ON e.post_id=p.id
                 WHERE p.experiment_id=? AND p.page_id=? AND p.status='success'
+                  AND COALESCE(p.source, 'goldgen') != 'manual'
                 ORDER BY p.experiment_arm''',(plan['id'],page_id)).fetchall()
             item={'id':plan['id'],'status':'menunggu pasangan/data','arms':[]}
             for r in rows:

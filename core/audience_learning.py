@@ -87,6 +87,9 @@ def page_rows(page_id):
             LEFT JOIN engagement_cache ec ON ec.fb_post_id=p.fb_post_id
             LEFT JOIN post_engagement e ON e.post_id=p.id
             WHERE p.page_id=? AND p.status='success'
+              -- Postingan manual yang disinkronkan bukan keputusan bot; lihat
+              -- catatan pada view post_engagement di core/database.py
+              AND COALESCE(p.source, 'goldgen') != 'manual'
               AND julianday(p.timestamp) BETWEEN julianday('now','-30 days') AND julianday('now')
         ''', (page_id,))])
     finally:
@@ -118,6 +121,7 @@ def performance(page_id, field, normalize=None):
                 LEFT JOIN engagement_cache ec ON ec.fb_post_id=p.fb_post_id
                 LEFT JOIN post_engagement e ON e.post_id=p.id
                 WHERE p.status='success'
+                  AND COALESCE(p.source, 'goldgen') != 'manual'
                   AND julianday(p.timestamp) BETWEEN julianday('now','-30 days') AND julianday('now')
             ''')])
         finally:

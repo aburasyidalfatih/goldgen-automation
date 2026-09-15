@@ -50,7 +50,7 @@ def artwork_prompt(topic, plan):
 Create ONLY the illustration for a professionally typeset vertical educational poster.
 NO TEXT anywhere: no letters, numbers, labels, symbols resembling writing, titles,
 watermarks, legends or fake handwriting. The application adds all text afterwards.
-Fill the portrait image with the illustration; keep key objects inside 5% safe margins.
+Fill the square image edge to edge with the illustration; keep key objects inside 5% safe margins.
 Use the content below ONLY as semantic reference, never copy its words into the image.
 Do not reserve blank text panels. Labels will appear in a separate reader key below.
 Depict only caption-supported mechanisms; never add chemical extraction instructions.
