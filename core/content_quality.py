@@ -34,6 +34,15 @@ class ContentQualityError(ValueError):
 # explicit and consistent with the displayed score.
 IMAGE_MIN_SCORE = 6.5
 
+# Frasa yang tidak boleh muncul di permintaan gambar. Dipindai oleh
+# _preflight_image_plan di auto_poster.py.
+#
+# Dijadikan satu konstanta agar bisa diuji terhadap katalog layout. Dulu daftar
+# ini tertanam di dalam fungsi, dan tidak ada yang menyadari bahwa deskripsi
+# THE PROSPECTOR'S MAP memuat salah satunya — sehingga layout itu selalu
+# menjegal dirinya sendiri sampai gagal terbit.
+FORBIDDEN_IMAGE_TERMS = ('guaranteed gold', 'guaranteed deposit', 'chemical extraction')
+
 
 def valid_score(value):
     if isinstance(value, bool):

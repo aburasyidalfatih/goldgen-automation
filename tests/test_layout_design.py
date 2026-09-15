@@ -16,6 +16,21 @@ class LayoutDesignTests(unittest.TestCase):
         self.assertIn('FLAT VECTOR',vector)
         self.assertNotIn('Clean, technical, high-resolution photography',vector)
 
+    def test_no_layout_trips_the_preflight_filter_with_its_own_words(self):
+        """THE PROSPECTOR'S MAP dulu memuat frasa "guaranteed deposits".
+
+        Frasa itu persis salah satu istilah yang dipindai _preflight_image_plan,
+        jadi layout itu menjegal dirinya sendiri: arahan seni ditolak, prompt
+        dasar ditolak, jatuh ke poster PIL, lalu ditahan gerbang publikasi.
+        Setiap postingan pada layout itu gagal total, tanpa satu pun pesan yang
+        menyebut bahwa penyebabnya adalah deskripsi layout itu sendiri.
+        """
+        from core.content_quality import FORBIDDEN_IMAGE_TERMS
+        for name in DESIGNS:
+            teks = execution({'layout': name}).lower()
+            kena = [t for t in FORBIDDEN_IMAGE_TERMS if t in teks]
+            self.assertEqual([], kena, f'{name} memuat {kena}')
+
     def test_artwork_prompt_does_not_instruct_the_model_to_typeset(self):
         p=artwork_prompt({'layout':'MODERN INDUSTRIAL','headline':'River deposits'}, {'labels':['Black sand']})
         self.assertIn('NO TEXT anywhere',p)

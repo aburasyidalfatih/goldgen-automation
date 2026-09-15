@@ -13,7 +13,12 @@ DESIGNS = {
  'BEFORE & AFTER': ('#eee6d4', '#23352f', '#ad7e34', 'Two balanced views of the SAME location from the SAME camera angle, separated vertically into left and right panels. Only caption-supported differences; matching scale, horizon and lighting.'),
  "THE GEOLOGIST'S NOTEBOOK": ('#f4ecdc', '#22332a', '#ad7d32', 'Vintage expedition journal on aged parchment paper. Highly detailed watercolor and ink scientific illustration of river deposition or mineral contact zones. Authentic naturalist plate aesthetic.'),
  '3D BLOCK DIAGRAM': ('#f4eedd', '#1f2d27', '#b58832', 'Cinematic photorealistic 3D National Geographic environmental cutaway render filling the frame edge to edge. Crystal-clear flowing mountain stream with sunlight caustics, stratified gravel and cobbles, deep black magnetite sand paystreak layer, and fractured bedrock traps containing gleaming raw gold nuggets. Rich cinematic daylight, 8K realistic textures, high dynamic range. Absolutely NO floating white background cubes, NO line art, NO flat vector sketches.'),
- "THE PROSPECTOR'S MAP": ('#eae6d0', '#263d35', '#af7a2b', 'One readable conceptual terrain map with a dominant blue stream, restrained contours and sparse observation locations. No invented coordinates, treasure X marks or guaranteed deposits.'),
+ # "guaranteed deposits" DIHAPUS dari kalimat ini dengan sengaja. Frasa itu
+ # persis salah satu istilah terlarang yang dipindai _preflight_image_plan,
+ # sehingga layout ini menjegal dirinya sendiri: arahan seni ditolak, prompt
+ # dasar ditolak, lalu jatuh ke poster PIL yang kini ditahan gerbang publikasi.
+ # Akibatnya setiap postingan THE PROSPECTOR'S MAP gagal total.
+ "THE PROSPECTOR'S MAP": ('#eae6d0', '#263d35', '#af7a2b', 'One readable conceptual terrain map with a dominant blue stream, restrained contours and sparse observation locations. No invented coordinates, treasure X marks, or claims that a spot is proven.'),
  'TOOLKIT FLATLAY': ('#e8e0cd', '#263932', '#aa7a30', 'Premium overhead field-tool arrangement with one hero item and at most four supporting objects actually relevant to the topic. Natural soft shadows, orderly spacing, no decorative gear border.'),
  'VICTORIAN WOODCUT': ('#f0e2c4', '#302e24', '#ac7935', 'One strong historical engraved geological scene. Dense hatching only in shadow areas, open highlights, crisp silhouettes and very restrained gold accents. Avoid uniform visual noise.'),
  'MODERN INDUSTRIAL': ('#e9ebe5', '#23343a', '#c5752c', 'One clean technical editorial scene about the APPROVED TOPIC. Use graphite, mineral neutrals and restrained orange accents. Include machinery only if the caption actually discusses it; no generic equipment montage or SAFETY header.'),
@@ -33,14 +38,19 @@ def execution(topic):
         mode = {'micro': 'Make one mineral specimen the main subject instead of a landscape; show schematic microscopic details only.',
                 'journey': 'Show a connected source-to-slope-to-valley section.',
                 'cutaway': 'Show the surface in the upper fifth of the illustration and a dominant section below.'}.get(topic.get('visual_mode', 'cutaway'), '')
+    # Palet {bg}/{ink}/{accent} SENGAJA tidak dikirim ke model gambar. Itu palet
+    # POSTER-nya, yang digambar PIL (lihat design() di core/poster_renderer.py).
+    # Menyuruh model memakai latar krem membuat ilustrasinya ikut pucat dan
+    # seragam, padahal ia hanya menempati kotak di tengah poster.
+    #
+    # Larangan "jangan mengarang kedalaman, skala, koordinat, angka recovery"
+    # juga dibuang dari sini: semuanya berupa TEKS, dan gambar ini memang tidak
+    # boleh memuat teks sama sekali.
     return f'''VISUAL EXECUTION ({DESIGN_VERSION}):
 {composition}
 {mode}
-Palette: background {bg}, dark/light contrast {ink}, restrained accent {accent}.
-Keep one dominant focal subject and a clear reading path. No redundant panels.
-Use gold only where supported by the topic, at illustrative abundance, never in every layer.
-Do not invent numerical depths, scale bars, coordinates, recovery rates or guarantees.
-Respect topic-specific limitations. Simplify decoration before shrinking meaningful detail.
+Keep one dominant focal subject and a clear reading path.
+Use gold only where the topic supports it, at illustrative abundance.
 '''
 
 
@@ -52,21 +62,29 @@ def artwork_prompt(topic, plan):
     # bertentangan dalam satu prompt membuat model memilih salah satu secara
     # acak — persis kegagalan yang dulu terjadi saat daftar hook generik
     # tampil berdampingan dengan hook yang diwajibkan.
+    # Blok ini dipangkas dari 14 baris menjadi 5. Yang dibuang bukan aturan
+    # sembarangan, melainkan aturan yang mengurusi TEKS pada gambar yang sudah
+    # dilarang bertekst:
+    #
+    # - "jangan menyisakan panel teks kosong", "label muncul di reader key" —
+    #   sudah tercakup oleh NO TEXT
+    # - "jangan menambahkan instruksi ekstraksi kimia" — itu urusan caption, dan
+    #   menyebutnya di sini malah memasukkan gagasan itu ke konteks visual
+    # - aturan urutan kuis A-D — dikirim ke SEMUA layout padahal
+    #   GAMIFICATION_QUIZ sudah dipensiunkan, dan ia menyuruh model berpikir
+    #   dalam empat panel, persis melawan "one dominant focal subject"
+    # - dua kalimat "fill edge to edge" yang saling menduplikasi
     return execution(topic) + '\n' + artwork_style() + '''
-Create ONLY the illustration for a professionally typeset vertical educational poster.
-Fill the entire square image edge to edge with a complete scene.
-NEVER render an isolated object floating in empty whitespace, blank white background, or floating isolated cubes.
-Always embed the cutaway or subject within a full natural environment with real depth, lighting and texture.
-NO TEXT anywhere: no letters, numbers, labels, symbols resembling writing, titles,
-subtitles, watermarks, legends, pointer lines, arrows, callout boxes, or fake handwriting.
-The application adds all typography, numbered badges, and labels in post-processing.
-Fill the square image edge to edge with the illustration; keep key objects inside 5% safe margins.
-Use the content below ONLY as semantic reference for visual features to paint, never copy words into the image.
-Do not reserve blank text panels. Labels will appear in a separate reader key below.
-Depict only caption-supported mechanisms; never add chemical extraction instructions.
-Quiz alternatives must match the approved caption, in reading order: top-left,
-top-right, bottom-left, bottom-right. The application adds A-D markers afterwards.
+Create ONLY the illustration; the application typesets the poster around it afterwards.
+NO TEXT anywhere: no letters, numbers, labels, watermarks, legends, pointer lines,
+callout boxes or fake handwriting.
+Fill the square frame edge to edge with one complete scene set in a real environment
+with depth, lighting and texture, never an object floating on blank background.
+Keep key subjects inside 5% safe margins.
+Use the content below only as reference for what to paint.
 ''' + json.dumps({'topic': topic.get('headline'), 'caption': topic.get('approved_caption'),
                  'points': topic.get('list_points'), 'visual_mode': topic.get('visual_mode'),
-                 'reader_key': plan.get('labels', []),
+                 # Dinamai "features_to_depict", bukan "reader_key": ini daftar
+                 # benda yang harus TAMPAK, bukan legenda yang harus ditulis.
+                 'features_to_depict': plan.get('labels', []),
                  'art_direction': plan.get('art_direction', {})}, ensure_ascii=True)

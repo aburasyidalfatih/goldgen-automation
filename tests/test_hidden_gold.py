@@ -86,7 +86,11 @@ class HiddenGoldTests(unittest.TestCase):
                 prompt = self.service.generate_image_prompt(topic)
                 self.assertIn(expected[brief['visual_mode']], prompt)
                 self.assertIn(f'At most {MAX_EXTRA_LABELS} additional labels', prompt)
-                self.assertIn('Do not invent numerical depths', prompt)
+                # Larangan mengarang angka dulu diuji lewat kalimat milik
+                # execution(). Kalimat itu dipindah keluar dari prompt gambar
+                # karena mengurusi teks, sedangkan gambar dilarang bertekst.
+                # Yang dijaga tes ini tetap sama: brief masih melarangnya.
+                self.assertIn('Do not invent fixed depths, grades, yields', prompt)
 
     def test_experiments_do_not_pair_an_unrelated_topic_with_series_layout(self):
         from core.layout_experiments import enroll

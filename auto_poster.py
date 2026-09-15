@@ -268,12 +268,16 @@ Reply ONLY with JSON:
                 print(f"   ⚠️  Prompt dasar pun ditolak: {redact(e)}, using PIL fallback...")
                 return self._generate_fallback_image(topic, fanspage_name)
 
-        image_prompt += ("\nFACTUAL REQUIREMENTS: Illustrate the approved caption below. "
-                         "Do not invent recovery percentages, guaranteed deposits, or chemical "
-                         "extraction instructions. Label schematic illustrations as illustrative. "
-                         "Quiz panels must explain the same question and answer as the caption.\n"
-                         + topic.get('approved_caption', ''))
-
+        # CATATAN: image_prompt di atas TIDAK dikirim ke model gambar. Baris di
+        # bawah menimpanya seluruhnya dengan artwork_prompt(). Yang tersisa dari
+        # tahap art director adalah isi topic['visual_plan'] — judul, label,
+        # pertanyaan, dan dict art_direction — dan itulah yang benar-benar
+        # sampai ke model.
+        #
+        # Dulu di sini ada blok "FACTUAL REQUIREMENTS" yang ditempel ke
+        # image_prompt tepat sebelum baris penimpa ini. Blok itu tidak pernah
+        # terbaca model sekali pun. Saya hapus supaya tidak terlihat seperti
+        # pengaman yang aktif.
         from core.layout_design import artwork_prompt, DESIGN_VERSION
         from core.visual_plan import safe_trim_words
         topic['visual_plan']['design_version'] = DESIGN_VERSION
@@ -366,6 +370,7 @@ Reply ONLY with JSON:
         deterministic GoldGen prompt untouched, so a scheduled post still runs.
         """
         from core.visual_plan import fallback_plan, parse_plan, render_plan
+        from core.prospecting_style import label_style
         topic['art_direction_used'] = False
         topic['visual_plan'] = fallback_plan(topic)
         evidence = {}
@@ -387,15 +392,13 @@ Preserve exactly one topic-specific discussion question of 8-14 English words
 in its own bottom box.
 Always provide exactly 4 concise reader-key labels (1 to 4 words each) to fill the 2x2 cheatsheet grid below the illustration.
 Choose light (4 labels, up to 3 words each), medium (4 labels, up to 5 words each), or detail (4 labels, up to 8 words each).
-Identify visible geological strata or features (e.g., surface water flow, stratified river gravel, magnetite paystreak, bedrock crevice trap).
+{label_style()}
 These budgets replace the base brief label limits. Self-check English spelling
 and every label against the approved caption. No new claims or quantities. Do not
 change the topic, invent controversy, or add engagement bait.
-The visual style must be cinematic, photorealistic 3D National Geographic environmental render filling the frame edge-to-edge. NEVER isolated floating cubes or blank white background.
 The application typesets the final title, labels and question. Labels form a
-reader key below the illustration, not positioned callouts. Do not refer to
-lettered alternatives except on GAMIFICATION_QUIZ, where the application adds
-A, B, C, D in reading order. Other questions must identify visible features by name.
+reader key below the illustration, not positioned callouts. Questions must
+identify visible features by name.
 
 APPROVED TOPIC: {topic.get('headline', '')}
 APPROVED CAPTION: {topic.get('approved_caption', '')}
@@ -452,7 +455,7 @@ Return JSON only:
         contains the approved content contract, rather than judging a rendered
         image after the expensive call has already happened.
         """
-        from core.content_quality import ContentQualityError
+        from core.content_quality import ContentQualityError, FORBIDDEN_IMAGE_TERMS
 
         caption = str(topic.get('approved_caption') or '').strip()
         required = {
@@ -474,8 +477,7 @@ Return JSON only:
             )
 
         lower_prompt = required['prompt'].lower()
-        forbidden = ('guaranteed gold', 'guaranteed deposit', 'chemical extraction')
-        found = [term for term in forbidden if term in lower_prompt]
+        found = [term for term in FORBIDDEN_IMAGE_TERMS if term in lower_prompt]
         if found:
             raise ContentQualityError(
                 'DITAHAN SEBELUM GENERATE: prompt memuat klaim/arah visual terlarang ('
