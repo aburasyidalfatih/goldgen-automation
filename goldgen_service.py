@@ -9,6 +9,11 @@ import json
 import random
 from pathlib import Path
 from datetime import datetime
+# Modul ini penuh print beremoji, dan core.config-lah yang membuat stdout
+# Windows sanggup menuliskannya. Tanpa impor ini jaminan itu hanya berlaku
+# kalau kebetulan ada modul lain yang mengimpornya lebih dulu — dan satu baris
+# log yang gagal cukup untuk menggagalkan seluruh siklus posting.
+import core.config  # noqa: F401
 from core.safe_log import redact
 
 # Panduan penulisan untuk tiap gaya hook.
@@ -78,6 +83,20 @@ GENERIC_HOOK_STYLES = """- "While beginners [do X], real veterans know [secret Y
 # kalimat. Jadi jumlahnya yang dibatasi, bukan sekadar dilarang "berlebihan".
 MAX_TITLE_WORDS = 6      # judul katalog: 102 dari 103 muat tanpa dipotong
 MAX_EXTRA_LABELS = 3     # label tambahan yang boleh dipilih model sendiri
+
+# Kosakata prospeksi lapangan, dipakai menyaring hasil penelusuran berita.
+#
+# Sengaja TIDAK memuat kata umum seperti "gold", "mining", "claim", atau "rush".
+# Kata-kata itu muncul di berita harga emas, sengketa tambang, dan artikel
+# sejarah — persis jenis artikel yang dulu lolos dan terbit sebagai poster.
+# Yang tersisa di sini hanya istilah yang praktis cuma dipakai orang yang
+# benar-benar membicarakan prospeksi di lapangan.
+ISTILAH_LAPANGAN = (
+    'placer', 'panning', 'gold pan', 'sluice', 'highbanker', 'dredge',
+    'nugget', 'bedrock', 'paystreak', 'pay streak', 'black sand',
+    'quartz vein', 'prospector', 'prospecting', 'metal detect',
+    'gravel bar', 'alluvial', 'hard rock', 'tailings', 'crevice',
+)
 
 def _visual_labels(topic, max_words=MAX_TITLE_WORDS):
     """Judul pendek yang dijamin boleh dirender di dalam gambar.
@@ -684,27 +703,72 @@ REPLY ONLY WITH THIS EXACT JSON FORMAT:
             return 0.0
         return score
 
-    def _get_breaking_news(self):
-        """Use duckduckgo-search to find breaking news about gold prospecting in the US"""
+    def _kata_kunci_berita(self):
+        """Ambil kata kunci prospeksi lapangan dari berita terbaru, atau None.
+
+        Dulu fungsi ini mengembalikan TOPIK UTUH langsung dari hasil pencarian:
+        judul dipatok f"BREAKING NEWS: {judul berita}", subjudul berisi potongan
+        artikel, dan tiga poin placeholder ("What this means for local
+        prospectors"). Hasilnya melewati seluruh aturan editorial kita, dan
+        sebuah resensi buku sejarah pernah terbit sebagai poster berjudul
+        "BREAKING NEWS" dengan ilustrasi sungai generik.
+
+        Sekarang berita hanya dipakai untuk memilih TEMA APA yang sedang ramai.
+        Kata kunci yang keluar selalu berasal dari kosakata di bawah, tidak
+        pernah dari kalimat beritanya — jadi tidak ada lagi nama orang, judul
+        buku, atau nama penerbit yang bisa bocor ke poster. Judul, poin, dan
+        gambarnya kemudian dibuat oleh _generate_dynamic_topic seperti topik
+        biasa, lengkap dengan rumus judul dan pemeriksaan kembar.
+        """
         try:
             from ddgs import DDGS
             with DDGS() as ddgs:
-                results = list(ddgs.news("gold prospecting OR gold rush OR gold nugget discovery USA", max_results=3))
-                if results:
-                    best_news = results[0]
-                    return {
-                        "headline": f"BREAKING NEWS: {best_news.get('title')}",
-                        "subtitle": f"Recent report from {best_news.get('source')}: {best_news.get('body')}",
-                        "list_points": [
-                            "What this means for local prospectors",
-                            "Where this took place and why it matters",
-                            "How you can learn from this discovery"
-                        ],
-                        "hook_type": "News"
-                    }
+                hasil = list(ddgs.news('gold prospecting placer nugget creek', max_results=5))
         except Exception as e:
-            print(f"⚠️ News Espionage failed: {e}")
+            print(f"   ⚠️ Penelusuran berita gagal: {redact(e)}")
+            return None
+
+        for berita in hasil:
+            teks = f"{berita.get('title', '')} {berita.get('body', '')}".lower()
+            cocok = [istilah for istilah in ISTILAH_LAPANGAN if istilah in teks]
+            # Dua istilah, bukan satu. Artikel sejarah atau harga emas hampir
+            # selalu menyerempet satu istilah; yang benar-benar membahas
+            # prospeksi lapangan menyebut beberapa sekaligus.
+            if len(cocok) >= 2:
+                kata_kunci = ' and '.join(cocok[:2])
+                print(f"   🕵️  Tema yang sedang ramai: {kata_kunci}")
+                return kata_kunci
+
+        print("   🕵️  Tidak ada berita yang benar-benar membahas prospeksi lapangan")
         return None
+
+    def _topik_dari_keyword(self, kata_kunci):
+        """Buat topik baru dari kata kunci, atau pakai topik lama yang mirip.
+
+        Return index di self.topics, atau None kalau gagal. Dipakai bersama oleh
+        jalur preferensi audiens dan jalur berita, supaya keduanya tunduk pada
+        pemeriksaan kembar yang sama — tanpa itu kolam topik membengkak dan tidak
+        ada topik yang pernah mengumpulkan cukup sampel untuk dipelajari.
+        """
+        topik_baru = self._generate_dynamic_topic(kata_kunci)
+        if not topik_baru:
+            return None
+
+        kembar = self._cari_topik_serupa(topik_baru.get('headline'))
+        if kembar is not None:
+            print(f"   ♻️  Topik serupa sudah ada, memakai yang lama: "
+                  f"{self.topics[kembar]['headline'][:50]}")
+            return kembar
+
+        self.topics.append(topik_baru)
+        self.catalog_topics.append(topik_baru)
+        print(f"   🌟 Topik baru dibuat: {topik_baru['headline'][:50]}")
+        try:
+            with open(Path(__file__).parent / 'data' / 'topics.json', 'w', encoding='utf-8') as f:
+                json.dump(self.catalog_topics, f, indent=4)
+        except Exception as e:
+            print(f"   ⚠️ Gagal menyimpan topik baru: {redact(e)}")
+        return len(self.topics) - 1
 
     def _cari_topik_serupa(self, judul, ambang=0.5):
         """Cari topik yang sudah ada dan sangat mirip dengan judul ini.
@@ -783,23 +847,8 @@ deposits, invented statistics, or universal equipment settings.
             return None
 
     def get_next_topic(self, page_id=None):
-        """Get the next topic, prioritizing breaking news if available"""
-        # News Espionage: 20% chance to check for breaking news to keep it organic
+        """Get the next topic, letting recent news steer the theme."""
         import random
-        if random.random() < 0.2:
-            print("   🕵️‍♂️ Running News Espionage...")
-            news_topic = self._get_breaking_news()
-            from core.topic_catalog import allowed
-            if news_topic and allowed(news_topic):
-                print(f"   🚨 Found breaking news: {news_topic['headline']}")
-                # Layout tetap dipilih berdasarkan performa page, bukan acak murni
-                layout, why = self._choose_layout(page_id, random.randrange(len(self.active_layouts) or 1), news_topic)
-                if layout:
-                    news_topic['layout'] = layout['name']
-                    news_topic['composition'] = layout['composition']
-                    print(f"   🎨 Layout: {layout['name']} ({why})")
-                return news_topic
-
         state_file = self.state_file
         if page_id:
             state_file = self.state_file.parent / f"topic_state_{page_id}.json"
@@ -833,12 +882,27 @@ deposits, invented statistics, or universal equipment settings.
         selected_index = current_index
         explore_mode = False
 
+        # Jalur berita: 20% kemungkinan menengok apa yang sedang ramai, lalu
+        # memakainya sebagai KATA KUNCI saja. Topiknya tetap dibuat generator
+        # biasa, jadi ia masuk ke self.topics, punya index, dan ikut tercatat
+        # di state seperti topik lain. Versi lama mengembalikan topik utuh dan
+        # langsung return dari sini, melewati seluruh pembukuan — itulah sebab
+        # postingan berita tidak pernah ikut terpelajari.
+        indeks_berita = None
+        if random.random() < 0.2:
+            print("   🕵️  Menengok berita terbaru...")
+            kata_kunci = self._kata_kunci_berita()
+            if kata_kunci:
+                indeks_berita = self._topik_dari_keyword(kata_kunci)
+
         # Jalur utama begitu ada bukti engagement per topik: Thompson Sampling
         # yang memakai preferensi audiens sebagai prior. Kalau belum ada bukti,
         # lanjut ke jalur lama (pencocokan preferensi + rotasi) di bawah.
-        performa_index = self._choose_topic_by_performance(
-            page_id, preferences, state.get('recently_used', [])
-        )
+        performa_index = None
+        if indeks_berita is None:
+            performa_index = self._choose_topic_by_performance(
+                page_id, preferences, state.get('recently_used', [])
+            )
         if performa_index is not None:
             topic = self.topics[performa_index].copy()
             layout, why = self._choose_layout(page_id, performa_index, topic)
@@ -849,7 +913,10 @@ deposits, invented statistics, or universal equipment settings.
             self._simpan_state(state_file, state, current_index, performa_index)
             return topic
 
-        if preferences:
+        if indeks_berita is not None:
+            selected_index = indeks_berita
+
+        if indeks_berita is None and preferences:
             # Exploration slot: 10% kemungkinan abaikan preferensi untuk mencegah feedback loop
             if random.random() < 0.10:
                 explore_mode = True
@@ -860,7 +927,7 @@ deposits, invented statistics, or universal equipment settings.
                 else:
                     explore_mode = False
 
-        if preferences and not explore_mode:
+        if indeks_berita is None and preferences and not explore_mode:
             # Cari topic yang paling match dengan preferences audience (token-based similarity)
             best_matches = []
             best_score = 0.0
@@ -896,24 +963,9 @@ deposits, invented statistics, or universal equipment settings.
                 # identik). Efek sampingnya fatal: hampir tiap postingan memakai
                 # topik unik, sehingga tidak ada topik yang pernah mengumpulkan
                 # cukup sampel untuk dipelajari.
-                top_keyword = preferences[0]
-                new_topic = self._generate_dynamic_topic(top_keyword)
-                if new_topic:
-                    kembar = self._cari_topik_serupa(new_topic.get('headline'))
-                    if kembar is not None:
-                        selected_index = kembar
-                        print(f"   ♻️  Topik serupa sudah ada, memakai yang lama: "
-                              f"{self.topics[kembar]['headline'][:50]}")
-                    else:
-                        self.topics.append(new_topic)
-                        self.catalog_topics.append(new_topic)
-                        selected_index = len(self.topics) - 1
-                        print(f"   🌟 Topik baru dibuat: {new_topic['headline'][:50]}")
-                        try:
-                            with open(Path(__file__).parent / 'data' / 'topics.json', 'w', encoding='utf-8') as f:
-                                json.dump(self.catalog_topics, f, indent=4)
-                        except Exception as e:
-                            print(f"   ⚠️ Gagal menyimpan topik baru: {redact(e)}")
+                indeks_baru = self._topik_dari_keyword(preferences[0])
+                if indeks_baru is not None:
+                    selected_index = indeks_baru
 
         # Get topic
         topic = self.topics[selected_index].copy()
