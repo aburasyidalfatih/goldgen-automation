@@ -26,3 +26,18 @@ class ArtDirectorTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AvoidWordingTests(unittest.TestCase):
+    """Arahan seni yang benar sempat ditolak karena menyebut apa yang ia larang."""
+
+    def test_forbidden_phrase_inside_avoid_is_neutralised_not_dropped(self):
+        from core.content_quality import FORBIDDEN_IMAGE_TERMS
+        raw = ('{"focal_subject":"river","composition_adjustment":"wide",'
+               '"avoid":"Guaranteed gold in every layer, chemical extraction hints"}')
+        plan = parse_art_direction(raw)
+        for istilah in FORBIDDEN_IMAGE_TERMS:
+            self.assertNotIn(istilah, plan['avoid'].lower(), istilah)
+        # Maksudnya harus tetap terbaca, bukan sekadar dihapus.
+        self.assertIn('every layer', plan['avoid'])
+        self.assertIn('gold', plan['avoid'].lower())

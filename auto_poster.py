@@ -30,6 +30,40 @@ except Exception as _e:
 from core.config import BASE_DIR, DATA_DIR, LOGS_DIR, IMAGES_DIR, DB_PATH, CONFIG_PATH
 from core.database import get_db_connection, init_db
 from core.art_director import render_art_direction
+
+
+def _gambar_dari_balasan(response):
+    """Semua gambar di dalam balasan Gemini, lewat jalur mana pun ia datang.
+
+    `response.parts` adalah jalan pintas SDK dan bisa kosong meski gambarnya
+    ada — misalnya ketika balasan hanya terisi di candidates[0].content.parts,
+    atau ketika bagian gambarnya berupa inline_data mentah. Membaca satu jalur
+    saja membuat gambar yang sebenarnya berhasil dibuat tetap dianggap gagal,
+    dan postingan jatuh ke poster teks tanpa ilustrasi.
+    """
+    from io import BytesIO
+
+    bagian = list(getattr(response, 'parts', None) or [])
+    if not bagian:
+        for kandidat in (getattr(response, 'candidates', None) or []):
+            isi = getattr(kandidat, 'content', None)
+            bagian.extend(getattr(isi, 'parts', None) or [])
+
+    for part in bagian:
+        gambar = None
+        try:
+            gambar = part.as_image()
+        except Exception:
+            pass
+        if gambar is None:
+            data = getattr(getattr(part, 'inline_data', None), 'data', None)
+            if data:
+                try:
+                    gambar = Image.open(BytesIO(data))
+                except Exception:
+                    continue
+        if gambar is not None:
+            yield gambar
 from core.model_catalog import image_size_for_model, normalize_image_model
 from core.safe_log import redact
 from comment_analyzer import CommentAnalyzer
@@ -313,7 +347,12 @@ Reply ONLY with JSON:
                     model=self.image_model,
                     contents=prompt_saat_ini,
                     config=types.GenerateContentConfig(
-                        response_modalities=['TEXT', 'IMAGE'],
+                        # Hanya IMAGE. Dengan TEXT ikut diizinkan, model boleh
+                        # menjawab dengan tulisan saja — dan prompt poster yang
+                        # sekarang penuh instruksi "render every word exactly as
+                        # written" justru mengundang jawaban berupa teks.
+                        # Jawaban tanpa gambar berakhir di poster cadangan PIL.
+                        response_modalities=['IMAGE'],
                         image_config=types.ImageConfig(
                             # Ilustrasi kini mengisi seluruh kanvas poster
                             # 1440x2560, jadi rasionya harus sama dengan
@@ -328,18 +367,29 @@ Reply ONLY with JSON:
                 )
 
                 image_path = None
-                for part in response.parts:
-                    if image := part.as_image():
-                        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_') + str(attempt)
-                        image_path = IMAGES_DIR / f"gold_prospecting_{timestamp}.png"
-                        image.save(str(image_path))
-                        from core.poster_renderer import stamp_watermark
-                        stamp_watermark(image_path, image_path, fanspage_name or '')
-                        print(f"   ✅ Image generated with {label}")
-                        break
+                for gambar in _gambar_dari_balasan(response):
+                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_') + str(attempt)
+                    image_path = IMAGES_DIR / f"gold_prospecting_{timestamp}.png"
+                    gambar.save(str(image_path))
+                    from core.poster_renderer import stamp_watermark
+                    stamp_watermark(image_path, image_path, fanspage_name or '')
+                    print(f"   ✅ Image generated with {label}")
+                    break
 
                 if image_path is None:
-                    print(f"   ⚠️  No image in response, using PIL fallback...")
+                    # Balasan tanpa gambar TIDAK langsung jatuh ke poster teks.
+                    # Sebelumnya begitu, dan satu balasan meleset sudah cukup
+                    # membuat postingan kehilangan ilustrasinya — padahal
+                    # percobaan berikutnya sering berhasil.
+                    #
+                    # Teks balasan ikut dicetak: di situlah alasan penolakan
+                    # model berada, dan sebelumnya dibuang begitu saja sehingga
+                    # kegagalan ini tidak bisa didiagnosis dari log.
+                    alasan = str(getattr(response, 'text', '') or '')[:200]
+                    print(f"   ⚠️  Balasan tanpa gambar (teks: {alasan})")
+                    if attempt < max_attempts - 1:
+                        time.sleep(10)
+                        continue
                     return self._generate_fallback_image(topic, fanspage_name)
 
                 skor, catatan = self._review_image(image_path, topic, fanspage_name)

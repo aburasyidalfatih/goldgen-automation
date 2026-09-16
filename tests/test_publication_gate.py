@@ -88,6 +88,49 @@ class ArtDirectionRetryTests(unittest.TestCase):
         self.assertFalse(topic.get('art_direction_used'))
 
 
+class BalasanTanpaGambarTests(unittest.TestCase):
+    """Sebuah postingan produksi terbit sebagai poster teks tanpa ilustrasi.
+
+    Penyebabnya balasan Gemini yang tidak memuat gambar di response.parts.
+    Kode lama langsung menyerah ke poster PIL pada percobaan pertama, dan
+    membuang teks balasannya sehingga alasannya tidak terbaca di log.
+    """
+
+    def test_image_is_found_when_only_candidates_carry_it(self):
+        from auto_poster import _gambar_dari_balasan
+        from PIL import Image
+
+        class Bagian:
+            def as_image(self):
+                return Image.new('RGB', (4, 4))
+
+        balasan = type('R', (), {'parts': [], 'candidates': [
+            type('C', (), {'content': type('K', (), {'parts': [Bagian()]})()})()]})()
+        self.assertEqual(1, len(list(_gambar_dari_balasan(balasan))))
+
+    def test_image_is_found_when_only_inline_data_carries_it(self):
+        from io import BytesIO
+        from auto_poster import _gambar_dari_balasan
+        from PIL import Image
+
+        buf = BytesIO()
+        Image.new('RGB', (4, 4)).save(buf, 'PNG')
+
+        class Bagian:
+            inline_data = type('D', (), {'data': buf.getvalue()})()
+
+            def as_image(self):
+                raise RuntimeError('SDK tidak mengenali bagian ini')
+
+        balasan = type('R', (), {'parts': [Bagian()], 'candidates': []})()
+        self.assertEqual(1, len(list(_gambar_dari_balasan(balasan))))
+
+    def test_a_response_with_no_image_at_all_yields_nothing(self):
+        from auto_poster import _gambar_dari_balasan
+        balasan = type('R', (), {'parts': [], 'candidates': []})()
+        self.assertEqual([], list(_gambar_dari_balasan(balasan)))
+
+
 class ImageScoreGateTests(unittest.TestCase):
     """Ambang skor gambar dihitung sejak lama tapi tidak pernah dipakai.
 
@@ -166,6 +209,34 @@ class ImageScoreGateTests(unittest.TestCase):
             path, topic = self._jalankan(poster, Path(tmp))
         self.assertEqual(1, len(self.dinilai))
         self.assertEqual(9.0, topic['image_score'])
+
+    def test_one_empty_response_does_not_cost_the_illustration(self):
+        """Percobaan berikutnya sering berhasil. Menyerah pada percobaan
+        pertama menukar satu balasan meleset dengan poster tanpa gambar, yang
+        justru ditahan gerbang publikasi sehingga postingannya hilang."""
+        import tempfile
+        from pathlib import Path
+        from PIL import Image
+        poster = self._poster([8.0])
+        self.kosong_dulu = [True, False]
+
+        def gemini(**_):
+            kosong = self.kosong_dulu.pop(0)
+
+            class Bagian:
+                def as_image(self):
+                    return None if kosong else Image.new('RGB', (8, 8))
+
+            return type('C', (), {'models': type('M', (), {
+                'generate_content': staticmethod(
+                    lambda **k: type('R', (), {'parts': [Bagian()], 'candidates': [],
+                                               'text': 'maaf'})())})()})()
+
+        self.gemini = gemini
+        with tempfile.TemporaryDirectory() as tmp:
+            path, topic = self._jalankan(poster, Path(tmp))
+        self.assertEqual(8.0, topic['image_score'])
+        self.assertEqual(1, len(self.dinilai))
 
     def test_when_every_attempt_is_poor_the_best_one_is_kept(self):
         """Gambar Gemini yang belum sempurna tetap lebih baik daripada poster

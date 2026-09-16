@@ -22,11 +22,23 @@ def parse_art_direction(raw):
     except (TypeError, ValueError):
         return None
 
+    # Kolom "avoid" berisi hal yang justru HARUS dihindari, jadi wajar kalau
+    # art director menuliskan "guaranteed gold" di sana. Sialnya frasa itu
+    # persis yang dipindai _preflight_image_plan, sehingga arahan seni yang
+    # benar ditolak gara-gara menyebut apa yang ia larang. Kata-katanya
+    # dinetralkan tanpa mengubah maksudnya; maknanya tetap "jangan gambarkan
+    # emas sebagai kepastian".
+    avoid = _short_text(data.get("avoid"), 220)
+    for frasa, ganti in (("guaranteed gold", "certain gold"),
+                         ("guaranteed deposit", "certain deposit"),
+                         ("chemical extraction", "chemical processing")):
+        avoid = re.sub(re.escape(frasa), ganti, avoid, flags=re.IGNORECASE)
+
     fields = {
         "focal_subject": _short_text(data.get("focal_subject"), 180),
         "composition_adjustment": _short_text(data.get("composition_adjustment"), 300),
         "palette_and_contrast": _short_text(data.get("palette_and_contrast"), 180),
-        "avoid": _short_text(data.get("avoid"), 220),
+        "avoid": avoid,
     }
     labels = []
     for value in data.get("label_plan", []) if isinstance(data.get("label_plan"), list) else []:
