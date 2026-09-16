@@ -43,6 +43,37 @@ IMAGE_MIN_SCORE = 6.5
 # menjegal dirinya sendiri sampai gagal terbit.
 FORBIDDEN_IMAGE_TERMS = ('guaranteed gold', 'guaranteed deposit', 'chemical extraction')
 
+# Model teks menulis dalam Markdown karena itu kebiasaannya, sementara Facebook
+# tidak merender apa pun: "**learn to read the**" terbit apa adanya, lengkap
+# dengan bintangnya. Model gambar juga menerima teks yang sama, dan di poster ia
+# menafsirkan bintang itu sebagai perintah menebalkan sebagian kalimat.
+#
+# Tanda diurutkan dari yang paling panjang: ** harus diproses sebelum *, kalau
+# tidak, aturan miring akan memakan separuh penanda tebal dan menyisakan bintang
+# tunggal yang justru lebih berantakan.
+_MARKDOWN = (
+    (re.compile(r'\*\*(?=\S)([^*]+?)(?<=\S)\*\*'), r'\1'),
+    (re.compile(r'__(?=\S)([^_]+?)(?<=\S)__'), r'\1'),
+    # (?=\S) menjaga "5 * 3" dan butir daftar "* item" tetap utuh: keduanya
+    # punya spasi tepat setelah bintang.
+    (re.compile(r'\*(?=\S)([^*\n]+?)(?<=\S)\*'), r'\1'),
+    (re.compile(r'(?<![A-Za-z0-9_])_(?=\S)([^_\n]+?)(?<=\S)_(?![A-Za-z0-9_])'), r'\1'),
+    (re.compile(r'`{1,3}([^`]+)`{1,3}'), r'\1'),
+    (re.compile(r'^\s{0,3}#{1,6}\s+', re.M), ''),
+    (re.compile(r'\[([^\]]+)\]\([^)]*\)'), r'\1'),
+    # Sisa penanda yang tidak berpasangan. Tidak ada caption Facebook yang
+    # benar-benar bermaksud menampilkan dua bintang berturut-turut.
+    (re.compile(r'\*\*+'), ''),
+)
+
+
+def strip_markdown(text):
+    """Buang penanda Markdown dari teks yang akan dilihat manusia."""
+    hasil = str(text or '')
+    for pola, ganti in _MARKDOWN:
+        hasil = pola.sub(ganti, hasil)
+    return hasil
+
 
 def valid_score(value):
     if isinstance(value, bool):

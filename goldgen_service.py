@@ -1111,7 +1111,11 @@ Use it only when consistent with the requirements above:
                     model=self.model,
                     contents=current_prompt
                 )
-                caption = self._enforce_hashtag_limit(response.text.strip(), max_tags=4)
+                # Dibersihkan sebelum editor menilainya, bukan sesudah, supaya
+                # yang dinilai adalah teks yang benar-benar dibaca orang.
+                from core.content_quality import strip_markdown
+                caption = self._enforce_hashtag_limit(
+                    strip_markdown(response.text.strip()), max_tags=4)
 
                 # Editor review — ikut memeriksa kepatuhan gaya hook
                 review = self._editor_review(caption, requested_hook=requested_hook)

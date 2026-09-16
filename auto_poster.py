@@ -697,6 +697,12 @@ Return JSON only:
             print(f"   ❌ {error}")
             return None, error
         
+        # Facebook tidak merender Markdown. Dibersihkan di sini, bukan di
+        # generate_caption, karena inilah satu-satunya pintu menuju Facebook —
+        # postingan terjadwal, manual, dan percobaan ulang semuanya lewat sini.
+        from core.content_quality import strip_markdown
+        content = strip_markdown(content)
+
         # Facebook Feeling/Activity IDs (official)
         feelings = {
             'excited': '115',

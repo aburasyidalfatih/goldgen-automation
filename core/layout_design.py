@@ -69,13 +69,17 @@ def poster_prompt(topic, plan):
     Sekarang gambar ini ADALAH posternya, jadi paletnya memang miliknya.
     """
     from core.prospecting_style import ONE_SECOND_TEST, VISUAL_DNA
+    from core.content_quality import strip_markdown
     bg, ink, accent, composition = design(topic.get('layout'))
     arah = plan.get('art_direction') or {}
     mode = execution(topic).splitlines()[2:3]
-    poin = '\n'.join(f'- {p}' for p in (topic.get('list_points') or [])[:5])
-    judul = topic.get('headline') or ''
-    subjudul = topic.get('subtitle') or ''
-    header = topic.get('list_header') or 'FIELD INDICATORS'
+    # Penanda Markdown dibuang juga di sini. Model gambar menafsirkan ** sebagai
+    # perintah menebalkan, sehingga sebagian kalimat subjudul terbit lebih tebal
+    # tanpa alasan editorial apa pun.
+    poin = '\n'.join(f'- {strip_markdown(p)}' for p in (topic.get('list_points') or [])[:5])
+    judul = strip_markdown(topic.get('headline') or '')
+    subjudul = strip_markdown(topic.get('subtitle') or '')
+    header = strip_markdown(topic.get('list_header') or '') or 'FIELD INDICATORS'
 
     return f'''Create a VERTICAL EDUCATIONAL INFOGRAPHIC POSTER about GOLD PROSPECTING.
 
