@@ -21,6 +21,21 @@ def pending(page_id, layouts):
             if {0,1}.issubset(done):
                 continue
             payload = json.loads(plan['payload'])
+            # Legacy failures lost experiment IDs. Match their exact caption
+            # too, so an old stuck experiment does not resume after deployment.
+            failures = conn.execute('''SELECT COUNT(*), MAX(timestamp) FROM posts
+                WHERE page_id=? AND status='failed' AND
+                (experiment_id=? OR (experiment_id IS NULL AND content=?
+                 AND julianday(timestamp)>=julianday(?)))''',
+                (page_id, plan['id'], payload['topic'].get('approved_caption', ''), plan['created_at'])).fetchone()
+            if failures[0] >= 2:
+                continue
+            if failures[1]:
+                stamp = datetime.fromisoformat(failures[1])
+                if stamp.tzinfo is None:
+                    stamp = stamp.replace(tzinfo=timezone.utc)
+                if (datetime.now(timezone.utc)-stamp).total_seconds() < 21600:
+                    continue
             from core.topic_catalog import allowed, MARKETING
             if not allowed(payload['topic']) or MARKETING.search(payload['topic'].get('approved_caption','')):
                 return None

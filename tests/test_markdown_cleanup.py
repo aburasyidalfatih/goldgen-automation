@@ -77,6 +77,8 @@ class FacebookPathTests(unittest.TestCase):
         # Pengiriman dihentikan tepat setelah payload terbentuk; yang diperiksa
         # hanya teks yang sudah siap berangkat ke Facebook.
         with patch.object(poster, 'validate_token', return_value=(True, None)), \
+                patch('core.generation_reliability.load_review', return_value={'caption_approved': True, 'image_score': 9}), \
+                patch('core.generation_reliability.clock_ready', return_value=True), \
                 patch('auto_poster.requests.post', side_effect=kirim), \
                 patch('builtins.open'), patch('time.sleep'), \
                 self.assertRaises(RuntimeError):

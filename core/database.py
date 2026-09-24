@@ -193,6 +193,8 @@ def init_db():
 
     # === Auto Migration: Cek & Tambahkan Kolom yang Belum Ada ===
     migrations = [
+        ('post_queue', 'attempts', 'INTEGER NOT NULL DEFAULT 0'),
+        ('post_queue', 'next_attempt_at', 'TEXT'),
         ('topic_preferences', 'last_updated', 'DATETIME'),
         ('topic_preferences', 'page_id', 'TEXT'),
         ('posts', 'layout_name', 'TEXT'),
@@ -379,5 +381,12 @@ def init_db():
               )
     ''')
 
+    from core.generation_reliability import init_schema
+    init_schema(conn)
+    from core.safe_log import redact
+    for row_id, message in conn.execute("SELECT id,error_message FROM posts WHERE error_message IS NOT NULL").fetchall():
+        clean = redact(message)
+        if clean != message:
+            conn.execute('UPDATE posts SET error_message=? WHERE id=?', (clean, row_id))
     conn.commit()
     conn.close()

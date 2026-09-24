@@ -70,7 +70,7 @@ class ArtDirectionRetryTests(unittest.TestCase):
 
         def preflight(_topic, prompt):
             seen.append(prompt)
-            if prompt != 'BASE PROMPT':
+            if prompt.endswith(' +ART'):
                 raise ContentQualityError('klaim terlarang (guaranteed gold)')
 
         # Image generation is out of scope here; stop it immediately so the test
@@ -79,12 +79,13 @@ class ArtDirectionRetryTests(unittest.TestCase):
                 patch.object(poster, '_preflight_image_plan', side_effect=preflight), \
                 patch.object(poster, '_generate_fallback_image', return_value='fallback.png'), \
                 patch('google.genai.Client', side_effect=RuntimeError('stop here')), \
-                patch('time.sleep'):
+                patch('core.generation_reliability.event'), patch('time.sleep'):
             poster.generate_image(topic, 'Page', 'pid')
 
         # The art layer was tried twice, then the safe deterministic prompt was
         # accepted for generation instead of the illustration being abandoned.
-        self.assertEqual(['BASE PROMPT +ART', 'BASE PROMPT +ART', 'BASE PROMPT'], seen)
+        self.assertEqual(['BASE PROMPT +ART', 'BASE PROMPT +ART', 'BASE PROMPT'], seen[:3])
+        self.assertIn('END OF PRINTABLE COPY', seen[3])
         self.assertFalse(topic.get('art_direction_used'))
 
 
@@ -173,6 +174,7 @@ class ImageScoreGateTests(unittest.TestCase):
                 patch('core.poster_renderer.stamp_watermark', side_effect=simpan), \
                 patch('core.content_feedback.save_feedback'), \
                 patch('core.visual_plan.save_plan'), \
+                patch('core.generation_reliability.event'), \
                 patch('auto_poster.IMAGES_DIR', tmp), \
                 patch('google.genai.Client', side_effect=self.gemini), \
                 patch('time.sleep'):

@@ -106,8 +106,12 @@ def trigger_post():
     def run_poster():
         try:
             from auto_poster import GoldGenAutoPoster
-            poster = GoldGenAutoPoster()
-            poster.force_post(page_id)
+            from core.locks import ProcessLock
+            with ProcessLock('poster') as lock:
+                if not lock.acquired:
+                    return
+                poster = GoldGenAutoPoster()
+                poster.force_post(page_id)
         except Exception as e:
             print(f"Manual post trigger error: {e}")
             
@@ -122,8 +126,12 @@ def retry_post(post_id):
     """Retry an already-generated failed post without generating new content."""
     try:
         from auto_poster import GoldGenAutoPoster
-        poster = GoldGenAutoPoster()
-        success, result = poster.retry_existing_post(post_id)
+        from core.locks import ProcessLock
+        with ProcessLock('poster') as lock:
+            if not lock.acquired:
+                return jsonify({'success': False, 'message': 'Proses posting lain masih berjalan'}), 409
+            poster = GoldGenAutoPoster()
+            success, result = poster.retry_existing_post(post_id)
         return jsonify({'success': success, 'message': result}), (200 if success else 400)
     except Exception as e:
         return jsonify({'success': False, 'error': f'{type(e).__name__}: {e}'}), 500

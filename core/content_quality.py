@@ -116,6 +116,9 @@ def require_publishable(topic):
     if topic.get('image_fallback') is True:
         raise ContentQualityError(
             'DITAHAN KUALITAS: ilustrasi gagal dibuat; poster teks tanpa gambar tidak diterbitkan')
-    # Image quality is screened before generation. The post-generation vision
-    # score is telemetry and a safety signal, not a publication gate: a
-    # borderline reviewer score must not waste an already generated image.
+    score = valid_score(topic.get('image_score'))
+    if score is None:
+        raise ContentQualityError('DITAHAN KUALITAS: gambar menunggu pemeriksaan; ulangi pemeriksaan gambar yang tersimpan')
+    if score < IMAGE_MIN_SCORE:
+        raise ContentQualityError(f'DITAHAN KUALITAS: skor gambar {score:g} di bawah {IMAGE_MIN_SCORE:g}; generate ulang')
+    # A successful HTTP response is not an approval of the resulting artwork.

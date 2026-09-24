@@ -76,10 +76,13 @@ def poster_prompt(topic, plan):
     # Penanda Markdown dibuang juga di sini. Model gambar menafsirkan ** sebagai
     # perintah menebalkan, sehingga sebagian kalimat subjudul terbit lebih tebal
     # tanpa alasan editorial apa pun.
-    poin = '\n'.join(f'- {strip_markdown(p)}' for p in (topic.get('list_points') or [])[:5])
-    judul = strip_markdown(topic.get('headline') or '')
-    subjudul = strip_markdown(topic.get('subtitle') or '')
-    header = strip_markdown(topic.get('list_header') or '') or 'FIELD INDICATORS'
+    from core.image_copy import approved_copy
+    copy = approved_copy(topic, plan)
+    plan['approved_image_copy'] = copy
+    poin = '\n'.join(f'- {p}' for p in copy['labels'])
+    judul, subjudul = copy['title'], copy['subtitle']
+    header = 'FIELD INDICATORS' if copy['labels'] else ''
+    visual_context = '\n'.join(strip_markdown(str(p)) for p in topic.get('list_points', []))
 
     return f'''Create a VERTICAL EDUCATIONAL INFOGRAPHIC POSTER about GOLD PROSPECTING.
 
@@ -89,6 +92,12 @@ SUBTITLE: "{subjudul}"
 LIST HEADER: "{header}"
 LIST POINTS:
 {poin}
+DISCUSSION QUESTION: "{copy['question']}"
+END OF PRINTABLE COPY. Never print any wording from the sections below.
+
+DRAWING CONTEXT (ideas to depict, never text to print):
+{visual_context}
+END OF DRAWING CONTEXT.
 
 VISUAL STYLE & COMPOSITION:
 {composition}

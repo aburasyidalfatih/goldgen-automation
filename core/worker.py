@@ -4,6 +4,9 @@ import pytz
 from apscheduler.schedulers.background import BackgroundScheduler
 
 from core.locks import ProcessLock
+from core.safe_log import capture_output
+
+capture_output()
 
 # Setup basic logging for the scheduler
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')

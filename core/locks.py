@@ -28,9 +28,9 @@ class ProcessLock:
         try:
             self._handle = open(self.path, 'w')
         except Exception:
-            # Kalau file lock tidak bisa dibuka, jangan blokir pekerjaan utama
-            self.acquired = True
-            return True
+            # Publishing without a lock can duplicate a post. Fail closed.
+            self.acquired = False
+            return False
 
         try:
             import fcntl

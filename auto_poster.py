@@ -1098,6 +1098,7 @@ Return JSON only:
                 # Post to Facebook
                 print("   Posting to Facebook...")
                 slot_status = 'uncertain'
+                finish_slot(fanspage['page_id'], slot, 'uncertain')
                 fb_post_id, error = self.post_to_facebook(fanspage, content, image_path, single_attempt=True)
                 
                 if fb_post_id:
@@ -1121,7 +1122,8 @@ Return JSON only:
                 print(f"   ❌ {error_msg}\n")
                 traceback.print_exc()
                 event(fanspage['page_id'], topic, 'generation_failed', error_msg)
-                self.log_post(fanspage, content, str(image_path or ''), None, 'failed', error_msg,
+                self.log_post(fanspage, content, str(image_path or ''), None,
+                              'retrying' if slot_status == 'uncertain' else 'failed', error_msg,
                               layout_name=topic.get('layout'), hook_type=topic.get('hook_type'),
                               topic_id=topic.get('id'), topic_headline=topic.get('headline'),
                               image_score=topic.get('image_score'), experiment_id=topic.get('experiment_id'),
@@ -1159,6 +1161,7 @@ Return JSON only:
     
     def force_post(self, target_page_id):
         caption, image_path, topic = '', None, {}
+        sending = False
         """Force a post to a specific fanspage regardless of schedule or queue"""
         print(f"[{datetime.now()}] Starting forced manual post for {target_page_id}...")
         
@@ -1207,7 +1210,8 @@ Return JSON only:
             require_publishable(topic)
 
             print("   Posting to Facebook...")
-            fb_post_id, error = self.post_to_facebook(target_fanspage, caption, image_path)
+            sending = True
+            fb_post_id, error = self.post_to_facebook(target_fanspage, caption, image_path, single_attempt=True)
             
             if fb_post_id:
                 print(f"   ✅ Success! Post ID: {fb_post_id}")
@@ -1231,7 +1235,8 @@ Return JSON only:
             print(f"   ❌ {error_msg}\n")
             traceback.print_exc()
             event(target_page_id, topic, 'generation_failed', error_msg)
-            self.log_post(target_fanspage, caption, str(image_path or ''), None, 'failed', error_msg,
+            self.log_post(target_fanspage, caption, str(image_path or ''), None,
+                          'retrying' if sending else 'failed', error_msg,
                           layout_name=topic.get('layout'), topic_id=topic.get('id'),
                           topic_headline=topic.get('headline'), image_score=topic.get('image_score'))
             return False, error_msg
@@ -1325,92 +1330,52 @@ Return JSON only:
         return (True, fb_post_id) if fb_post_id else (False, error)
 
     def process_queue(self):
-        """Process queued posts from web app"""
-        print("\n🔄 Checking post queue from web app...")
-        
+        """Claim each due queue item before network work; uncertain sends stay held."""
+        from core.content_quality import ContentQualityError
+        conn = get_db_connection()
         try:
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            
-            # Get pending posts
-            cursor.execute('''
-                SELECT id, page_id, content, image_path
-                FROM post_queue
-                WHERE status = 'pending'
-                ORDER BY COALESCE(scheduled_time, created_at) ASC
-                LIMIT 10
-            ''')
-            
-            queued_posts = cursor.fetchall()
-            
-            if not queued_posts:
-                print("   No queued posts found.\n")
-                conn.close()
-                return
-            
-            print(f"   Found {len(queued_posts)} queued post(s)\n")
-            
-            for post_id, page_id, caption, image_path in queued_posts:
-                # Find fanspage config
-                fanspage = None
-                for page in self.fanspages:
-                    if page['page_id'] == page_id:
-                        fanspage = page
-                        break
-                
-                if not fanspage:
-                    print(f"   ⚠️  Page ID {page_id} not found in config, skipping...")
-                    cursor.execute(
-                        'UPDATE post_queue SET status = ?, error_message = ? WHERE id = ?',
-                        ('error', f'Page ID {page_id} tidak ada di config', post_id)
-                    )
-                    continue
-                
-                if not fanspage.get('enabled', True):
-                    print(f"   ⏭️  {fanspage['name']} disabled, skipping...")
-                    continue
-                
-                print(f"   📤 Posting queued content to {fanspage['name']}...")
-                
-                try:
-                    self._review_queued_image(fanspage, caption, image_path)
-                    # Post to Facebook
-                    fb_post_id, error = self.post_to_facebook(fanspage, caption, image_path)
-                    
-                    if fb_post_id:
-                        print(f"      ✅ Success! Post ID: {fb_post_id}")
-                        
-                        # Update queue status
-                        cursor.execute('''
-                            UPDATE post_queue
-                            SET status = ?, posted_at = ?, error_message = NULL
-                            WHERE id = ?
-                        ''', ('posted', datetime.now().isoformat(), post_id))
-                        
-                        # Log to posts table
-                        self.log_post(fanspage, caption, image_path, fb_post_id, 'success')
-                        self.update_last_post_time(fanspage['page_id'])
-                    else:
-                        print(f"      ❌ Failed: {error}")
-                        cursor.execute(
-                            'UPDATE post_queue SET status = ?, error_message = ? WHERE id = ?',
-                            ('failed', redact(error)[:500], post_id)
-                        )
-                        self.log_post(fanspage, caption, image_path, None, 'failed', error)
-
-                except Exception as e:
-                    print(f"      ❌ Error: {str(e)}")
-                    cursor.execute(
-                        'UPDATE post_queue SET status = ?, error_message = ? WHERE id = ?',
-                        ('error', redact(e)[:500], post_id)
-                    )
-            
-            conn.commit()
+            rows = conn.execute("""SELECT * FROM post_queue WHERE status='pending'
+                AND datetime(COALESCE(scheduled_time,created_at)) <= datetime('now')
+                AND (next_attempt_at IS NULL OR datetime(next_attempt_at)<=datetime('now'))
+                AND attempts<3 ORDER BY id LIMIT 10""").fetchall()
+        finally:
             conn.close()
-            print()
-            
-        except Exception as e:
-            print(f"   ❌ Queue processing error: {str(e)}\n")
+        for row in rows:
+            page = next((p for p in self.fanspages if str(p['page_id'])==str(row['page_id']) and p.get('enabled',True)), None)
+            if not page:
+                continue
+            conn = get_db_connection()
+            try:
+                with conn:
+                    claimed = conn.execute("UPDATE post_queue SET status='processing',attempts=attempts+1 WHERE id=? AND status='pending'", (row['id'],)).rowcount
+            finally:
+                conn.close()
+            if not claimed:
+                continue
+            status, message, sending, fb_id = 'failed', '', False, None
+            try:
+                self._review_queued_image(page, row['content'], row['image_path'])
+                sending = True
+                fb_id, message = self.post_to_facebook(page, row['content'], row['image_path'], single_attempt=True)
+                status = 'posted' if fb_id else 'failed'
+                self.log_post(page, row['content'], row['image_path'], fb_id,
+                              'success' if fb_id else 'failed', message)
+                if fb_id:
+                    self.update_last_post_time(page['page_id'])
+            except Exception as exc:
+                message = redact(exc)
+                status = 'uncertain' if sending else 'failed'
+                if not sending and 'menunggu pemeriksaan' in message and row['attempts']+1<3:
+                    status = 'pending'
+            conn = get_db_connection()
+            try:
+                with conn:
+                    conn.execute("""UPDATE post_queue SET status=?,error_message=?,
+                        next_attempt_at=datetime('now','+15 minutes'),
+                        posted_at=CASE WHEN ?='posted' THEN datetime('now') ELSE posted_at END
+                        WHERE id=?""", (status, redact(message)[:500] if message else None,status,row['id']))
+            finally:
+                conn.close()
 
     def _review_queued_image(self, page, caption, image_path):
         from core.content_quality import caption_issues, require_publishable, ContentQualityError
