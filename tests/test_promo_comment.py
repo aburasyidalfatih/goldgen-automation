@@ -6,8 +6,27 @@ from unittest.mock import MagicMock, patch
 
 from core import database
 from core import promo_comment
-from core.promo_comment import (PROMO_LINE, audience_comments, send_pending_promo_comments,
+from core.promo_comment import (FALLBACK_SENTENCES, PROMO_URL, audience_comments,
+                                clean_sentence, promo_message, send_pending_promo_comments,
                                 send_promo_comment)
+
+
+class PromoSentenceTests(unittest.TestCase):
+    def test_model_quirks_are_cleaned(self):
+        self.assertEqual('Ready for your first flake', clean_sentence('"**Ready for your first flake**:"'))
+
+    def test_unsafe_or_long_sentences_are_rejected(self):
+        for buruk in ('See https://evil.example', 'Visit bit.ly/x now', 'Guaranteed gold in 7 trips',
+                      'Two lines\nof text', 'Nice #gold', 'x' * 121, '', None):
+            self.assertIsNone(clean_sentence(buruk), buruk)
+
+    def test_link_always_comes_from_code(self):
+        self.assertEqual('Start here: ' + PROMO_URL, promo_message('p1', 'Start here'))
+        self.assertTrue(promo_message('p1', 'See www.other.com').endswith(PROMO_URL))
+
+    def test_fallback_rotates_across_posts(self):
+        pesan = {promo_message(f'post{i}') for i in range(40)}
+        self.assertGreater(len(pesan), 1)
 
 
 def _ok(comment_id='c1'):
@@ -43,12 +62,22 @@ class PromoCommentTests(unittest.TestCase):
         finally:
             conn.close()
 
-    def test_comment_carries_the_promo_line(self):
+    def test_comment_uses_the_gemini_sentence_and_the_fixed_link(self):
+        compose = MagicMock(return_value='Reading the river well? Take it further')
         with patch.object(promo_comment.requests, 'post', return_value=_ok()) as kirim:
-            self.assertEqual(('c1', None), send_promo_comment('p1', 'token'))
+            self.assertEqual(('c1', None), send_promo_comment('p1', 'token', compose, 'caption'))
+        compose.assert_called_once_with('caption')
         self.assertTrue(kirim.call_args.args[0].endswith('/p1/comments'))
-        self.assertEqual(PROMO_LINE, kirim.call_args.kwargs['data']['message'])
+        self.assertEqual('Reading the river well? Take it further: ' + PROMO_URL,
+                         kirim.call_args.kwargs['data']['message'])
         self.assertEqual('c1', self.promo_id('p1'))
+
+    def test_gemini_failure_falls_back_instead_of_skipping(self):
+        with patch.object(promo_comment.requests, 'post', return_value=_ok()) as kirim:
+            send_promo_comment('p1', 'token', MagicMock(side_effect=RuntimeError('503')))
+        pesan = kirim.call_args.kwargs['data']['message']
+        self.assertIn(pesan[:-len(': ' + PROMO_URL)], FALLBACK_SENTENCES)
+        self.assertTrue(pesan.endswith(PROMO_URL))
 
     def test_promo_is_never_sent_twice(self):
         with patch.object(promo_comment.requests, 'post', return_value=_ok()) as kirim:
@@ -101,8 +130,8 @@ class PosterWiringTests(unittest.TestCase):
         from auto_poster import GoldGenAutoPoster
         poster = GoldGenAutoPoster.__new__(GoldGenAutoPoster)
         with patch('core.promo_comment.send_promo_comment', side_effect=RuntimeError('x')) as kirim:
-            poster._send_promo_comment({'access_token': 't'}, 'p1')
-        kirim.assert_called_once_with('p1', 't')
+            poster._send_promo_comment({'access_token': 't'}, 'p1', 'caption')
+        kirim.assert_called_once_with('p1', 't', poster._compose_promo, 'caption')
 
 
 if __name__ == '__main__':

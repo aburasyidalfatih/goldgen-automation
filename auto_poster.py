@@ -175,6 +175,7 @@ class GoldGenAutoPoster:
         pemeriksaan akhir publikasi akan menahan gambar yang belum dinilai.
         """
         import re
+        topic.pop('visual_feedback', None)
         if not image_path or not os.path.exists(str(image_path)):
             return None, 'file gambar tidak ada'
 
@@ -189,7 +190,7 @@ INTENDED TOPIC: {judul}
 INTENDED LAYOUT: {layout}
 INTENDED COMPOSITION: {komposisi}
 CAPTION TO ILLUSTRATE: {topic.get('approved_caption', '')}
-APPROVED IMAGE COPY AND DENSITY: {json.dumps(topic.get('visual_plan', {}))}
+APPROVED IMAGE COPY: {json.dumps(topic.get('visual_plan', {}).get('approved_image_copy', {}))}
 FACTUAL LIMITS: {FACT_CONTEXT}
 
 The image model renders ALL of this poster's typography, so spelling is the
@@ -238,7 +239,16 @@ Reply ONLY with JSON:
                 {"text": prompt},
                 {"inlineData": {"mimeType": "image/png", "data": encoded}}
             ]}]}
-            response = requests.post(url, json=payload, timeout=90)
+            from core.generation_reliability import event
+            response = None
+            for review_attempt in range(3):
+                response = requests.post(url, json=payload, timeout=90)
+                if response.status_code not in (429, 500, 502, 503, 504):
+                    break
+                event(topic.get('_visual_page_id'), topic, 'review_retry',
+                      f'HTTP {response.status_code}', review_attempt+1, self.text_model)
+                if review_attempt < 2:
+                    time.sleep(5 * (review_attempt+1))
             data = response.json()
 
             if 'candidates' not in data:
@@ -270,6 +280,7 @@ Reply ONLY with JSON:
     def generate_image(self, topic, fanspage_name=None, page_id=None):
         """Generate educational infographic using Gemini image model"""
         topic['_visual_page_id'] = page_id
+        from core.generation_reliability import event
         topic['image_score'] = None
         # Prompt dibangun di luar blok retry supaya retry tidak crash karena
         # variabel yang belum sempat terbentuk saat error terjadi di sini.
@@ -324,6 +335,7 @@ Reply ONLY with JSON:
         topic['visual_plan']['design_version'] = DESIGN_VERSION
         topic['visual_plan']['subtitle'] = safe_trim_words(topic['visual_plan'].get('subtitle') or topic.get('subtitle', ''), 120)
         image_prompt = poster_prompt(topic, topic['visual_plan'])
+        self._preflight_image_plan(topic, image_prompt)
 
         prompt_saat_ini = image_prompt
         # Satu kali gambar ulang kalau juri menolak. Gambar 2K mahal dan lambat,
@@ -387,12 +399,18 @@ Reply ONLY with JSON:
                     # kegagalan ini tidak bisa didiagnosis dari log.
                     alasan = str(getattr(response, 'text', '') or '')[:200]
                     print(f"   ⚠️  Balasan tanpa gambar (teks: {alasan})")
+                    reasons = [str(getattr(c, 'finish_reason', '')) for c in (getattr(response, 'candidates', None) or [])]
+                    event(page_id, topic, 'image_empty', json.dumps({
+                        'text': redact(alasan), 'finish_reasons': reasons,
+                        'block_reason': str(getattr(getattr(response, 'prompt_feedback', None), 'block_reason', ''))}),
+                        attempt+1, self.image_model)
                     if attempt < max_attempts - 1:
                         time.sleep(10)
                         continue
                     return self._generate_fallback_image(topic, fanspage_name)
 
                 skor, catatan = self._review_image(image_path, topic, fanspage_name)
+                event(page_id, topic, 'image_review', f'score={skor}; {catatan}', attempt+1, getattr(self, 'text_model', ''))
                 from core.content_feedback import save_feedback
                 save_feedback(page_id, topic, 'image', skor, catatan)
                 from core.visual_plan import save_plan
@@ -418,6 +436,7 @@ Reply ONLY with JSON:
                 return image_path
 
             except Exception as e:
+                event(page_id, topic, 'image_error', f'{type(e).__name__}: {redact(e)}', attempt+1, self.image_model)
                 if attempt < max_attempts - 1:
                     print(f"   ⚠️  Gemini error: {redact(e)}, retrying in 30s...")
                     time.sleep(30)
@@ -552,8 +571,8 @@ Return JSON only:
                 'DITAHAN SEBELUM GENERATE: caption terlalu pendek untuk menjadi acuan visual'
             )
 
-        lower_prompt = required['prompt'].lower()
-        found = [term for term in FORBIDDEN_IMAGE_TERMS if term in lower_prompt]
+        from core.image_copy import forbidden_claims
+        found = forbidden_claims(required['prompt'], FORBIDDEN_IMAGE_TERMS)
         if found:
             raise ContentQualityError(
                 'DITAHAN SEBELUM GENERATE: prompt memuat klaim/arah visual terlarang ('
@@ -572,6 +591,8 @@ Return JSON only:
         from core.layout_design import DESIGN_VERSION
         import uuid
         topic['image_fallback'] = True
+        from core.generation_reliability import event
+        event(topic.get('_visual_page_id'), topic, 'image_fallback', 'No publishable illustration; see preceding attempt events')
         plan = fallback_plan(topic)
         plan['fallback_points'] = [str(p)[:220] for p in topic.get('list_points', [])[:4]]
         plan['design_version'] = DESIGN_VERSION
@@ -661,10 +682,10 @@ Return JSON only:
             except (requests.exceptions.RequestException, Exception) as e:
                 if attempt < max_retries - 1:
                     delay = 3 * (attempt + 1)
-                    print(f"   ⚠️  Network/DNS glitch validating token for {fanspage.get('name')}: {e}. Retrying in {delay}s ({attempt + 1}/{max_retries})...")
+                    print(f"   ⚠️  Network/DNS glitch validating token for {fanspage.get('name')}: {redact(e)}. Retrying in {delay}s ({attempt + 1}/{max_retries})...")
                     time.sleep(delay)
                 else:
-                    return False, f"Network error after {max_retries} attempts: {str(e)}"
+                    return False, f"Network error after {max_retries} attempts: {redact(e)}"
         
         return False, "Token validation failed: Max retries exceeded"
     
@@ -700,7 +721,11 @@ Return JSON only:
         # Facebook tidak merender Markdown. Dibersihkan di sini, bukan di
         # generate_caption, karena inilah satu-satunya pintu menuju Facebook —
         # postingan terjadwal, manual, dan percobaan ulang semuanya lewat sini.
-        from core.content_quality import strip_markdown
+        from core.content_quality import strip_markdown, require_publishable
+        from core.generation_reliability import load_review, clock_ready
+        require_publishable(load_review(fanspage['page_id'], image_path, content))
+        if not clock_ready():
+            return None, 'Waktu server/jaringan belum terverifikasi; publikasi ditunda'
         content = strip_markdown(content)
 
         # Facebook Feeling/Activity IDs (official)
@@ -834,7 +859,7 @@ Return JSON only:
             str(image_path),
             fb_post_id,
             status,
-            error_message,
+            redact(error_message) if error_message else None,
             layout_name,
             hook_type,
             editor_score,
@@ -849,13 +874,22 @@ Return JSON only:
         conn.commit()
         conn.close()
         if status == 'success' and fb_post_id:
-            self._send_promo_comment(fanspage, fb_post_id)
+            self._send_promo_comment(fanspage, fb_post_id, content)
 
-    def _send_promo_comment(self, fanspage, fb_post_id):
+    def _compose_promo(self, caption):
+        """Satu kalimat pembuka komentar promo yang menyambung ke topik postingan."""
+        from core.promo_comment import promo_prompt
+        client = genai.Client(api_key=self.gemini_api_key)
+        response = client.models.generate_content(model=self.text_model,
+                                                  contents=promo_prompt(caption))
+        return getattr(response, 'text', '')
+
+    def _send_promo_comment(self, fanspage, fb_post_id, caption=''):
         """Komentar promo pertama; kegagalannya tidak boleh menggagalkan posting."""
         from core.promo_comment import send_promo_comment
         try:
-            comment_id, error = send_promo_comment(fb_post_id, fanspage['access_token'])
+            comment_id, error = send_promo_comment(fb_post_id, fanspage['access_token'],
+                                                   self._compose_promo, caption)
             if comment_id:
                 print(f"   💬 Komentar promo terkirim")
             else:
@@ -926,7 +960,7 @@ Return JSON only:
             if not result:
                 return True
             
-            last_posted = datetime.fromisoformat(result[0])
+            last_posted = datetime.fromisoformat(result[0]).astimezone(timezone(timedelta(hours=7)))
             # Only post once per scheduled hour (different hour OR different day)
             return last_posted.hour != current_hour or last_posted.date() != now_wib.date()
         
@@ -942,7 +976,7 @@ Return JSON only:
                 return True
             
             from datetime import timedelta
-            last_posted = datetime.fromisoformat(result[0])
+            last_posted = datetime.fromisoformat(result[0]).astimezone(timezone(timedelta(hours=7)))
             interval = timedelta(hours=fanspage.get('interval_hours', 6))
             return now_wib >= last_posted + interval
     
@@ -972,6 +1006,11 @@ Return JSON only:
             print(f"   (Delete {disabled_file} to re-enable)")
             return
         
+        from core.generation_reliability import clock_ready, claim_slot, finish_slot, event, save_review
+        if not clock_ready():
+            print('Waktu server/jaringan belum terverifikasi; scheduler ditunda')
+            return
+
         # First, process queued posts from web app
         self.process_queue()
         
@@ -989,7 +1028,8 @@ Return JSON only:
         posted_count = 0
         
         for idx, fanspage in enumerate(self.fanspages):
-            content, image_path = '', None
+            content, image_path, topic = '', None, {}
+            slot, slot_status = None, 'failed'
             if not fanspage.get('enabled', True):
                 print(f"⏭️  Skipping {fanspage['name']} (disabled)")
                 continue
@@ -999,6 +1039,9 @@ Return JSON only:
                 print(f"⏰ Skipping {fanspage['name']} ({schedule_info})")
                 continue
             
+            slot = claim_slot(fanspage['page_id'])
+            if slot is None:
+                continue
             try:
                 print(f"📄 Processing: {fanspage['name']}")
                 print(f"   Page ID: {fanspage['page_id']}")
@@ -1016,7 +1059,7 @@ Return JSON only:
                     continue
 
                 # Lock this fanpage immediately to prevent race conditions with concurrent crons
-                self.update_last_post_time(fanspage['page_id'])
+                # Successful publication alone updates last_post_time.
 
                 # [JIT ML RESEARCH] - Lakukan riset tepat sebelum merancang konten
                 try:
@@ -1031,29 +1074,38 @@ Return JSON only:
 
                 # Generate content with offset topic (different for each fanspage)
                 # Bikin caption & prompt pake GoldGen AI (sekarang sudah terisolasi per-page)
-                content, topic = self.generate_content(page_id=fanspage['page_id'], allow_experiment=True)
+                resumed = self._resume_pending_review(fanspage)
+                if resumed:
+                    content, topic, image_path = resumed
+                else:
+                    content, topic = self.generate_content(page_id=fanspage['page_id'], allow_experiment=True)
                 topic['approved_caption'] = content
                 print(f"   Topic: {topic['headline']}")
                 print(f"   Layout: {topic['layout']}")
                 
                 # Generate poster image
                 print("   Generating infographic...")
-                image_path = self.generate_image(topic, fanspage_name=fanspage['name'], page_id=fanspage['page_id'])
+                if not resumed:
+                    image_path = self.generate_image(topic, fanspage_name=fanspage['name'], page_id=fanspage['page_id'])
 
                 # Gerbang terakhir sebelum tayang. Dulu fungsi ini ada, diuji,
                 # tapi tidak pernah dipanggil — dan justru inilah yang mestinya
                 # mencegah poster tanpa ilustrasi terbit pada 15 September.
                 from core.content_quality import require_publishable
+                save_review(fanspage['page_id'], image_path, content, topic)
                 require_publishable(topic)
 
                 # Post to Facebook
                 print("   Posting to Facebook...")
-                fb_post_id, error = self.post_to_facebook(fanspage, content, image_path)
+                slot_status = 'uncertain'
+                fb_post_id, error = self.post_to_facebook(fanspage, content, image_path, single_attempt=True)
                 
                 if fb_post_id:
                     print(f"   ✅ Success! Post ID: {fb_post_id}")
                     self.log_post(fanspage, content, image_path, fb_post_id, 'success', layout_name=topic.get('layout'), hook_type=topic.get('hook_type'), editor_score=topic.get('editor_score'), requested_hook=topic.get('requested_hook'), topic_id=topic.get('id'), topic_headline=topic.get('headline'), image_score=topic.get('image_score'), experiment_id=topic.get('experiment_id'), experiment_arm=topic.get('experiment_arm'))
                     posted_count += 1
+                    slot_status = 'success'
+                    self.update_last_post_time(fanspage['page_id'])
                 else:
                     print(f"   ❌ Failed: {error}")
                     self.log_post(fanspage, content, image_path, None, 'failed', error, layout_name=topic.get('layout'), hook_type=topic.get('hook_type'), editor_score=topic.get('editor_score'), requested_hook=topic.get('requested_hook'), topic_id=topic.get('id'), topic_headline=topic.get('headline'), image_score=topic.get('image_score'), experiment_id=topic.get('experiment_id'), experiment_arm=topic.get('experiment_arm'))
@@ -1068,12 +1120,19 @@ Return JSON only:
                 error_msg = f"GAGAL DIPROSES: {type(e).__name__}: {redact(e)[:300]}"
                 print(f"   ❌ {error_msg}\n")
                 traceback.print_exc()
-                self.log_post(fanspage, content, str(image_path or ''), None, 'failed', error_msg)
+                event(fanspage['page_id'], topic, 'generation_failed', error_msg)
+                self.log_post(fanspage, content, str(image_path or ''), None, 'failed', error_msg,
+                              layout_name=topic.get('layout'), hook_type=topic.get('hook_type'),
+                              topic_id=topic.get('id'), topic_headline=topic.get('headline'),
+                              image_score=topic.get('image_score'), experiment_id=topic.get('experiment_id'),
+                              experiment_arm=topic.get('experiment_arm'))
+            finally:
+                finish_slot(fanspage['page_id'], slot, slot_status)
 
         # Susulkan komentar promo yang gagal terkirim sebelumnya.
         try:
             from core.promo_comment import send_pending_promo_comments
-            send_pending_promo_comments(self.fanspages)
+            send_pending_promo_comments(self.fanspages, self._compose_promo)
         except Exception as exc:
             print(f"⚠️  Susulan komentar promo gagal: {type(exc).__name__}: {redact(exc)[:200]}")
 
@@ -1099,10 +1158,13 @@ Return JSON only:
         print(f"[{datetime.now()}] Process completed.\n")
     
     def force_post(self, target_page_id):
-        caption, image_path = '', None
+        caption, image_path, topic = '', None, {}
         """Force a post to a specific fanspage regardless of schedule or queue"""
         print(f"[{datetime.now()}] Starting forced manual post for {target_page_id}...")
         
+        from core.generation_reliability import clock_ready, save_review, event
+        if not clock_ready():
+            return False, 'Waktu server/jaringan belum terverifikasi'
         target_fanspage = next((f for f in self.fanspages if f['page_id'] == target_page_id), None)
         if not target_fanspage:
             print(f"❌ Error: Fanspage with ID {target_page_id} not found in configuration.")
@@ -1141,6 +1203,7 @@ Return JSON only:
             # Jalur manual memakai gerbang yang sama dengan jalur terjadwal.
             # Justru lewat sinilah poster tanpa ilustrasi itu tayang.
             from core.content_quality import require_publishable
+            save_review(target_page_id, image_path, caption, topic)
             require_publishable(topic)
 
             print("   Posting to Facebook...")
@@ -1167,7 +1230,10 @@ Return JSON only:
             error_msg = f"GAGAL DIPROSES: {type(e).__name__}: {redact(e)[:300]}"
             print(f"   ❌ {error_msg}\n")
             traceback.print_exc()
-            self.log_post(target_fanspage, caption, str(image_path or ''), None, 'failed', error_msg)
+            event(target_page_id, topic, 'generation_failed', error_msg)
+            self.log_post(target_fanspage, caption, str(image_path or ''), None, 'failed', error_msg,
+                          layout_name=topic.get('layout'), topic_id=topic.get('id'),
+                          topic_headline=topic.get('headline'), image_score=topic.get('image_score'))
             return False, error_msg
 
     def retry_existing_post(self, post_id):
@@ -1228,6 +1294,21 @@ Return JSON only:
         if not valid:
             return False, token_error
 
+        # Never send the old text-only fallback. Unreviewed real artwork can
+        # be reviewed again without paying for another image generation.
+        from core.generation_reliability import load_review, save_review
+        from core.content_quality import require_publishable, ContentQualityError
+        try:
+            topic = load_review(page['page_id'], image_path, row['content'])
+            if topic.get('image_fallback'):
+                return False, 'Ilustrasi fallback tidak boleh dikirim; gunakan generate ulang'
+            if topic.get('image_score') is None:
+                topic['image_score'], _ = self._review_image(image_path, topic, page['name'])
+                save_review(page['page_id'], image_path, row['content'], topic)
+            require_publishable(topic)
+        except ContentQualityError as exc:
+            return False, str(exc)
+
         fb_post_id, error = self.post_to_facebook(page, row['content'], image_path, single_attempt=True)
         conn = get_db_connection()
         if fb_post_id:
@@ -1240,7 +1321,7 @@ Return JSON only:
         conn.commit()
         conn.close()
         if fb_post_id:
-            self._send_promo_comment(page, fb_post_id)
+            self._send_promo_comment(page, fb_post_id, row['content'])
         return (True, fb_post_id) if fb_post_id else (False, error)
 
     def process_queue(self):
@@ -1292,6 +1373,7 @@ Return JSON only:
                 print(f"   📤 Posting queued content to {fanspage['name']}...")
                 
                 try:
+                    self._review_queued_image(fanspage, caption, image_path)
                     # Post to Facebook
                     fb_post_id, error = self.post_to_facebook(fanspage, caption, image_path)
                     
@@ -1312,7 +1394,7 @@ Return JSON only:
                         print(f"      ❌ Failed: {error}")
                         cursor.execute(
                             'UPDATE post_queue SET status = ?, error_message = ? WHERE id = ?',
-                            ('failed', str(error)[:500], post_id)
+                            ('failed', redact(error)[:500], post_id)
                         )
                         self.log_post(fanspage, caption, image_path, None, 'failed', error)
 
@@ -1320,7 +1402,7 @@ Return JSON only:
                     print(f"      ❌ Error: {str(e)}")
                     cursor.execute(
                         'UPDATE post_queue SET status = ?, error_message = ? WHERE id = ?',
-                        ('error', str(e)[:500], post_id)
+                        ('error', redact(e)[:500], post_id)
                     )
             
             conn.commit()
@@ -1329,6 +1411,56 @@ Return JSON only:
             
         except Exception as e:
             print(f"   ❌ Queue processing error: {str(e)}\n")
+
+    def _review_queued_image(self, page, caption, image_path):
+        from core.content_quality import caption_issues, require_publishable, ContentQualityError
+        from core.generation_reliability import load_review, save_review
+        # A known rejected image cannot be reclassified as a fresh upload.
+        conn = get_db_connection()
+        try:
+            row = conn.execute('SELECT payload FROM visual_decisions WHERE image_path=? LIMIT 1',
+                               (str(image_path),)).fetchone()
+            if row and json.loads(row['payload']).get('density') == 'fallback':
+                raise ContentQualityError('Poster fallback tidak boleh dipublikasikan')
+        finally:
+            conn.close()
+        try:
+            topic = load_review(page['page_id'], image_path, caption)
+        except ContentQualityError:
+            review = self.goldgen._editor_review(caption)
+            issues = caption_issues(caption, review, None)
+            if issues:
+                raise ContentQualityError('; '.join(issues))
+            topic = {'headline': caption.split('\n')[0][:100], 'approved_caption': caption,
+                     'caption_approved': True, '_visual_page_id': page['page_id'],
+                     'visual_plan': {'approved_image_copy': {'context': 'User uploaded artwork; check text and caption alignment'}}}
+        if topic.get('image_score') is None:
+            topic['image_score'], _ = self._review_image(image_path, topic, page['name'])
+        save_review(page['page_id'], image_path, caption, topic)
+        require_publishable(topic)
+
+    def _resume_pending_review(self, page):
+        """Reuse an unreviewed image from a failed generation within six hours."""
+        from core.generation_reliability import load_review
+        from core.content_quality import ContentQualityError
+        conn = get_db_connection()
+        try:
+            rows = conn.execute('''SELECT content,image_path FROM posts
+                WHERE page_id=? AND status='failed' AND image_score IS NULL
+                AND datetime(timestamp)>=datetime('now','-6 hours')
+                ORDER BY id DESC LIMIT 3''', (str(page['page_id']),)).fetchall()
+        finally:
+            conn.close()
+        for row in rows:
+            try:
+                topic = load_review(page['page_id'], row['image_path'], row['content'])
+            except (ContentQualityError, OSError):
+                continue
+            if topic.get('image_fallback') or topic.get('image_score') is not None:
+                continue
+            topic['image_score'], _ = self._review_image(row['image_path'], topic, page['name'])
+            return row['content'], topic, row['image_path']
+        return None
 
 if __name__ == "__main__":
     import sys
