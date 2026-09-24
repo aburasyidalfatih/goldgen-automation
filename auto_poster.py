@@ -342,13 +342,20 @@ Reply ONLY with JSON:
         # Satu kali gambar ulang kalau juri menolak. Gambar 2K mahal dan lambat,
         # jadi jatahnya sengaja lebih ketat daripada siklus tulis-ulang caption.
         from core.content_quality import IMAGE_MIN_SCORE
+        from core.image_copy import FULL, MINIMAL
         AMBANG_GAMBAR = IMAGE_MIN_SCORE
         max_attempts = 3
         gambar_terbaik = None  # (skor, path)
         topic['image_score'] = None
+        # Percobaan ulang TIDAK boleh memakai prompt yang sama persis: salah eja
+        # dan balasan tanpa gambar hanya akan terulang. Setiap penolakan
+        # mengurangi jumlah kata di poster dan meneruskan catatan juri.
+        text_level, catatan_juri = FULL, ''
 
         for attempt in range(max_attempts):
             try:
+                if attempt:
+                    prompt_saat_ini = self._retry_prompt(topic, text_level, catatan_juri)
                 from google.genai import types
 
                 label = f"{self.image_model}" + (" (retry)" if attempt else "")
@@ -405,10 +412,13 @@ Reply ONLY with JSON:
                         'text': redact(alasan), 'finish_reasons': reasons,
                         'block_reason': str(getattr(getattr(response, 'prompt_feedback', None), 'block_reason', ''))}),
                         attempt+1, self.image_model)
+                    # Prompt yang lebih sederhana jauh lebih sering dijawab
+                    # dengan gambar daripada mengulang permintaan yang sama.
+                    text_level = min(MINIMAL, text_level + 1)
                     if attempt < max_attempts - 1:
                         time.sleep(10)
                         continue
-                    return self._generate_fallback_image(topic, fanspage_name)
+                    break  # gambar terbaik (bila ada) dipakai di bawah
 
                 skor, catatan = self._review_image(image_path, topic, fanspage_name)
                 event(page_id, topic, 'image_review', f'score={skor}; {catatan}', attempt+1, getattr(self, 'text_model', ''))
@@ -427,7 +437,9 @@ Reply ONLY with JSON:
                     if gambar_terbaik is None or skor > gambar_terbaik[0]:
                         gambar_terbaik = (skor, image_path)
                     if attempt < max_attempts - 1:
-                        print(f"   ♻️  Skor {skor:.1f} di bawah {AMBANG_GAMBAR}; menggambar ulang. {str(catatan or '')[:120]}")
+                        print(f"   ♻️  Skor {skor:.1f} di bawah {AMBANG_GAMBAR}; menggambar ulang dengan teks lebih sedikit. {str(catatan or '')[:120]}")
+                        text_level = min(MINIMAL, text_level + 1)
+                        catatan_juri = self._reviewer_note(catatan, topic)
                         continue
                     print(f"   ⚠️  Percobaan habis; memakai gambar terbaik (skor {gambar_terbaik[0]:.1f})")
                     topic['image_score'] = gambar_terbaik[0]
@@ -459,6 +471,33 @@ Reply ONLY with JSON:
 
         return self._generate_fallback_image(topic, fanspage_name)
 
+    def _reviewer_note(self, catatan, topic):
+        """Catatan juri untuk percobaan berikutnya, tanpa saran pertanyaan diskusi."""
+        note = str(catatan or '').split(' | Discussion question:')[0]
+        text_fix = (topic.get('visual_feedback') or {}).get('text', '')
+        if text_fix and text_fix not in note:
+            note = f'{note}. Text: {text_fix}' if note else f'Text: {text_fix}'
+        return note.strip()[:300]
+
+    def _retry_prompt(self, topic, level, note):
+        """Prompt percobaan ulang: teks lebih sedikit + catatan juri.
+
+        Catatan juri berasal dari model, jadi ia ikut diperiksa preflight; bila
+        catatan itu memuat frasa terlarang, prompt dibangun ulang tanpanya.
+        """
+        from core.layout_design import poster_prompt
+        plan = topic['visual_plan']
+        try:
+            prompt = poster_prompt(topic, plan, level, note)
+            self._preflight_image_plan(topic, prompt)
+        except Exception:
+            prompt = poster_prompt(topic, plan, level)
+            self._preflight_image_plan(topic, prompt)
+        print(f"   ✂️  Percobaan ulang dengan {len(plan['approved_image_copy']['labels'])} label"
+              f"{', tanpa subjudul' if not plan['approved_image_copy']['subtitle'] else ''}"
+              f"{', tanpa pertanyaan' if not plan['approved_image_copy']['question'] else ''}")
+        return prompt
+
     def _apply_art_direction(self, topic, base_prompt):
         """Ask the text model to refine visual execution without changing facts.
 
@@ -486,15 +525,17 @@ Prioritize a strong focal subject, phone-readable hierarchy, useful information
 density, and the visual style selected from this page's measured audience data.
 Preserve exactly one topic-specific discussion question of 8-14 English words
 in its own bottom box.
-Always provide exactly 4 concise reader-key labels (1 to 4 words each) to fill the 2x2 cheatsheet grid below the illustration.
-Choose light (4 labels, up to 3 words each), medium (4 labels, up to 5 words each), or detail (4 labels, up to 8 words each).
+Always provide exactly 4 concise callout labels of 1 to 4 words each.
+Choose light (4 labels, up to 3 words each) or medium (4 labels, up to 4 words each).
+Never exceed 4 words per label: the image model letters every word onto the
+poster, and a single misspelled word gets the poster rejected.
 {label_style()}
 These budgets replace the base brief label limits. Self-check English spelling
 and every label against the approved caption. No new claims or quantities. Do not
 change the topic, invent controversy, or add engagement bait.
-The application typesets the final title, labels and question. Labels form a
-reader key below the illustration, not positioned callouts. Questions must
-identify visible features by name.
+The image model letters the final title, labels and question onto the poster,
+so prefer common, short, easy-to-spell words and avoid rare technical terms when
+a plain word works. Questions must identify visible features by name.
 
 APPROVED TOPIC: {topic.get('headline', '')}
 APPROVED CAPTION: {topic.get('approved_caption', '')}
@@ -510,10 +551,10 @@ Return JSON only:
   "composition_adjustment": "specific placement, hierarchy and visual flow",
   "palette_and_contrast": "brief color and mobile-legibility direction",
   "title": "final English title, at most six words",
-  "labels": ["exactly 4 concise labels following the selected density budget"],
+  "labels": ["exactly 4 labels, 1-4 common words each"],
   "question": "final topic-specific English question, 8-14 words ending in ?",
   "question_type": "experience or sampling_choice or interpretation",
-  "density": "light or medium or detail",
+  "density": "light or medium",
   "caption_consistent": true,
   "selection_reason": "why this density and question fit this topic and available evidence",
   "avoid": "specific clutter, ambiguity or visual mistakes to avoid"

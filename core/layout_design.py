@@ -54,7 +54,7 @@ Use gold only where the topic supports it, at illustrative abundance.
 '''
 
 
-def poster_prompt(topic, plan):
+def poster_prompt(topic, plan, level=0, previous_problem=''):
     """Prompt poster utuh: model gambar yang menulis seluruh teksnya.
 
     Pemilik memilih arsitektur ini secara sadar, menggantikan pembagian lama di
@@ -63,6 +63,11 @@ def poster_prompt(topic, plan):
     diperbaiki setelah gambar jadi. Karena itu _review_image sekarang benar-benar
     menolak dan mengulang gambar yang skornya di bawah ambang — sebelumnya skor
     itu hanya dicatat.
+
+    `level` (lihat core/image_copy.py) mengurangi jumlah kata pada percobaan
+    ulang, dan `previous_problem` menyampaikan alasan juri menolak gambar
+    sebelumnya. Tanpa keduanya tiga percobaan memakai prompt identik dan
+    mengulang salah eja yang sama.
 
     Palet hex DIKIRIM di sini, berbeda dengan sebelumnya. Dulu palet itu membuat
     ilustrasi pucat karena ia hanya menempati kotak di tengah poster krem.
@@ -77,28 +82,46 @@ def poster_prompt(topic, plan):
     # perintah menebalkan, sehingga sebagian kalimat subjudul terbit lebih tebal
     # tanpa alasan editorial apa pun.
     from core.image_copy import approved_copy
-    copy = approved_copy(topic, plan)
+    copy = approved_copy(topic, plan, level)
     plan['approved_image_copy'] = copy
-    poin = '\n'.join(f'- {p}' for p in copy['labels'])
-    judul, subjudul = copy['title'], copy['subtitle']
-    header = 'FIELD INDICATORS' if copy['labels'] else ''
+    plan['text_level'] = level
+
+    # Hanya blok yang benar-benar berisi yang dikirim. Nama bagian seperti
+    # "LIST HEADER:" dengan isi kosong kerap ikut tercetak sebagai teks.
+    printable = [f'HEADLINE: "{copy["title"]}"']
+    if copy['subtitle']:
+        printable.append(f'SUBTITLE: "{copy["subtitle"]}"')
+    if copy['labels']:
+        printable.append('LABELS (one short callout each):\n'
+                         + '\n'.join(f'- {p}' for p in copy['labels']))
+    if copy['question']:
+        printable.append(f'DISCUSSION QUESTION: "{copy["question"]}"')
+    word_count = sum(len(str(v).split()) for v in (copy['title'], copy['subtitle'], copy['question']))
+    word_count += sum(len(p.split()) for p in copy['labels'])
     visual_context = '\n'.join(strip_markdown(str(p)) for p in topic.get('list_points', []))
+
+    fix = ''
+    if previous_problem:
+        fix = ('\nPREVIOUS ATTEMPT WAS REJECTED. Reviewer note (do not print it): '
+               + ' '.join(str(previous_problem).split())[:300]
+               + '\nFix that defect first. If it was about lettering, make the text'
+                 ' larger, simpler and letter-perfect.\n')
 
     return f'''Create a VERTICAL EDUCATIONAL INFOGRAPHIC POSTER about GOLD PROSPECTING.
 
 TEXT CONTENT TO INCLUDE (render every word exactly as written, correctly spelled):
-HEADLINE: "{judul}"
-SUBTITLE: "{subjudul}"
-LIST HEADER: "{header}"
-LIST POINTS:
-{poin}
-DISCUSSION QUESTION: "{copy['question']}"
+{chr(10).join(printable)}
 END OF PRINTABLE COPY. Never print any wording from the sections below.
+
+The poster carries exactly {word_count} words of text, all listed above. Print
+only the words inside the quotation marks and the label lines — never the section
+names (HEADLINE, SUBTITLE, LABELS, DISCUSSION QUESTION) and never any instruction.
+Spell each word letter by letter from the list above.
 
 DRAWING CONTEXT (ideas to depict, never text to print):
 {visual_context}
 END OF DRAWING CONTEXT.
-
+{fix}
 VISUAL STYLE & COMPOSITION:
 {composition}
 {' '.join(mode)}
@@ -111,16 +134,16 @@ MANDATORY ART DIRECTION:
 - STYLE: Realistic illustration / field guide / National Geographic diagram.
 - TEXTURE: Detailed rock textures, flowing water, dirt, rust, metallic gold.
 - ATMOSPHERE: Educational, scientific, rugged, outdoors.
-- LAYOUT: Distinct sections, arrows and callouts. Anchor every label with a leader
-  line to the exact feature it names. Set the list points as short captioned blocks
-  beside the artwork they explain, never as a wall of body text.
+- LAYOUT: Clear callouts. Anchor every label with a leader line to the exact
+  feature it names. Keep each label a short caption beside the artwork it
+  explains, never a wall of body text.
 - COLOR GRADING: background {bg}, dark/light contrast {ink}, accent {accent}.
   {arah.get('palette_and_contrast', 'Earth tones, slate grey, river blue, rusty orange, bright gold.')}
 - NO ABSTRACT ART. NO CARTOONS. It must look like a professional reference guide.
-- TYPOGRAPHY: Bold sans-serif, large enough to read on a phone. Spell every word
-  above exactly. Add no other text: no extra labels, no body paragraphs, no
-  signature, no logo, no page numbers. Fewer words rendered perfectly beats more
-  words rendered badly.
+- TYPOGRAPHY: Bold sans-serif capitals, large enough to read on a phone, on clean
+  high-contrast panels. Spell every word above exactly. Add no other text: no
+  extra labels, no body paragraphs, no signature, no logo, no page numbers.
+  Fewer words rendered perfectly beats more words rendered badly.
 - FEED CROP: Facebook shows only the middle 4:5 of this 9:16 frame in the feed.
   The headline and subtitle must sit fully inside that middle band, never in the
   top or bottom eighth. Leave the lower-left corner quiet for a watermark added
