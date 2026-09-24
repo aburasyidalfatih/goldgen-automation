@@ -41,3 +41,18 @@ the positive-claim substring filter.
 
 Local tests use mocked provider responses and temporary databases. Passing tests
 does not prove live Gemini generation or Facebook delivery.
+
+## Perbaikan September 2026
+
+- Hanya `UncertainSend` (request sudah terkirim tapi jawaban Facebook tidak
+  diterima) yang menahan slot/antrean sebagai `uncertain`. Penolakan pasti
+  dari Facebook atau error sebelum pengiriman membuat slot `failed`, sehingga
+  jatah 3 percobaan per jam benar-benar terpakai.
+- Postingan berstatus `retrying` kini bisa diselesaikan dari dashboard lewat
+  tombol **Sudah tayang** / **Tidak tayang** (`POST /api/posts/<id>/resolve`).
+  "Tidak tayang" mengubahnya menjadi `failed` sehingga tombol Retry muncul.
+- Antrean dari dashboard disimpan dengan offset zona waktu; sebelumnya jam
+  WIB tanpa offset dibandingkan dengan `datetime('now')` UTC dan tertunda 7 jam.
+  `init_db()` memberi offset `+07:00` pada item lama yang masih `pending`.
+- `MOTION_EMBEDDED_WORKER=false` mematikan worker Motion Studio di proses web
+  bila `motion_worker.py` sudah berjalan di container terpisah (docker-compose).

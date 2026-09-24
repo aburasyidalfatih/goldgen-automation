@@ -11,6 +11,15 @@ UTC = timezone.utc
 WIB = timezone(timedelta(hours=7))
 
 
+class UncertainSend(RuntimeError):
+    """Permintaan ke Facebook sudah terkirim tapi hasilnya tidak diketahui.
+
+    Hanya error jenis ini yang boleh menahan slot/antrean sebagai 'uncertain'.
+    Kegagalan sebelum request dikirim (token, gerbang kualitas, jam server)
+    pasti belum menayangkan apa pun, jadi aman dicoba ulang.
+    """
+
+
 def init_schema(conn):
     conn.executescript('''
         CREATE TABLE IF NOT EXISTS generation_events (

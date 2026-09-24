@@ -30,6 +30,7 @@ except Exception as _e:
 from core.config import BASE_DIR, DATA_DIR, LOGS_DIR, IMAGES_DIR, DB_PATH, CONFIG_PATH
 from core.database import get_db_connection, init_db
 from core.art_director import render_art_direction
+from core.generation_reliability import UncertainSend
 
 
 def _gambar_dari_balasan(response):
@@ -830,7 +831,7 @@ Return JSON only:
 
             except Exception as e:
                 if single_attempt:
-                    raise RuntimeError('Hasil kirim belum pasti: ' + type(e).__name__) from e
+                    raise UncertainSend('Hasil kirim belum pasti: ' + type(e).__name__) from e
                 if attempt < max_retries - 1:
                     delay = 2 ** attempt
                     print(f"   ⚠️  Error: {redact(e)}, retry {attempt + 1}/{max_retries} after {delay}s")
@@ -1100,14 +1101,19 @@ Return JSON only:
                 slot_status = 'uncertain'
                 finish_slot(fanspage['page_id'], slot, 'uncertain')
                 fb_post_id, error = self.post_to_facebook(fanspage, content, image_path, single_attempt=True)
-                
+
                 if fb_post_id:
+                    # Tandai sukses SEBELUM pencatatan: kalau log_post gagal,
+                    # slot tidak boleh dibuka lagi karena postingan sudah tayang.
+                    slot_status = 'success'
                     print(f"   ✅ Success! Post ID: {fb_post_id}")
                     self.log_post(fanspage, content, image_path, fb_post_id, 'success', layout_name=topic.get('layout'), hook_type=topic.get('hook_type'), editor_score=topic.get('editor_score'), requested_hook=topic.get('requested_hook'), topic_id=topic.get('id'), topic_headline=topic.get('headline'), image_score=topic.get('image_score'), experiment_id=topic.get('experiment_id'), experiment_arm=topic.get('experiment_arm'))
                     posted_count += 1
-                    slot_status = 'success'
                     self.update_last_post_time(fanspage['page_id'])
                 else:
+                    # Facebook menolak dengan jawaban pasti: belum tayang, jadi
+                    # slot boleh dicoba lagi (maks. 3x per jam, jeda 15 menit).
+                    slot_status = 'failed'
                     print(f"   ❌ Failed: {error}")
                     self.log_post(fanspage, content, image_path, None, 'failed', error, layout_name=topic.get('layout'), hook_type=topic.get('hook_type'), editor_score=topic.get('editor_score'), requested_hook=topic.get('requested_hook'), topic_id=topic.get('id'), topic_headline=topic.get('headline'), image_score=topic.get('image_score'), experiment_id=topic.get('experiment_id'), experiment_arm=topic.get('experiment_arm'))
                 
@@ -1118,10 +1124,15 @@ Return JSON only:
                 # Status 'failed' (bukan 'error') supaya ikut terhitung di statistik
                 # dan tampil di dashboard bersama alasannya.
                 import traceback
+                if slot_status != 'success':
+                    slot_status = 'uncertain' if isinstance(e, UncertainSend) else 'failed'
                 error_msg = f"GAGAL DIPROSES: {type(e).__name__}: {redact(e)[:300]}"
                 print(f"   ❌ {error_msg}\n")
                 traceback.print_exc()
                 event(fanspage['page_id'], topic, 'generation_failed', error_msg)
+                if slot_status == 'success':
+                    # Sudah tayang; hanya pencatatan sesudahnya yang gagal.
+                    continue
                 self.log_post(fanspage, content, str(image_path or ''), None,
                               'retrying' if slot_status == 'uncertain' else 'failed', error_msg,
                               layout_name=topic.get('layout'), hook_type=topic.get('hook_type'),
@@ -1134,7 +1145,10 @@ Return JSON only:
         # Susulkan komentar promo yang gagal terkirim sebelumnya.
         try:
             from core.promo_comment import send_pending_promo_comments
-            send_pending_promo_comments(self.fanspages, self._compose_promo)
+            # Tanpa Gemini: susulan bisa berulang tiap 15 menit selama 24 jam
+            # kalau Facebook terus menolak, dan tiap percobaan akan memakan satu
+            # panggilan model. Kalimat cadangan bergilir sudah cukup di sini.
+            send_pending_promo_comments(self.fanspages)
         except Exception as exc:
             print(f"⚠️  Susulan komentar promo gagal: {type(exc).__name__}: {redact(exc)[:200]}")
 
@@ -1160,9 +1174,8 @@ Return JSON only:
         print(f"[{datetime.now()}] Process completed.\n")
     
     def force_post(self, target_page_id):
-        caption, image_path, topic = '', None, {}
-        sending = False
         """Force a post to a specific fanspage regardless of schedule or queue"""
+        caption, image_path, topic = '', None, {}
         print(f"[{datetime.now()}] Starting forced manual post for {target_page_id}...")
         
         from core.generation_reliability import clock_ready, save_review, event
@@ -1210,7 +1223,6 @@ Return JSON only:
             require_publishable(topic)
 
             print("   Posting to Facebook...")
-            sending = True
             fb_post_id, error = self.post_to_facebook(target_fanspage, caption, image_path, single_attempt=True)
             
             if fb_post_id:
@@ -1236,7 +1248,7 @@ Return JSON only:
             traceback.print_exc()
             event(target_page_id, topic, 'generation_failed', error_msg)
             self.log_post(target_fanspage, caption, str(image_path or ''), None,
-                          'retrying' if sending else 'failed', error_msg,
+                          'retrying' if isinstance(e, UncertainSend) else 'failed', error_msg,
                           layout_name=topic.get('layout'), topic_id=topic.get('id'),
                           topic_headline=topic.get('headline'), image_score=topic.get('image_score'))
             return False, error_msg
@@ -1254,8 +1266,9 @@ Return JSON only:
         try:
             result = self._retry_claimed_post(post_id)
         except Exception as exc:
-            result = (False, 'Hasil pengiriman belum pasti; periksa Facebook sebelum mencoba lagi. ' + redact(str(exc))[:120])
-            # Leave retrying after an uncertain exception to prevent duplicates.
+            result = (False, 'Hasil pengiriman belum pasti; periksa Facebook lalu tandai hasilnya di dashboard (Sudah tayang / Tidak tayang). ' + redact(str(exc))[:120])
+            # Leave retrying after an uncertain exception to prevent duplicates:
+            # the exception may come after Facebook already accepted the post.
             conn = get_db_connection()
             try:
                 with conn:
@@ -1352,21 +1365,28 @@ Return JSON only:
                 conn.close()
             if not claimed:
                 continue
-            status, message, sending, fb_id = 'failed', '', False, None
+            status, message, fb_id = 'failed', '', None
+            retries_left = row['attempts'] + 1 < 3
             try:
                 self._review_queued_image(page, row['content'], row['image_path'])
-                sending = True
                 fb_id, message = self.post_to_facebook(page, row['content'], row['image_path'], single_attempt=True)
-                status = 'posted' if fb_id else 'failed'
+                # Penolakan pasti dari Facebook belum menayangkan apa pun, jadi
+                # boleh dicoba lagi 15 menit kemudian selama jatah masih ada.
+                status = 'posted' if fb_id else ('pending' if retries_left else 'failed')
                 self.log_post(page, row['content'], row['image_path'], fb_id,
                               'success' if fb_id else 'failed', message)
                 if fb_id:
                     self.update_last_post_time(page['page_id'])
             except Exception as exc:
                 message = redact(exc)
-                status = 'uncertain' if sending else 'failed'
-                if not sending and 'menunggu pemeriksaan' in message and row['attempts']+1<3:
+                if status == 'posted':
+                    pass  # sudah tayang; hanya pencatatan yang gagal
+                elif isinstance(exc, UncertainSend):
+                    status = 'uncertain'
+                elif 'menunggu pemeriksaan' in message and retries_left:
                     status = 'pending'
+                else:
+                    status = 'failed'
             conn = get_db_connection()
             try:
                 with conn:

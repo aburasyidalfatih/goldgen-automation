@@ -4,7 +4,7 @@ import json
 import uuid
 from functools import wraps
 from pathlib import Path
-from flask import Blueprint, jsonify, request, session, render_template, send_file
+from flask import Blueprint, jsonify, redirect, request, session, render_template, send_file
 from core import motion_studio as storage
 from core.motion_projects import project, save_project, queue_job, cancel_job, Conflict, COMPONENTS, STYLES
 from core.motion_assets import get_asset, register_asset, search_assets, scan_existing_images, select_assets_for_topic
@@ -14,7 +14,9 @@ bp=Blueprint('motion',__name__)
 
 @bp.before_request
 def authenticate():
-    if not session.get('authenticated'): return jsonify(error='Unauthorized',require_auth=True),401
+    if not session.get('authenticated'):
+        if not request.path.startswith('/api/'): return redirect('/login')
+        return jsonify(error='Unauthorized',require_auth=True),401
     if request.method in ('POST','PUT','DELETE'):
         # Browser origins must be same-site; protect cookie-authenticated mutations.
         origin=request.headers.get('Origin')

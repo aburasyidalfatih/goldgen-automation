@@ -307,6 +307,18 @@ def init_db():
     except Exception as e:
         print(f"WARNING: DB Migration post_queue: {e}")
 
+    # Antrean dari dashboard dulu menyimpan jam lokal WIB tanpa offset,
+    # sedangkan process_queue membandingkannya dengan datetime('now') yang UTC
+    # sehingga setiap item tertunda 7 jam. Beri offset WIB pada item yang
+    # belum terkirim; item baru sudah disimpan lengkap dengan offset.
+    try:
+        for col in ('scheduled_time', 'created_at'):
+            cursor.execute(f"""UPDATE post_queue SET {col} = {col} || '+07:00'
+                WHERE status = 'pending' AND {col} LIKE '____-__-__T__:__:__%'
+                  AND {col} NOT LIKE '%+__:__' AND {col} NOT LIKE '%Z'""")
+    except Exception as e:
+        print(f"WARNING: DB Migration post_queue timezone: {e}")
+
     # Learning uses actual capture ages 48–50h. Historical data is retained.
     # Relative outcomes use at least three earlier same-page posts in 14 days.
     # This reduces temporal confounding but does not measure reach or prove causality.

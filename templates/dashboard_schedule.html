@@ -462,15 +462,16 @@
             const now = new Date();
             const currentHour = now.getHours();
             
-            // Get last post times
+            // Waktu posting BERHASIL terakhir per page. Posting gagal tidak
+            // dihitung — slotnya masih bisa dicoba ulang oleh worker.
             let lastPostTimes = {};
             try {
-                const res = await fetch('/api/posts?limit=50');
+                const res = await fetch('/api/posts?limit=100');
                 const data = await res.json();
                 if (data.posts) {
                     data.posts.forEach(post => {
-                        if (!lastPostTimes[post.page_name]) {
-                            lastPostTimes[post.page_name] = new Date(post.timestamp);
+                        if (post.status === 'success' && !lastPostTimes[post.page_id]) {
+                            lastPostTimes[post.page_id] = new Date(post.timestamp);
                         }
                     });
                 }
@@ -486,7 +487,7 @@
                 
                 // Check if should be posting now
                 const isScheduledNow = scheduleHours.includes(currentHour);
-                const lastPost = lastPostTimes[fp.name];
+                const lastPost = lastPostTimes[fp.page_id];
                 const alreadyPostedThisHour = lastPost && 
                     lastPost.getHours() === currentHour && 
                     lastPost.getDate() === now.getDate() &&
@@ -619,6 +620,21 @@
                         }
 
                         let retryButton = '';
+                        if (post.status === 'retrying') {
+                            // Hasil kirim belum pasti: admin memeriksa Facebook lalu menandainya.
+                            retryButton = `
+                                <button onclick="resolveUncertainPost(${post.id}, 'published', this)"
+                                    class="inline-block px-2 py-1 text-xs bg-green-700 hover:bg-green-600 text-white rounded transition-colors touch-manipulation"
+                                    title="Postingan ini ternyata sudah tayang di Facebook">
+                                    Sudah tayang
+                                </button>
+                                <button onclick="resolveUncertainPost(${post.id}, 'not_published', this)"
+                                    class="inline-block px-2 py-1 text-xs bg-gray-600 hover:bg-gray-500 text-white rounded transition-colors touch-manipulation"
+                                    title="Tidak ada di Facebook; ubah jadi failed agar bisa di-Retry">
+                                    Tidak tayang
+                                </button>
+                            `;
+                        }
                         if (post.status === 'failed') {
                             retryButton = `
                                 <button onclick="retryExistingPost(${post.id}, this)"
@@ -677,6 +693,29 @@
                 alert('Status pengiriman belum pasti. Segarkan riwayat dan periksa Facebook sebelum mencoba lagi.');
                 await loadRecentPosts();
             }
+        }
+
+        async function resolveUncertainPost(postId, outcome, button) {
+            let fbPostId = null;
+            if (outcome === 'published') {
+                fbPostId = prompt('Sudah tayang. Masukkan Facebook Post ID (opsional, contoh 123_456):', '');
+                if (fbPostId === null) return;
+            } else if (!confirm('Pastikan postingan ini TIDAK ada di Facebook. Tandai sebagai failed agar bisa di-Retry?')) {
+                return;
+            }
+            if (button) button.disabled = true;
+            try {
+                const res = await fetch(`/api/posts/${postId}/resolve`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ outcome, fb_post_id: fbPostId || null })
+                });
+                const data = await res.json();
+                if (!data.success) alert(`Gagal menandai: ${data.message || data.error}`);
+            } catch (e) {
+                alert('Gagal menghubungi server.');
+            }
+            await loadRecentPosts();
         }
 
         // Initialize

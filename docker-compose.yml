@@ -18,6 +18,8 @@ services:
       - HOST=0.0.0.0
       - PYTHONUNBUFFERED=1
       - TZ=Asia/Jakarta
+      # Render Motion Studio ditangani service goldgen-motion-worker di bawah.
+      - MOTION_EMBEDDED_WORKER=false
 
   goldgen-motion-worker:
     build:

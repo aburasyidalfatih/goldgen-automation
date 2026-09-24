@@ -163,7 +163,7 @@ class CommentReplier:
         # Get total count
         cursor.execute(f'''
             SELECT COUNT(*) FROM replied_comments
-            WHERE {where} AND reply_text NOT IN ('[PROCESSING...]', '[HIDDEN SPAM]')
+            WHERE {where} AND reply_text NOT IN ('[PROCESSING...]', '[HIDDEN SPAM]', '[SPAM NOT HIDDEN]')
         ''', params)
         total_count = cursor.fetchone()[0]
 
@@ -171,7 +171,7 @@ class CommentReplier:
         cursor.execute(f'''
             SELECT comment_text, reply_text
             FROM replied_comments
-            WHERE {where} AND reply_text NOT IN ('[PROCESSING...]', '[HIDDEN SPAM]')
+            WHERE {where} AND reply_text NOT IN ('[PROCESSING...]', '[HIDDEN SPAM]', '[SPAM NOT HIDDEN]')
             ORDER BY timestamp DESC LIMIT 3
         ''', params)
         history = cursor.fetchall()
@@ -406,6 +406,25 @@ Just provide the direct reply without any quotes or explanations."""
         except Exception as e:
             return False, f"GAGAL TERHUBUNG: {type(e).__name__}: {str(e)[:150]}"
 
+    # Penanda di replied_comments untuk komentar yang tidak dibalas.
+    SPAM_HIDDEN = '[HIDDEN SPAM]'
+    SPAM_NOT_HIDDEN = '[SPAM NOT HIDDEN]'
+
+    def _handle_spam(self, comment_id, post_id, user_name, comment_text, user_id, access_token):
+        """Sembunyikan spam dan catat permanen supaya tidak diproses ulang.
+
+        Kalau menyembunyikan gagal (mis. izin kurang), komentar tetap dicatat
+        sebagai spam — tidak dibalas dan tidak memakan panggilan Gemini lagi.
+        """
+        print(f"   🚨 SPAM DETECTED! Hiding comment from public...")
+        if self.hide_comment(comment_id, access_token):
+            print(f"   ✅ Comment hidden successfully.")
+            marker = self.SPAM_HIDDEN
+        else:
+            print(f"   ❌ Failed to hide comment (dicatat, tidak akan dibalas).")
+            marker = self.SPAM_NOT_HIDDEN
+        self.save_replied_comment(comment_id, post_id, user_name, comment_text, marker, user_id=user_id)
+
     def hide_comment(self, comment_id, access_token):
         """Hide a malicious comment using Facebook Graph API"""
         url = f"{GRAPH_API_BASE}/{comment_id}"
@@ -495,24 +514,26 @@ COMMENT: "{comment_text}"
                     user_name = commenter.get('name', 'User')
                     user_id = commenter.get('id')
                     comment_text = comment.get('message', '')
-                    
-                    image_b64 = None
                     attachment = comment.get('attachment')
+                    img_url = None
                     if attachment and attachment.get('type') == 'photo':
                         img_url = attachment.get('media', {}).get('image', {}).get('src')
-                        if img_url:
-                            print(f"   📸 User attached an image. Downloading for Vision AI...")
-                            image_b64 = self._download_image_as_base64(img_url)
-                    
-                    # Skip if already replied
+
+                    # Skip if already replied — dicek SEBELUM mengunduh foto,
+                    # supaya foto komentar lama tidak diunduh ulang tiap siklus.
                     if self.is_already_replied(comment_id):
                         continue
                     
                     # Human-like skip: ~15% komentar non-pertanyaan dilewati (dicoba lagi siklus berikutnya)
                     # Komentar dengan foto tidak pernah dilewati (UGC berharga)
-                    if image_b64 is None and self._should_skip_comment_naturally(comment_text):
+                    if not img_url and self._should_skip_comment_naturally(comment_text):
                         print(f"   ⏭️  Skipping naturally (will retry next cycle): {comment_text[:40]}...")
                         continue
+
+                    image_b64 = None
+                    if img_url:
+                        print(f"   📸 User attached an image. Downloading for Vision AI...")
+                        image_b64 = self._download_image_as_base64(img_url)
                     
                     print(f"\n   👤 {user_name}: {comment_text[:50]}...")
                     
@@ -523,16 +544,12 @@ COMMENT: "{comment_text}"
                     )
                     
                     try:
-                        # Bouncer AI: Check for spam
+                        # Bouncer: filter lokal dulu (gratis), baru Gemini.
+                        from core.comment_filter import is_promotional_spam
                         print(f"   🛡️ Checking for spam...")
-                        is_spam = self.check_spam(comment_text)
+                        is_spam = is_promotional_spam(comment_text) or self.check_spam(comment_text)
                         if is_spam:
-                            print(f"   🚨 SPAM DETECTED! Hiding comment from public...")
-                            if self.hide_comment(comment_id, access_token):
-                                print(f"   ✅ Comment hidden successfully.")
-                                self.save_replied_comment(comment_id, post_id, user_name, comment_text, "[HIDDEN SPAM]", user_id=user_id)
-                            else:
-                                print(f"   ❌ Failed to hide comment.")
+                            self._handle_spam(comment_id, post_id, user_name, comment_text, user_id, access_token)
                             continue
                         
                         # Fetch ML Insights for this page
@@ -550,6 +567,12 @@ COMMENT: "{comment_text}"
                             ml_insights=ml_insights,
                             image_b64=image_b64
                         )
+                        if not reply_text:
+                            # generate_reply menolak membalas (mis. spam promosi).
+                            # Jangan lepas kuncinya — kalau dilepas, komentar yang
+                            # sama diproses ulang dan memanggil Gemini tiap siklus.
+                            self._handle_spam(comment_id, post_id, user_name, comment_text, user_id, access_token)
+                            continue
                         print(f"   🤖 Reply: {reply_text[:50]}...")
                         
                         # Post reply

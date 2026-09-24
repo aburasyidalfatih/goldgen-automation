@@ -141,7 +141,7 @@
                 if (data.success) {
                     window.location.href = '/dashboard';
                 } else {
-                    showError('Invalid PIN');
+                    showError(data.message || 'Invalid PIN');
                     pinInput.value = '';
                 }
             } catch (error) {

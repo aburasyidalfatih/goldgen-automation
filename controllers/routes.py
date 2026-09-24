@@ -37,9 +37,22 @@ def require_pin(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if not session.get('authenticated'):
+            # Halaman HTML diarahkan ke login; hanya API yang menjawab JSON.
+            if not request.path.startswith('/api/'):
+                return redirect('/login')
             return jsonify({'error': 'Unauthorized', 'require_auth': True}), 401
         return f(*args, **kwargs)
     return decorated_function
+
+
+# Batas tebakan PIN per alamat IP (in-memory; cukup untuk satu proses waitress).
+LOGIN_MAX_FAILURES = 5
+LOGIN_LOCKOUT_SECONDS = 300
+_login_failures = {}
+
+
+def _login_client_key():
+    return request.remote_addr or 'unknown'
 
 def get_db():
     return get_db_connection()
@@ -74,14 +87,29 @@ def serve_detail():
 @bp.route('/api/auth/login', methods=['POST'])
 def login():
     """Authenticate with PIN"""
-    data = request.json
-    pin = data.get('pin', '')
-    
-    if pin == DASHBOARD_PIN:
+    import hmac
+    import time
+    data = request.get_json(silent=True) or {}
+    pin = str(data.get('pin', ''))
+    key = _login_client_key()
+    now = time.monotonic()
+    failures, locked_until = _login_failures.get(key, (0, 0.0))
+    if locked_until > now:
+        wait = int(locked_until - now) + 1
+        return jsonify({'success': False,
+                        'message': f'Terlalu banyak percobaan. Coba lagi dalam {wait} detik.'}), 429
+
+    if hmac.compare_digest(pin.encode(), str(DASHBOARD_PIN).encode()):
+        _login_failures.pop(key, None)
         session['authenticated'] = True
         return jsonify({'success': True, 'message': 'Authentication successful'})
+
+    failures += 1
+    if failures >= LOGIN_MAX_FAILURES:
+        _login_failures[key] = (0, now + LOGIN_LOCKOUT_SECONDS)
     else:
-        return jsonify({'success': False, 'message': 'Invalid PIN'}), 401
+        _login_failures[key] = (failures, 0.0)
+    return jsonify({'success': False, 'message': 'Invalid PIN'}), 401
 
 @bp.route('/api/auth/logout', methods=['POST'])
 def logout():
@@ -103,20 +131,31 @@ def trigger_post():
     if not page_id:
         return jsonify({'success': False, 'error': 'Missing page_id'}), 400
         
+    # Kunci diambil di sini, bukan di dalam thread: kalau auto-poster sedang
+    # berjalan, pengguna harus diberi tahu, bukan dijawab "sudah dimulai"
+    # padahal thread-nya diam-diam berhenti.
+    from core.locks import ProcessLock
+    lock = ProcessLock('poster')
+    if not lock.acquire():
+        return jsonify({'success': False,
+                        'error': 'Proses posting lain sedang berjalan. Coba lagi beberapa menit lagi.'}), 409
+
     def run_poster():
         try:
             from auto_poster import GoldGenAutoPoster
-            from core.locks import ProcessLock
-            with ProcessLock('poster') as lock:
-                if not lock.acquired:
-                    return
-                poster = GoldGenAutoPoster()
-                poster.force_post(page_id)
+            poster = GoldGenAutoPoster()
+            poster.force_post(page_id)
         except Exception as e:
             print(f"Manual post trigger error: {e}")
-            
+        finally:
+            lock.release()
+
     import threading
-    threading.Thread(target=run_poster, daemon=True).start()
+    try:
+        threading.Thread(target=run_poster, daemon=True).start()
+    except Exception:
+        lock.release()
+        raise
     
     return jsonify({'success': True, 'message': 'Post generation started in background'})
 
@@ -135,6 +174,43 @@ def retry_post(post_id):
         return jsonify({'success': success, 'message': result}), (200 if success else 400)
     except Exception as e:
         return jsonify({'success': False, 'error': f'{type(e).__name__}: {e}'}), 500
+
+@bp.route('/api/posts/<int:post_id>/resolve', methods=['POST'])
+@require_pin
+def resolve_post(post_id):
+    """Tandai hasil pengiriman yang belum pasti setelah admin memeriksa Facebook.
+
+    'published'     -> postingan memang tayang (opsional sertakan fb_post_id)
+    'not_published' -> tidak tayang; status jadi 'failed' agar bisa di-Retry
+    """
+    import re
+    data = request.get_json(silent=True) or {}
+    outcome = data.get('outcome')
+    if outcome not in ('published', 'not_published'):
+        return jsonify({'success': False, 'message': 'outcome harus published atau not_published'}), 400
+    fb_post_id = str(data.get('fb_post_id') or '').strip() or None
+    if fb_post_id and not re.fullmatch(r'\d+(_\d+)?', fb_post_id):
+        return jsonify({'success': False, 'message': 'Format Facebook Post ID tidak valid'}), 400
+
+    conn = get_db()
+    try:
+        with conn:
+            if outcome == 'published':
+                updated = conn.execute(
+                    "UPDATE posts SET status='success', fb_post_id=COALESCE(?, fb_post_id), "
+                    "error_message=NULL WHERE id=? AND status='retrying'",
+                    (fb_post_id, post_id)).rowcount
+            else:
+                updated = conn.execute(
+                    "UPDATE posts SET status='failed', error_message=? WHERE id=? AND status='retrying'",
+                    ('Dikonfirmasi admin: tidak tayang di Facebook. Aman untuk Retry.', post_id)).rowcount
+    except sqlite3.IntegrityError:
+        return jsonify({'success': False, 'message': 'Facebook Post ID itu sudah tercatat di postingan lain'}), 409
+    finally:
+        conn.close()
+    if not updated:
+        return jsonify({'success': False, 'message': 'Postingan tidak ditemukan atau statusnya bukan retrying'}), 404
+    return jsonify({'success': True})
 
 @bp.route('/api/stats')
 @require_pin
@@ -190,12 +266,15 @@ def get_stats():
 def get_posts():
     """Get recent posts"""
     try:
-        limit = 10
+        try:
+            limit = min(max(int(request.args.get('limit', 10)), 1), 100)
+        except (TypeError, ValueError):
+            limit = 10
         conn = get_db()
         cursor = conn.cursor()
         
         cursor.execute("""
-            SELECT id, timestamp, page_name, content, image_path, fb_post_id, status, error_message
+            SELECT id, timestamp, page_id, page_name, content, image_path, fb_post_id, status, error_message
             FROM posts 
             ORDER BY id DESC 
             LIMIT ?
@@ -207,6 +286,7 @@ def get_posts():
             posts.append({
                 'id': row['id'],
                 'timestamp': row['timestamp'],
+                'page_id': row['page_id'],
                 'page_name': row['page_name'] if 'page_name' in row.keys() else None,
                 'content': content[:200] + '...' if len(content) > 200 else content,
                 'image_path': Path(row['image_path']).name if row['image_path'] else None,
@@ -225,106 +305,88 @@ def get_posts():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+def _next_post_time(fp, last_success, now):
+    """Perkiraan waktu posting berikutnya, memakai aturan yang sama dengan should_post."""
+    hours = sorted({int(h) for h in fp.get('schedule_hours') or []})
+    if 'schedule_hours' in fp:
+        if not hours:
+            return None
+        for day in range(2):
+            base = (now + timedelta(days=day)).replace(minute=0, second=0, microsecond=0)
+            for hour in hours:
+                slot = base.replace(hour=hour)
+                slot_end = slot + timedelta(hours=1)
+                if slot_end <= now:
+                    continue
+                if last_success and slot <= last_success < slot_end:
+                    continue  # slot ini sudah terpakai
+                return max(slot, now)
+        return None
+    interval = timedelta(hours=fp.get('interval_hours', 6))
+    if not last_success:
+        return now
+    return max(last_success + interval, now)
+
+
 @bp.route('/api/next-run')
 @require_pin
 def get_next_run():
-    """Get next scheduled run time and all fanspages schedule"""
-    now = datetime.now()
-    
-    # Cron runs every hour at :00
-    if now.minute == 0 and now.second < 5:
-        # Currently at the hour, next run is next hour
-        next_run = now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
-    else:
-        # Next run is at the next hour
-        next_run = now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
-    
-    # Get ALL fanspages schedule
+    """Perkiraan jadwal posting berikutnya per fanspage.
+
+    Worker mengecek setiap 15 menit; halaman hanya boleh posting pada jam di
+    schedule_hours (atau setelah interval_hours untuk konfigurasi lama).
+    """
+    from datetime import timezone
+    wib = timezone(timedelta(hours=7))
+    now = datetime.now(wib)
+    next_check = now.replace(second=0, microsecond=0) + timedelta(minutes=15 - now.minute % 15)
+
     all_schedules = []
     try:
-        config_file = DATA_DIR / "config.json"
-        if config_file.exists():
-            with open(config_file, 'r') as f:
+        config = {}
+        if CONFIG_PATH.exists():
+            with open(CONFIG_PATH, 'r') as f:
                 config = json.load(f)
-                fanspages = config.get('fanspages', [])
-            
-            conn = get_db()
-            cursor = conn.cursor()
-            
-            # Track posting order for delay calculation
-            ready_count = 0
-            
-            for idx, fp in enumerate(fanspages):
-                # Get last post time
-                cursor.execute('''
-                    SELECT MAX(timestamp) as last_post 
-                    FROM posts 
-                    WHERE page_id = ?
-                ''', (fp['page_id'],))
-                
-                result = cursor.fetchone()
-                last_post = result['last_post'] if result['last_post'] else None
-                
-                if last_post:
-                    last_post_time = datetime.fromisoformat(last_post)
-                    interval_hours = fp.get('interval_hours', 6)
-                    next_eligible_time = last_post_time + timedelta(hours=interval_hours)
-                    
-                    # Check if ready to post
-                    if next_eligible_time <= next_run:
-                        # Will post on next cron
-                        # Calculate actual posting time with delay
-                        delay_minutes = ready_count * config.get('fanspage_delay_minutes', 60)
-                        actual_post_time = next_run + timedelta(minutes=delay_minutes)
-                        # Next post after that
-                        next_post_time = actual_post_time + timedelta(hours=interval_hours)
-                        ready_count += 1
-                    else:
-                        # Not ready yet, use calculated time
-                        next_post_time = next_eligible_time
-                else:
-                    # Never posted, will post on next cron
-                    delay_minutes = ready_count * config.get('fanspage_delay_minutes', 60)
-                    actual_post_time = next_run + timedelta(minutes=delay_minutes)
-                    next_post_time = actual_post_time + timedelta(hours=interval_hours)
-                    ready_count += 1
-                    last_post_time = None
-                
-                time_until = next_post_time - now
-                hours = int(time_until.total_seconds() // 3600)
-                minutes = int((time_until.total_seconds() % 3600) // 60)
-                
-                # Status - all should be scheduled (future)
-                if not fp.get('enabled', True):
-                    status = 'disabled'
-                    status_icon = '⏸️'
-                else:
-                    status = 'scheduled'
-                    status_icon = '⏰'
-                
-                all_schedules.append({
-                    'page_name': fp['name'],
-                    'page_id': fp['page_id'],
-                    'enabled': fp.get('enabled', True),
-                    'interval_hours': fp.get('interval_hours', 6),
-                    'last_post': last_post_time.strftime('%Y-%m-%d %H:%M') if last_post else 'Never',
-                    'next_post_time': next_post_time.strftime('%Y-%m-%d %H:%M'),
-                    'next_post_formatted': next_post_time.strftime('%H:%M WIB'),
-                    'time_until': f'{hours}h {minutes}m' if hours > 0 else f'{minutes}m',
-                    'status': status,
-                    'status_icon': status_icon
-                })
-            
-            # Sort by next_post_time
-            all_schedules.sort(key=lambda x: x['next_post_time'])
-            
+        conn = get_db()
+        try:
+            last_times = {row['page_id']: row['timestamp'] for row in
+                          conn.execute('SELECT page_id, timestamp FROM last_post_time')}
+        finally:
             conn.close()
+
+        for fp in config.get('fanspages', []):
+            last_success = None
+            if last_times.get(fp['page_id']):
+                parsed = datetime.fromisoformat(last_times[fp['page_id']])
+                last_success = (parsed if parsed.tzinfo else parsed.replace(tzinfo=wib)).astimezone(wib)
+            enabled = fp.get('enabled', True)
+            next_post_time = _next_post_time(fp, last_success, now) if enabled else None
+            entry = {
+                'page_name': fp['name'],
+                'page_id': fp['page_id'],
+                'enabled': enabled,
+                'interval_hours': fp.get('interval_hours'),
+                'schedule_hours': fp.get('schedule_hours', []),
+                'last_post': last_success.strftime('%Y-%m-%d %H:%M') if last_success else 'Never',
+                'next_post_time': next_post_time.strftime('%Y-%m-%d %H:%M') if next_post_time else None,
+                'next_post_formatted': next_post_time.strftime('%H:%M WIB') if next_post_time else None,
+                'time_until': None,
+                'status': 'scheduled' if next_post_time else 'disabled',
+                'status_icon': '⏰' if next_post_time else '⏸️',
+            }
+            if next_post_time:
+                seconds = max(0, int((next_post_time - now).total_seconds()))
+                hours, minutes = seconds // 3600, (seconds % 3600) // 60
+                entry['time_until'] = f'{hours}h {minutes}m' if hours else f'{minutes}m'
+            all_schedules.append(entry)
+
+        all_schedules.sort(key=lambda x: x['next_post_time'] or '9999')
     except Exception as e:
         print(f"Error getting schedules: {e}")
-    
+
     return jsonify({
-        'next_run': next_run.isoformat(),
-        'next_run_formatted': next_run.strftime('%Y-%m-%d %H:%M:%S') + ' WIB',
+        'next_run': next_check.isoformat(),
+        'next_run_formatted': next_check.strftime('%Y-%m-%d %H:%M:%S') + ' WIB',
         'all_schedules': all_schedules
     })
 
@@ -347,8 +409,12 @@ def get_topic_info():
         
         service = GoldGenService(api_key)
         
-        # Get current state
+        # Topik dipilih per fanspage (topic_state_<page_id>.json). File global
+        # hanya dipakai kalau page_id tidak diberikan atau belum punya state.
         state_file = DATA_DIR / "topic_state.json"
+        page_id = request.args.get('page_id', '')
+        if page_id and page_id.isdigit() and (DATA_DIR / f"topic_state_{page_id}.json").exists():
+            state_file = DATA_DIR / f"topic_state_{page_id}.json"
         state = {}
         if state_file.exists():
             with open(state_file, 'r') as f:
@@ -400,6 +466,7 @@ def get_topic_info():
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/api/images/<filename>')
+@require_pin
 def get_image(filename):
     """Serve generated images"""
     return send_from_directory(IMAGES_DIR, filename)
@@ -681,18 +748,22 @@ def queue_post():
         image_data = data['image_data'].split(',')[1]  # Remove data:image/png;base64,
         image_bytes = base64.b64decode(image_data)
         
+        import uuid
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        image_path = IMAGES_DIR / f"queued_poster_{timestamp}.png"
-        
+        # Akhiran acak: dua unggahan pada detik yang sama tidak saling menimpa.
+        image_path = IMAGES_DIR / f"queued_poster_{timestamp}_{uuid.uuid4().hex[:8]}.png"
+
         with open(image_path, 'wb') as f:
             f.write(image_bytes)
-        
+
         # Queue for each page (skema tabel dikelola core/database.py)
         conn = get_db()
         cursor = conn.cursor()
 
-        # Add to queue
-        now_iso = datetime.now().isoformat()
+        # Simpan dengan offset zona waktu. process_queue membandingkan lewat
+        # datetime('now') SQLite yang UTC; jam lokal tanpa offset membuat
+        # antrean baru terkirim 7 jam kemudian.
+        now_iso = datetime.now().astimezone().isoformat()
         for page_id in data['page_ids']:
             cursor.execute('''
                 INSERT INTO post_queue (page_id, content, image_path, scheduled_time, created_at, status)

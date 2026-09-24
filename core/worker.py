@@ -1,4 +1,5 @@
 import logging
+import os
 
 import pytz
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -153,11 +154,18 @@ def start_worker():
                       misfire_grace_time=3600)
 
     # 6. Motion Studio Worker (Setiap 30 detik memproses antrean video draft/queued)
-    scheduler.add_job(job_motion_worker, 'interval', seconds=30,
-                      id='motion_worker_job', max_instances=1, coalesce=True)
+    # Di docker-compose render dijalankan container goldgen-motion-worker yang
+    # dibatasi CPU/RAM. Kalau worker ini juga aktif di container web, render
+    # berat bisa jatuh ke container web tanpa batas dan memperlambat dashboard.
+    # Set MOTION_EMBEDDED_WORKER=false bila worker terpisah sudah berjalan.
+    embedded_motion = os.getenv('MOTION_EMBEDDED_WORKER', 'true').strip().lower() not in ('0', 'false', 'no', 'off')
+    if embedded_motion:
+        scheduler.add_job(job_motion_worker, 'interval', seconds=30,
+                          id='motion_worker_job', max_instances=1, coalesce=True)
 
     scheduler.start()
-    logger.info("✅ [WORKER] Internal Job Worker (APScheduler) berhasil dinyalakan! (dengan Motion Studio worker)")
+    logger.info("✅ [WORKER] Internal Job Worker (APScheduler) berhasil dinyalakan! (Motion Studio worker %s)",
+                "internal" if embedded_motion else "di container terpisah")
     return scheduler
 
 if __name__ == '__main__':
