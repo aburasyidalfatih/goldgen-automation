@@ -848,6 +848,20 @@ Return JSON only:
                            (experiment_id,experiment_arm,cursor.lastrowid))
         conn.commit()
         conn.close()
+        if status == 'success' and fb_post_id:
+            self._send_promo_comment(fanspage, fb_post_id)
+
+    def _send_promo_comment(self, fanspage, fb_post_id):
+        """Komentar promo pertama; kegagalannya tidak boleh menggagalkan posting."""
+        from core.promo_comment import send_promo_comment
+        try:
+            comment_id, error = send_promo_comment(fb_post_id, fanspage['access_token'])
+            if comment_id:
+                print(f"   💬 Komentar promo terkirim")
+            else:
+                print(f"   ⚠️  Komentar promo belum terkirim: {error} (disusulkan siklus berikutnya)")
+        except Exception as exc:
+            print(f"   ⚠️  Komentar promo gagal: {type(exc).__name__}: {redact(exc)[:200]}")
     
     def set_cooldown(self, page_id, hours=24):
         """Set a cooldown period for a page (e.g. after a rate limit or ban)"""
@@ -1056,6 +1070,13 @@ Return JSON only:
                 traceback.print_exc()
                 self.log_post(fanspage, content, str(image_path or ''), None, 'failed', error_msg)
 
+        # Susulkan komentar promo yang gagal terkirim sebelumnya.
+        try:
+            from core.promo_comment import send_pending_promo_comments
+            send_pending_promo_comments(self.fanspages)
+        except Exception as exc:
+            print(f"⚠️  Susulan komentar promo gagal: {type(exc).__name__}: {redact(exc)[:200]}")
+
         # Update state once at the end of cycle
         # ALWAYS update state even if posted_count = 0 to prevent stuck topics
         if posted_count > 0:
@@ -1218,6 +1239,8 @@ Return JSON only:
             conn.execute("UPDATE posts SET error_message = ? WHERE id = ?", (error, post_id))
         conn.commit()
         conn.close()
+        if fb_post_id:
+            self._send_promo_comment(page, fb_post_id)
         return (True, fb_post_id) if fb_post_id else (False, error)
 
     def process_queue(self):

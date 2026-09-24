@@ -21,6 +21,7 @@ bp = Blueprint('api', __name__)
 
 from core.config import BASE_DIR, DB_PATH, IMAGES_DIR, DATA_DIR, CONFIG_PATH, DASHBOARD_PIN
 from core.database import get_db_connection
+from core.promo_comment import audience_comments
 from core.motion_studio import create_job, list_jobs, list_topics, update_job, queue_draft_jobs
 from core.motion_assets import search_assets, scan_existing_images, select_assets_for_topic
 from core.motion_renderer import default_manifest, render_manifest
@@ -1332,7 +1333,9 @@ def get_analytics():
                     if result:
                         conn.execute(
                             "INSERT OR REPLACE INTO engagement_cache (fb_post_id, likes, comments, cached_at) VALUES (?,?,?,?)",
-                            (result['fb_post_id'], result['likes'], result['comments'], datetime.now().isoformat())
+                            (result['fb_post_id'], result['likes'],
+                             audience_comments(conn, result['fb_post_id'], result['comments']),
+                             datetime.now().isoformat())
                         )
             conn.commit()
             # Reload cache

@@ -228,6 +228,8 @@ def init_db():
         ('posts', 'experiment_arm', 'INTEGER'),
         # Sumber posting: goldgen (default untuk data lama) atau manual.
         ('posts', 'source', "TEXT DEFAULT 'goldgen'"),
+        # ID komentar promo pertama milik page (core/promo_comment.py).
+        ('posts', 'promo_comment_id', 'TEXT'),
     ]
     for table, col, col_type in migrations:
         try:

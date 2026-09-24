@@ -15,6 +15,7 @@ from core.database import get_db_connection, init_db
 from core.config import CONFIG_PATH
 from core.safe_log import redact
 from core.comment_filter import is_promotional_spam
+from core.promo_comment import audience_comments
 
 # Hook yang benar-benar dikenali sistem. Editor AI hanya menghasilkan label dari
 # daftar ini, dan prompt caption hanya bisa menindaklanjuti label dari daftar ini.
@@ -130,6 +131,7 @@ class CommentAnalyzer:
                     media_views = self.fetch_post_media_views(post_id, page['access_token'])
                     conn = get_db_connection()
                     try:
+                        values[4] = audience_comments(conn, post_id, values[4])
                         with conn:
                             conn.execute('''INSERT OR IGNORE INTO engagement_snapshots
                                 (fb_post_id,age_hours,likes,comments,clicks,media_views)
@@ -395,6 +397,8 @@ class CommentAnalyzer:
         if perf_rows:
             try:
                 conn = get_db_connection()
+                perf_rows = [(pid, likes, audience_comments(conn, pid, comments))
+                             for pid, likes, comments in perf_rows]
                 conn.executemany('''
                     INSERT INTO engagement_cache (fb_post_id, likes, comments, cached_at)
                     VALUES (?, ?, ?, CURRENT_TIMESTAMP)

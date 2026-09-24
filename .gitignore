@@ -60,3 +60,5 @@ static/motion/
 .python-runtime/
 .node-runtime/
 .upgrade-tools/
+
+.claude/settings.local.json
