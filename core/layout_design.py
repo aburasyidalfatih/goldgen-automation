@@ -54,7 +54,7 @@ Use gold only where the topic supports it, at illustrative abundance.
 '''
 
 
-def poster_prompt(topic, plan, level=0, previous_problem=''):
+def poster_prompt(topic, plan, level=0, previous_problem='', learning=''):
     """Prompt poster utuh: model gambar yang menulis seluruh teksnya.
 
     Pemilik memilih arsitektur ini secara sadar, menggantikan pembagian lama di
@@ -107,6 +107,8 @@ def poster_prompt(topic, plan, level=0, previous_problem=''):
                + '\nFix that defect first. If it was about lettering, make the text'
                  ' larger, simpler and letter-perfect.\n')
 
+    lessons = f'\n{learning.strip()}\n' if learning and learning.strip() else ''
+
     return f'''Create a VERTICAL EDUCATIONAL INFOGRAPHIC POSTER about GOLD PROSPECTING.
 
 TEXT CONTENT TO INCLUDE (render every word exactly as written, correctly spelled):
@@ -121,7 +123,7 @@ Spell each word letter by letter from the list above.
 DRAWING CONTEXT (ideas to depict, never text to print):
 {visual_context}
 END OF DRAWING CONTEXT.
-{fix}
+{fix}{lessons}
 VISUAL STYLE & COMPOSITION:
 {composition}
 {' '.join(mode)}

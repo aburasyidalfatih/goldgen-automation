@@ -335,8 +335,16 @@ Reply ONLY with JSON:
         from core.visual_plan import safe_trim_words
         topic['visual_plan']['design_version'] = DESIGN_VERSION
         topic['visual_plan']['subtitle'] = safe_trim_words(topic['visual_plan'].get('subtitle') or topic.get('subtitle', ''), 120)
-        image_prompt = poster_prompt(topic, topic['visual_plan'])
-        self._preflight_image_plan(topic, image_prompt)
+        topic['_image_learning'] = self._image_learning(page_id)
+        image_prompt = poster_prompt(topic, topic['visual_plan'], learning=topic['_image_learning'])
+        try:
+            self._preflight_image_plan(topic, image_prompt)
+        except Exception:
+            # Catatan belajar berasal dari model; kalau ia memuat frasa
+            # terlarang, buang catatannya, jangan batalkan ilustrasinya.
+            topic['_image_learning'] = ''
+            image_prompt = poster_prompt(topic, topic['visual_plan'])
+            self._preflight_image_plan(topic, image_prompt)
 
         prompt_saat_ini = image_prompt
         # Satu kali gambar ulang kalau juri menolak. Gambar 2K mahal dan lambat,
@@ -471,6 +479,19 @@ Reply ONLY with JSON:
 
         return self._generate_fallback_image(topic, fanspage_name)
 
+    def _image_learning(self, page_id):
+        """Pelajaran visual Page ini untuk model gambar; kosong bila gagal."""
+        try:
+            from comment_analyzer import _is_meaningful
+            from core.content_feedback import image_learning_notes
+            insights = self.goldgen._get_latest_insights(page_id) or {}
+            styles = [v for v in (insights.get('preferred_visual_styles') or [])
+                      if isinstance(v, str) and _is_meaningful(v)]
+            return image_learning_notes(page_id, styles)
+        except Exception as e:
+            print(f"   ⚠️  Catatan belajar visual tidak tersedia: {redact(e)}")
+            return ''
+
     def _reviewer_note(self, catatan, topic):
         """Catatan juri untuk percobaan berikutnya, tanpa saran pertanyaan diskusi."""
         note = str(catatan or '').split(' | Discussion question:')[0]
@@ -487,11 +508,12 @@ Reply ONLY with JSON:
         """
         from core.layout_design import poster_prompt
         plan = topic['visual_plan']
+        learning = topic.get('_image_learning', '')
         try:
-            prompt = poster_prompt(topic, plan, level, note)
+            prompt = poster_prompt(topic, plan, level, note, learning)
             self._preflight_image_plan(topic, prompt)
         except Exception:
-            prompt = poster_prompt(topic, plan, level)
+            prompt = poster_prompt(topic, plan, level, learning=learning)
             self._preflight_image_plan(topic, prompt)
         print(f"   ✂️  Percobaan ulang dengan {len(plan['approved_image_copy']['labels'])} label"
               f"{', tanpa subjudul' if not plan['approved_image_copy']['subtitle'] else ''}"

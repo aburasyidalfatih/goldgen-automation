@@ -120,6 +120,31 @@ def job_weekly_reflection():
         logger.error("[WORKER] Error pada Refleksi mingguan: %s", e, exc_info=True)
 
 
+def job_best_hours():
+    """Tukar maksimal satu jam posting per page dengan jam yang terbukti lebih baik.
+
+    Bisa dimatikan lewat "auto_best_hours": false di data/config.json.
+    """
+    with ProcessLock('best_hours') as lock:
+        if not lock.acquired:
+            return
+        try:
+            import json
+            from core.config import CONFIG_PATH
+            from core.schedule_tuning import apply_best_hours
+            if json.loads(CONFIG_PATH.read_text()).get('auto_best_hours', True) is False:
+                logger.info('[WORKER] Penyesuaian jam posting otomatis dimatikan')
+                return
+            for entry in apply_best_hours(CONFIG_PATH):
+                if entry['after']:
+                    logger.info('[JADWAL] %s: %s (jadwal baru %s)', entry['page'], entry['reason'], entry['after'])
+                else:
+                    logger.info('[JADWAL] %s: tidak diubah — %s', entry['page'], entry['reason'])
+        except Exception as exc:
+            from core.safe_log import redact
+            logger.error('Best-hours tuning failed: %s', redact(exc))
+
+
 def start_worker():
     """Memulai Internal Job Worker (Background Scheduler)"""
     scheduler = BackgroundScheduler(timezone=pytz.timezone('Asia/Jakarta'))
@@ -151,6 +176,11 @@ def start_worker():
     # dan masing-masing sempat berjalan berminggu-minggu sebelum ketahuan.
     scheduler.add_job(job_weekly_reflection, 'cron', day_of_week='mon', hour=8,
                       id='weekly_reflection_job', max_instances=1, coalesce=True,
+                      misfire_grace_time=3600)
+
+    # Setelah refleksi: terapkan jam posting terbaik, satu tukar per page per minggu.
+    scheduler.add_job(job_best_hours, 'cron', day_of_week='mon', hour=8, minute=30,
+                      id='best_hours_job', max_instances=1, coalesce=True,
                       misfire_grace_time=3600)
 
     # 6. Motion Studio Worker (Setiap 30 detik memproses antrean video draft/queued)

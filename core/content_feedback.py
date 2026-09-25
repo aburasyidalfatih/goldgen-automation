@@ -45,6 +45,53 @@ def feedback_prompt(page_id):
             conn.close()
 
 
+def image_learning_notes(page_id, visual_styles=(), limit=3):
+    """Ringkasan pendek pelajaran visual untuk model GAMBAR itu sendiri.
+
+    Sebelumnya kritik juri gambar dan gaya visual favorit audiens hanya masuk ke
+    prompt dasar, yang tidak pernah dikirim ke model gambar — hanya dibaca art
+    director, dan hilang sama sekali saat rencana art director tidak lolos
+    validasi. Yang diteruskan di sini hanya perbaikan tata letak, warna dan
+    tipografi; koreksi fakta tetap diurus caption dan gerbang kualitas.
+    """
+    lines = []
+    if page_id:
+        conn = None
+        try:
+            conn = get_db_connection()
+            if conn.execute("SELECT 1 FROM sqlite_master WHERE name='content_feedback'").fetchone():
+                rows = conn.execute('''SELECT note FROM content_feedback
+                    WHERE page_id=? AND kind='image' AND created_at >= datetime('now','-30 days')
+                    ORDER BY id DESC LIMIT 12''', (str(page_id),)).fetchall()
+                seen = set()
+                for row in rows:
+                    try:
+                        improvements = json.loads(row['note']).get('improvements') or {}
+                    except (ValueError, TypeError, AttributeError):
+                        continue
+                    for category in ('text', 'layout', 'color'):
+                        tip = ' '.join(str(improvements.get(category) or '').split())[:160]
+                        if tip and tip.lower() not in seen:
+                            seen.add(tip.lower())
+                            lines.append(f'- {category}: {tip}')
+                    if len(lines) >= limit * 2:
+                        break
+        except Exception:
+            pass  # Learning notes are advisory; never block generation.
+        finally:
+            if conn is not None:
+                conn.close()
+    lines = lines[:limit * 2]
+    styles = [' '.join(str(s).split())[:120] for s in visual_styles if str(s).strip()][:3]
+    if styles:
+        lines.append('- audience-preferred style, only where it fits the selected layout: '
+                     + '; '.join(styles))
+    if not lines:
+        return ''
+    return ('LESSONS FROM THIS PAGE\'S EARLIER POSTERS (visual guidance only, never text to print):\n'
+            + '\n'.join(lines))
+
+
 def outcome_report(page_id):
     """Observational performance before/after first saved feedback, not causality."""
     conn = get_db_connection()

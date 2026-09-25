@@ -9,7 +9,7 @@ from core.meta_api import GRAPH_API_BASE
 import json
 import sqlite3
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from core.database import get_db_connection, init_db
 from core.config import CONFIG_PATH
@@ -28,6 +28,13 @@ JUNK_VALUES = {
     '', '-', 'n/a', 'na', 'none', 'none identified', 'nothing', 'unknown',
     'not identified', 'no data', 'tidak ada', 'null', 'undefined',
 }
+
+
+def _utc_now_naive():
+    """Jam UTC tanpa zona, sebanding dengan created_time Facebook yang di-parse
+    dengan format '...+0000'. datetime.now() memakai jam lokal (WIB) sehingga
+    jendela "3 hari terakhir" sebenarnya hanya 2 hari 17 jam."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 def _is_meaningful(value):
@@ -267,7 +274,7 @@ class CommentAnalyzer:
             print(f"❌ Error getting posts: {redact(e)}")
             return []
 
-        cutoff = datetime.now() - timedelta(days=days)
+        cutoff = _utc_now_naive() - timedelta(days=days)
         all_comments = []
         hook_types = self._get_hook_types([p['id'] for p in posts])
 
@@ -326,7 +333,7 @@ class CommentAnalyzer:
             return []
 
         # Perluas jangkauan keviralan bisu menjadi 14 hari ke belakang
-        silent_cutoff = datetime.now() - timedelta(days=14)
+        silent_cutoff = _utc_now_naive() - timedelta(days=14)
         metrics = []
         engagement_samples = []  # untuk update baseline
         perf_rows = []           # performa per-post untuk pembelajaran layout
@@ -468,7 +475,7 @@ class CommentAnalyzer:
             print(f"   ⚠️  Gagal mengambil postingan untuk Vision AI: {redact(e)}")
             return None
 
-        cutoff = datetime.now() - timedelta(days=days)
+        cutoff = _utc_now_naive() - timedelta(days=days)
         ranked = []
 
         for post in posts:

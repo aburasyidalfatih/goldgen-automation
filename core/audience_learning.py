@@ -10,37 +10,65 @@ MIN_EFFECTIVE_SAMPLES = 5
 MIN_LOCAL_SAMPLES_FOR_AUTONOMY = 15
 
 
+# Tayangan lifetime tumbuh bersama umur posting. Membandingkan posting 3 jam
+# dengan posting 20 hari membuat setiap pilihan baru (layout/topik/hook yang
+# baru dicoba) langsung tampak kalah dan menghambat eksplorasi. Karena itu:
+# - posting di bawah MATURE_HOURS belum ikut dinilai;
+# - peringkat memakai tayangan pada usia tetap 48 jam (views_48h) bila jumlah
+#   posting yang punya angka itu sudah cukup;
+# - bila belum cukup, tayangan lifetime dipakai, tapi hanya antar posting yang
+#   sudah matang.
+MATURE_HOURS = 48
+MIN_FIXED_AGE_SAMPLES = 5
+
+
+def _age_hours(row, now):
+    stamp = datetime.fromisoformat(row['timestamp'])
+    stamp = stamp.replace(tzinfo=timezone.utc) if stamp.tzinfo is None else stamp
+    return (now - stamp).total_seconds() / 3600
+
+
 def add_view_outcomes(rows, now=None):
-    """Rank comparable posts by views first, interactions only for tied views."""
+    """Rank comparable posts by same-age views; interactions only break ties."""
     now = now or datetime.now(timezone.utc)
     recent = []
     for row in rows:
-        stamp = datetime.fromisoformat(row['timestamp'])
-        stamp = stamp.replace(tzinfo=timezone.utc) if stamp.tzinfo is None else stamp
-        if 0 <= (now-stamp).total_seconds() <= WINDOW_DAYS*86400:
-            recent.append(dict(row))
+        age = _age_hours(row, now)
+        if 0 <= age <= WINDOW_DAYS*24:
+            item = dict(row)
+            item['_age_hours'] = age
+            recent.append(item)
     pages = {row['page_id'] for row in recent}
     for page in pages:
         members = [r for r in recent if r['page_id'] == page]
-        measured = [r for r in members if r.get('media_views') is not None]
+        mature = [r for r in members if r['_age_hours'] >= MATURE_HOURS]
+        fixed = [r for r in mature if r.get('views_48h') is not None]
+        if len(fixed) >= MIN_FIXED_AGE_SAMPLES:
+            metric, measured = 'views_48h', fixed
+        else:
+            metric, measured = 'media_views', [r for r in mature if r.get('media_views') is not None]
         # Lifetime views remain the primary signal.  Early velocity is the
         # secondary signal so a fast-rising post wins ties without allowing a
         # small early spike to outrank a proven high-view post.
-        keys = sorted({(
-            r['media_views'],
-            round(float(r.get('velocity_per_hour') or 0.0), 2),
-            r.get('unique_viewers') or 0,
-            r.get('shares') or 0,
-            r.get('engagement') or 0
-        ) for r in measured})
-        scores = {key: 1 + 3*(i+1)/len(keys) for i,key in enumerate(keys)}
+        def key(r):
+            return (r[metric], round(float(r.get('velocity_per_hour') or 0.0), 2),
+                    r.get('unique_viewers') or 0, r.get('shares') or 0, r.get('engagement') or 0)
+        keys = sorted({key(r) for r in measured})
+        scores = {k: 1 + 3*(i+1)/len(keys) for i, k in enumerate(keys)}
+        ranked = {id(r) for r in measured}
         for row in members:
             row['views_ranked'] = bool(measured)
-            # Unmeasured posts cannot outrank measured winners on likes alone.
-            row['learning_outcome'] = (
-                scores[(row['media_views'], round(float(row.get('velocity_per_hour') or 0.0), 2), row.get('unique_viewers') or 0, row.get('shares') or 0, row.get('engagement') or 0)]
-                if row.get('media_views') is not None else
-                None if measured else row.get('rel_engagement'))
+            row['view_metric'] = metric if measured else None
+            # Unmeasured or not-yet-mature posts cannot be judged on views, and
+            # cannot outrank measured winners on likes alone.
+            if id(row) in ranked:
+                row['learning_outcome'] = scores[key(row)]
+            elif measured:
+                row['learning_outcome'] = None
+            else:
+                row['learning_outcome'] = row.get('rel_engagement')
+    for row in recent:
+        row.pop('_age_hours', None)
     return [row for row in recent if row['learning_outcome'] is not None]
 
 
