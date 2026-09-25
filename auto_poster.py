@@ -69,6 +69,9 @@ from core.model_catalog import image_size_for_model, normalize_image_model
 from core.safe_log import redact
 from comment_analyzer import CommentAnalyzer
 
+# Analisis komentar paling sering dijalankan sekali per jendela ini per page.
+JIT_INTERVAL_HOURS = 12
+
 # Ensure directories exist
 DATA_DIR.mkdir(exist_ok=True)
 LOGS_DIR.mkdir(exist_ok=True)
@@ -698,7 +701,7 @@ Return JSON only:
         elif code in (368, 17, 4, 613) or 'limit' in haystack or 'spam' in haystack or 'blocked' in haystack:
             reason = "DIBATASI FACEBOOK: kena rate limit / dianggap spam. Bot masuk cooldown."
         elif code == 100:
-            reason = "PARAMETER DITOLAK: request tidak diterima Facebook (mis. place/feeling tidak valid)."
+            reason = "PARAMETER DITOLAK: request tidak diterima Facebook (parameter atau file tidak valid)."
         elif code == 1 or code == 2 or 'temporarily' in haystack:
             reason = "FACEBOOK BERMASALAH: error sementara di sisi Facebook, akan dicoba lagi."
         elif message:
@@ -792,46 +795,6 @@ Return JSON only:
             return None, 'Waktu server/jaringan belum terverifikasi; publikasi ditunda'
         content = strip_markdown(content)
 
-        # Facebook Feeling/Activity IDs (official)
-        feelings = {
-            'excited': '115',
-            'motivated': '106',
-            'blessed': '242',
-            'determined': '114',
-            'hopeful': '109'
-        }
-        
-        # Top gold mining locations worldwide with Facebook Place IDs
-        top_locations = [
-            # USA
-            {'name': 'Fairbanks, Alaska', 'place_id': '110843418940484'},
-            {'name': 'Nevada City, California', 'place_id': '111975398821990'},
-            {'name': 'Juneau, Alaska', 'place_id': '105535939477573'},
-            {'name': 'Denver, Colorado', 'place_id': '115590505119035'},
-            {'name': 'Deadwood, South Dakota', 'place_id': '108424385857528'},
-            # Australia
-            {'name': 'Kalgoorlie, Western Australia', 'place_id': '108659255821735'},
-            {'name': 'Ballarat, Victoria', 'place_id': '110822688939497'},
-            # Canada
-            {'name': 'Dawson City, Yukon', 'place_id': '111948228824766'},
-            {'name': 'Timmins, Ontario', 'place_id': '109503229067684'},
-            {'name': 'Yellowknife, Northwest Territories', 'place_id': '110560688970018'},
-            # South Africa
-            {'name': 'Johannesburg, South Africa', 'place_id': '110471888969932'},
-            {'name': 'Kimberley, South Africa', 'place_id': '108103742550819'},
-            # South America
-            {'name': 'Ouro Preto, Brazil', 'place_id': '112149645469956'},
-            {'name': 'La Rinconada, Peru', 'place_id': '106377926061356'},
-            # Other
-            {'name': 'Lihir Island, Papua New Guinea', 'place_id': '114952118520588'},
-            {'name': 'Carlin, Nevada', 'place_id': '109435549074552'},
-        ]
-        
-        # Rotate location
-        import random
-        location = random.choice(top_locations)
-        feeling_id = random.choice(list(feelings.values()))
-        
         # Try posting with retry
         max_retries = 1 if single_attempt else 3
         for attempt in range(max_retries):
@@ -840,38 +803,27 @@ Return JSON only:
                 
                 with open(image_path, 'rb') as image_file:
                     files = {'source': image_file}
+                    # Tanpa check-in lokasi atau "feeling". Dulu lokasi dipilih
+                    # acak dari seluruh dunia (Peru, Afrika Selatan, ...) di setiap
+                    # posting: menyesatkan audiens Amerika dan tidak menambah
+                    # jangkauan, sementara pola acak itu bisa terbaca seperti spam.
                     data = {
                         'message': content,
                         'access_token': fanspage['access_token'],
-                        'feeling_id': feeling_id,
-                        'place': location['place_id']
                     }
                     
                     response = requests.post(url, data=data, files=files, timeout=30)
                     
                     if response.status_code == 200:
                         post_id = self._extract_post_id(response.json())
-                        print(f"   📍 Location: {location['name']}")
 
                         # Send Telegram notification
-                        send_notification(f"✅ <b>Goldgen Bot</b>\n\n📝 Posted to Facebook\n📍 {location['name']}\n🆔 {post_id}")
+                        send_notification(f"✅ <b>Goldgen Bot</b>\n\n📝 Posted to Facebook\n🆔 {post_id}")
 
                         return post_id, None
                     else:
                         error_msg = self._describe_fb_error(response)
-                        raw_text = response.text or ''
-                        # If place/feeling fails, retry without them
-                        if 'place' in raw_text or 'feeling' in raw_text:
-                            print(f"   ⚠️  Metadata failed, posting without location/feeling...")
-                            data = {
-                                'message': content,
-                                'access_token': fanspage['access_token']
-                            }
-                            image_file.seek(0)  # Reset file pointer
-                            response = requests.post(url, data=data, files={'source': image_file}, timeout=30)
-                            if response.status_code == 200:
-                                return self._extract_post_id(response.json()), None
-                        
+
                         if attempt < max_retries - 1:
                             delay = 2 ** attempt
                             print(f"   ⚠️  {error_msg}")
@@ -1128,8 +1080,10 @@ Return JSON only:
                 # [JIT ML RESEARCH] - Lakukan riset tepat sebelum merancang konten
                 try:
                     analyzer = CommentAnalyzer()
-                    jit_result = analyzer.analyze_single_page(fanspage)
-                    if jit_result:
+                    jit_result = analyzer.analyze_single_page(fanspage, min_interval_hours=JIT_INTERVAL_HOURS)
+                    if jit_result == 'cached':
+                        print(f"   🧠 JIT ML Research: memakai insight terbaru (< {JIT_INTERVAL_HOURS} jam)")
+                    elif jit_result:
                         print(f"   🧠 JIT ML Research sukses untuk {fanspage['name']}")
                     else:
                         print(f"   ℹ️  JIT ML Research: data belum cukup untuk {fanspage['name']} (konten pakai rotasi biasa)")

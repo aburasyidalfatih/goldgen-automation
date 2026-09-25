@@ -14,6 +14,9 @@ COPY --from=motion-build /usr/local/bin/node /usr/local/bin/node
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
+# /app/data ditutup volume permanen di produksi; salinan katalog ini yang
+# membawa perubahan layouts.json dari repo ke server (lihat core/layout_policy.py).
+RUN mkdir -p /app/catalog && cp data/layouts.json /app/catalog/
 COPY --from=motion-build /build/motion_engine /app/motion_engine
 COPY --from=motion-build /build/static/motion /app/static/motion
 ENV MOTION_BROWSER_PATH=/usr/bin/chromium

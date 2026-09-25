@@ -184,6 +184,18 @@ def _gambar_tanpa_ilustrasi(rows):
     return None
 
 
+def _gagal_publikasi(rows):
+    """Page yang sering gagal memposting. Membaca tabel sendiri: rows hanya
+    berisi posting yang BERHASIL, padahal yang dicari justru yang gagal."""
+    from core.bot_health import page_health, recent_pages
+    masalah = ['%s: %s' % (p['page_name'], '; '.join(p['warnings']))
+               for p in page_health(recent_pages()) if p['warnings']]
+    if masalah:
+        return ('Publikasi bermasalah dalam 7 hari terakhir — setiap slot yang gagal adalah '
+                'jangkauan yang hilang. ' + ' | '.join(masalah))
+    return None
+
+
 PEMERIKSAAN = (
     ('kelaparan sampel', _kelaparan_sampel),
     ('metrik bertentangan', _metrik_bertentangan),
@@ -191,6 +203,7 @@ PEMERIKSAAN = (
     ('pergeseran jangkauan', _pergeseran_jangkauan),
     ('kebocoran data manual', _kebocoran_manual),
     ('poster tanpa ilustrasi', _gambar_tanpa_ilustrasi),
+    ('publikasi gagal', _gagal_publikasi),
 )
 
 

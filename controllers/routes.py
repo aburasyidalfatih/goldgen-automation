@@ -212,6 +212,43 @@ def resolve_post(post_id):
         return jsonify({'success': False, 'message': 'Postingan tidak ditemukan atau statusnya bukan retrying'}), 404
     return jsonify({'success': True})
 
+@bp.route('/api/health-report')
+@require_pin
+def health_report():
+    """Satu tempat untuk peringatan yang dulu hanya dikirim lewat Telegram:
+    kegagalan posting per page, token bermasalah, dan temuan refleksi mingguan."""
+    from core.bot_health import page_health
+    from core.reflection import reflect
+    config = {}
+    if CONFIG_PATH.exists():
+        with open(CONFIG_PATH, 'r') as f:
+            config = json.load(f)
+    pages = config.get('fanspages', [])
+    health = page_health(pages)
+    conn = get_db()
+    try:
+        latest = {r['page_id']: r for r in conn.execute('''SELECT page_id, status, error_message
+            FROM posts WHERE id IN (SELECT MAX(id) FROM posts GROUP BY page_id)''')}
+    finally:
+        conn.close()
+    for item in health:
+        row = latest.get(item['page_id'])
+        item['token_problem'] = (row['error_message'][:200] if row and row['status'] != 'success'
+                                 and (row['error_message'] or '').startswith('TOKEN TIDAK AKTIF') else None)
+        if item['token_problem']:
+            item['warnings'].insert(0, 'token Facebook tidak aktif — perbarui token')
+    try:
+        findings = reflect()
+    except Exception as e:
+        findings = [{'pemeriksaan': 'refleksi', 'pesan': f'gagal dijalankan: {type(e).__name__}'}]
+    backups = sorted((DATA_DIR / 'backups').glob('posts-*.db')) if (DATA_DIR / 'backups').exists() else []
+    return jsonify({
+        'pages': health,
+        'reflection': findings,
+        'last_backup': backups[-1].name if backups else None,
+        'auto_best_hours': config.get('auto_best_hours', True) is not False,
+    })
+
 @bp.route('/api/stats')
 @require_pin
 def get_stats():

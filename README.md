@@ -62,6 +62,12 @@ berjalan di dalam proses aplikasi (APScheduler, lihat `core/worker.py`):
 |-----|----------|--------|-------------|
 | Auto Poster | tiap 15 menit | ±4 menit | file lock + `max_instances=1` |
 | Auto Reply | tiap 10 menit | ±3 menit | file lock + `max_instances=1` |
+| Backup `posts.db` + `config.json` | harian 02:10 WIB (simpan 7 hari di `data/backups`) | – | file lock |
+| Jam posting terbaik | Senin 08:30 WIB (maks. 1 tukar jam per page) | – | matikan: `"auto_best_hours": false` |
+
+Analisis komentar (riset JIT) dijalankan paling sering sekali per 12 jam per
+page. Ringkasan kegagalan posting, token bermasalah, dan temuan refleksi
+mingguan tampil di kartu **Kesehatan Bot** pada dashboard.
 
 Jadwal jam posting per fanpage tetap diatur lewat `schedule_hours` di
 `data/config.json` (atau lewat dashboard) — worker hanya menentukan seberapa

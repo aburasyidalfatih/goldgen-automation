@@ -822,11 +822,35 @@ REPLY ONLY WITH THIS EXACT JSON FORMAT:
 
         print("\n✅ Analysis complete!")
 
-    def analyze_single_page(self, page_config):
-        """Menganalisa satu spesifik fanspage secara Just-In-Time"""
+    def analyzed_recently(self, page_id, hours):
+        """True bila page ini sudah dianalisis dalam `hours` jam terakhir."""
+        try:
+            conn = get_db_connection()
+            try:
+                row = conn.execute("""SELECT 1 FROM comment_insights WHERE page_id=?
+                    AND julianday(analyzed_at) >= julianday('now', ?) LIMIT 1""",
+                    (page_id, f'-{float(hours)} hours')).fetchone()
+            finally:
+                conn.close()
+            return row is not None
+        except Exception:
+            return False
+
+    def analyze_single_page(self, page_config, min_interval_hours=None):
+        """Menganalisa satu spesifik fanspage secara Just-In-Time.
+
+        Dengan min_interval_hours, analisis dilewati bila hasil terbaru masih
+        segar. Komentar 3 hari terakhir hampir tidak berubah antar posting,
+        sementara setiap analisis memakan dua panggilan Gemini (teks + Vision).
+        Mengembalikan 'cached' dalam kasus itu.
+        """
         page_name = page_config['name']
         page_id = page_config['page_id']
         access_token = page_config['access_token']
+
+        if min_interval_hours and self.analyzed_recently(page_id, min_interval_hours):
+            print(f"\n▶ [JIT ML RESEARCH] {page_name}: insight < {min_interval_hours} jam, dipakai ulang")
+            return 'cached'
 
         print(f"\n▶ [JIT ML RESEARCH] Menganalisa halaman: {page_name}")
 

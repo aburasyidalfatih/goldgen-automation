@@ -145,6 +145,20 @@ def job_best_hours():
             logger.error('Best-hours tuning failed: %s', redact(exc))
 
 
+def job_backup():
+    """Cadangan harian posts.db dan config.json ke data/backups (simpan 7 hari)."""
+    with ProcessLock('backup') as lock:
+        if not lock.acquired:
+            return
+        try:
+            from core.backup import backup_database
+            from core.config import CONFIG_PATH, DB_PATH
+            logger.info('[WORKER] Cadangan database: %s', backup_database(DB_PATH, CONFIG_PATH))
+        except Exception as exc:
+            from core.safe_log import redact
+            logger.error('Database backup failed: %s', redact(exc))
+
+
 def start_worker():
     """Memulai Internal Job Worker (Background Scheduler)"""
     scheduler = BackgroundScheduler(timezone=pytz.timezone('Asia/Jakarta'))
@@ -177,6 +191,10 @@ def start_worker():
     scheduler.add_job(job_weekly_reflection, 'cron', day_of_week='mon', hour=8,
                       id='weekly_reflection_job', max_instances=1, coalesce=True,
                       misfire_grace_time=3600)
+
+    # Cadangan harian saat bot biasanya sepi.
+    scheduler.add_job(job_backup, 'cron', hour=2, minute=10, id='backup_job',
+                      max_instances=1, coalesce=True, misfire_grace_time=6*3600)
 
     # Setelah refleksi: terapkan jam posting terbaik, satu tukar per page per minggu.
     scheduler.add_job(job_best_hours, 'cron', day_of_week='mon', hour=8, minute=30,

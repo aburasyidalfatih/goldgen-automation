@@ -1102,7 +1102,16 @@ Use it only when consistent with the requirements above:
         topic['hook_type'] = "Unknown"
         topic['editor_score'] = None
         topic['caption_approved'] = False
+        # Caption yang sudah lolos pemeriksaan kualitas tapi hook-nya meleset.
+        # Dipakai bila tulis-ulang demi hook justru gagal, supaya penegakan hook
+        # tidak pernah menggagalkan posting.
+        cadangan = None
 
+        def terima(teks, label, nilai):
+            topic['hook_type'] = label
+            topic['editor_score'] = nilai
+            topic['caption_approved'] = True
+            return teks
 
         for attempt in range(max_retries + 1):
             import time
@@ -1144,13 +1153,26 @@ Use it only when consistent with the requirements above:
                 from core.content_feedback import save_feedback
                 save_feedback(page_id, topic, 'caption', skor, review.get('feedback', ''))
                 issues = caption_issues(caption, review, requested_hook)
-                if not issues:
-                    topic['hook_type'] = hook_label
-                    topic['editor_score'] = skor
-                    final_caption = caption
-                    topic['caption_approved'] = True
+                # Hook yang diminta adalah sisi "eksploitasi" pembelajaran. Dulu
+                # editor hanya memotong skor, padahal skor bukan syarat terbit,
+                # sehingga hook pemenang tidak pernah benar-benar dipakai.
+                hook_cocok = not requested_hook or canonical == str(requested_hook).lower()
+                if not issues and (hook_cocok or attempt == max_retries):
+                    final_caption = terima(caption, hook_label, skor)
                     break
+                if not issues:
+                    cadangan = (caption, hook_label, skor)
+                    print(f"   🎯 Hook '{hook_label}' bukan '{requested_hook}'; menulis ulang pembukanya")
+                    current_prompt = base_prompt + (
+                        f"\n\n[YOUR PREVIOUS DRAFT - OPENING REJECTED]:\n{caption}\n\n"
+                        f"The opening sentence reads as a '{hook_label}' hook, but this post requires a "
+                        f"'{str(requested_hook).upper()}' hook. Keep the facts and body; rewrite the "
+                        f"opening sentence so it is clearly a '{str(requested_hook).upper()}' hook.")
+                    continue
                 elif attempt == max_retries:
+                    if cadangan:
+                        final_caption = terima(*cadangan)
+                        break
                     raise ContentQualityError('DITAHAN KUALITAS: ' + '; '.join(issues))
                 else:
                     print(f"   ✏️  Editor demanded rewrite: {review.get('feedback')}")
@@ -1161,6 +1183,8 @@ Use it only when consistent with the requirements above:
                 print(f"   ⚠️  Gemini text error: {redact(e)}")
                 if attempt < max_retries:
                     time.sleep(4)
+                elif cadangan:
+                    final_caption = terima(*cadangan)
                 else:
                     raise
 

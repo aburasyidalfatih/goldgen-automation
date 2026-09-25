@@ -107,6 +107,17 @@
             </div>
         </div>
 
+        <!-- Bot Health -->
+        <div class="card rounded-lg p-6 mb-8">
+            <h2 class="text-xl font-bold mb-4 flex items-center">
+                <span class="amber-gradient w-1 h-6 mr-3 rounded"></span>
+                Kesehatan Bot (7 hari)
+            </h2>
+            <div id="botHealth" class="space-y-3 text-sm">
+                <div class="text-gray-500">Memuat…</div>
+            </div>
+        </div>
+
         <!-- Fanspages Schedule -->
         <div class="card rounded-lg p-6 mb-8">
             <div class="flex items-center justify-between mb-6">
@@ -695,6 +706,46 @@
             }
         }
 
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        async function loadBotHealth() {
+            const container = document.getElementById('botHealth');
+            try {
+                const res = await fetch('/api/health-report');
+                const data = await res.json();
+                const pages = (data.pages || []).map(p => {
+                    const rate = p.success_rate === null ? '–' : `${Math.round(p.success_rate * 100)}%`;
+                    const ok = p.warnings.length === 0;
+                    const warnings = p.warnings.map(w => `<div class="text-red-300">⚠️ ${escapeHtml(w)}</div>`).join('');
+                    const lastError = !ok && p.last_error
+                        ? `<div class="text-xs text-gray-400 mt-1 break-words">Error terakhir: ${escapeHtml(p.last_error)}</div>` : '';
+                    return `
+                        <div class="p-3 rounded ${ok ? 'bg-gray-800 bg-opacity-30' : 'bg-red-900 bg-opacity-30 border-l-2 border-red-500'}">
+                            <div class="flex justify-between gap-2">
+                                <span class="font-semibold">${ok ? '✅' : '🚨'} ${escapeHtml(p.page_name)}</span>
+                                <span class="text-gray-400">berhasil ${p.success}/${p.success + p.failed} (${rate}) · slot terlewat ${p.missed_slots}</span>
+                            </div>
+                            ${warnings}${lastError}
+                        </div>`;
+                }).join('');
+                const findings = (data.reflection || []).map(f =>
+                    `<div class="p-3 rounded bg-yellow-900 bg-opacity-30 border-l-2 border-yellow-500">
+                        <div class="font-semibold">🪞 ${escapeHtml(f.pemeriksaan)}</div>
+                        <div class="text-gray-300">${escapeHtml(f.pesan)}</div>
+                    </div>`).join('');
+                const footer = `<div class="text-xs text-gray-500">Backup terakhir: ${escapeHtml(data.last_backup || 'belum ada')} ·
+                    Jam posting otomatis: ${data.auto_best_hours ? 'aktif (Senin 08:30)' : 'mati'}</div>`;
+                container.innerHTML = (pages || '<div class="text-gray-500">Belum ada fanspage</div>')
+                    + (findings || '<div class="text-gray-500">🪞 Refleksi: tidak ada yang mencurigakan.</div>')
+                    + footer;
+            } catch (e) {
+                container.innerHTML = '<div class="text-red-300">Gagal memuat kesehatan bot.</div>';
+            }
+        }
+
         async function resolveUncertainPost(postId, outcome, button) {
             let fbPostId = null;
             if (outcome === 'published') {
@@ -726,6 +777,7 @@
             await renderFanspagesSchedule();
             loadStats();
             loadRecentPosts();
+            loadBotHealth();
             
             // Update every second
             setInterval(updateTime, 1000);
@@ -741,6 +793,9 @@
                 loadStats();
                 loadRecentPosts();
             }, 30000);
+
+            // Kesehatan bot menjalankan refleksi; cukup tiap 5 menit.
+            setInterval(loadBotHealth, 300000);
         }
 
         // Modal functions
