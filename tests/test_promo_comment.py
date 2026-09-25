@@ -131,7 +131,7 @@ class PosterWiringTests(unittest.TestCase):
         poster = GoldGenAutoPoster.__new__(GoldGenAutoPoster)
         with patch('core.promo_comment.send_promo_comment', side_effect=RuntimeError('x')) as kirim:
             poster._send_promo_comment({'access_token': 't'}, 'p1', 'caption')
-        kirim.assert_called_once_with('p1', 't', poster._compose_promo, 'caption')
+        kirim.assert_called_once_with('p1', 't', None, 'caption')
 
 
 if __name__ == '__main__':

@@ -174,7 +174,8 @@ class AutoReplySpamTests(DbTestCase):
         replier.validate_token = Mock(return_value=(True, None))
         replier.get_recent_posts = Mock(return_value=[{'id': 'p_1', 'message': 'post'}])
         replier.get_comments = Mock(return_value=comments)
-        replier.check_spam = Mock(return_value=False)
+        replier.gemini_api_key = 'k'
+        replier.text_model = 'text'
         replier.hide_comment = Mock(return_value=True)
         replier.post_reply = Mock(return_value=True)
         replier._human_delay = Mock()
@@ -186,10 +187,11 @@ class AutoReplySpamTests(DbTestCase):
     def test_promotional_spam_is_hidden_once_without_gemini(self):
         comments = [{'id': 'c1', 'from': {'id': 'u', 'name': 'U'}, 'message': self.SPAM}]
         replier = self.replier(comments)
-        replier.process_comments()
-        replier.process_comments()
+        with patch('auto_reply_comments.requests.post') as gemini:
+            replier.process_comments()
+            replier.process_comments()
+        gemini.assert_not_called()
         replier.hide_comment.assert_called_once()
-        replier.check_spam.assert_not_called()
         replier.post_reply.assert_not_called()
         self.assertEqual('[HIDDEN SPAM]', self.query('SELECT reply_text FROM replied_comments')[0][0])
 
@@ -201,6 +203,28 @@ class AutoReplySpamTests(DbTestCase):
         replier.process_comments()
         replier.generate_reply.assert_called_once()
         replier.post_reply.assert_not_called()
+
+    def test_model_spam_verdict_shares_the_reply_call(self):
+        comments = [{'id': 'c1', 'from': {'id': 'u', 'name': 'U'}, 'message': 'claim your free crypto now'}]
+        replier = self.replier(comments)
+        answer = MagicMock()
+        answer.json.return_value = {'candidates': [{'content': {'parts': [{'text': '[[SPAM]]'}]}}]}
+        with patch('auto_reply_comments.requests.post', return_value=answer) as gemini:
+            replier.process_comments()
+            replier.process_comments()
+        self.assertEqual(1, gemini.call_count)
+        replier.hide_comment.assert_called_once()
+        replier.post_reply.assert_not_called()
+
+    def test_normal_comment_needs_one_gemini_call(self):
+        comments = [{'id': 'c1', 'from': {'id': 'u', 'name': 'U'}, 'message': 'where do I start panning?'}]
+        replier = self.replier(comments)
+        answer = MagicMock()
+        answer.json.return_value = {'candidates': [{'content': {'parts': [{'text': 'Try the inside bends.'}]}}]}
+        with patch('auto_reply_comments.requests.post', return_value=answer) as gemini:
+            replier.process_comments()
+        self.assertEqual(1, gemini.call_count)
+        replier.post_reply.assert_called_once_with('c1', 'Try the inside bends.', 't')
 
     def test_failed_hide_is_recorded_and_not_retried(self):
         comments = [{'id': 'c1', 'from': {'id': 'u', 'name': 'U'}, 'message': self.SPAM}]

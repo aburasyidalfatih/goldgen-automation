@@ -207,11 +207,19 @@ class CommentReplier:
             print(f"   ❌ Failed to download attachment image: {redact(e)}")
             return None
     
+    # Jawaban model untuk komentar spam. Pemeriksaan spam dulu memakai panggilan
+    # Gemini tersendiri untuk SETIAP komentar sebelum balasan dibuat; kini satu
+    # panggilan yang sama menilai spam sekaligus menulis balasan.
+    SPAM_SIGNAL = '[[SPAM]]'
+
     def generate_reply(self, comment_text, post_context="", user_name="User", user_history=None, ml_insights=None, image_b64=None):
+        """Generate reply using Gemini AI with language detection and ML context.
+
+        Returns None for spam (local filter or the model's SPAM_SIGNAL).
+        """
         from core.comment_filter import is_promotional_spam
         if is_promotional_spam(comment_text):
             return None
-        """Generate reply using Gemini AI with language detection and ML context"""
         
         # Inject ML context if available
         ml_context = ""
@@ -268,7 +276,8 @@ CRITICAL INSTRUCTIONS:
    - A simple acknowledgment with an emoji (e.g., "That's the spirit! ⛏️")
    - An invitation to share their own story
    Never use the same ending style twice in a row.
-10. Never use a stock opener such as "Good to see you again, Gold Baron!" or any greeting unrelated to the comment."""
+10. Never use a stock opener such as "Good to see you again, Gold Baron!" or any greeting unrelated to the comment.
+11. SPAM CHECK FIRST: If the comment is spam, a scam, a phishing link, crypto or gambling promotion, or hate speech, reply with exactly [[SPAM]] and nothing else. Ordinary criticism, jokes, off-topic chat and questions are NOT spam."""
 
         if image_b64:
             prompt += "\n\nCRITICAL VISION INSTRUCTION: The user has attached a photo to their comment. Look at the photo carefully. Give expert geological insight based on what you see. If they ask if it's real gold, tell them! If it looks like Pyrite (Fool's Gold) because of sharp, cubic edges, explain it to them gently. Act like a true veteran prospector analyzing their find!"
@@ -310,6 +319,8 @@ Just provide the direct reply without any quotes or explanations."""
             response.raise_for_status()
             data = response.json()
             reply = data['candidates'][0]['content']['parts'][0]['text'].strip()
+            if self.SPAM_SIGNAL in reply:
+                return None
 
             # Clean up reply: buang tanda kutip pembungkus saja.
             # Apostrof di dalam kalimat WAJIB dipertahankan — slang seperti
@@ -438,27 +449,6 @@ Just provide the direct reply without any quotes or explanations."""
         except Exception:
             return False
 
-    def check_spam(self, comment_text):
-        """Use Gemini to detect if a comment is spam, scam, crypto bot, or hate speech."""
-        prompt = f"""Analyze the following Facebook comment. Is it spam, a scam, phishing link, crypto promotion, or hate speech?
-Respond ONLY with this exact JSON format: {{"is_spam": true/false}}
-
-COMMENT: "{comment_text}"
-"""
-        try:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.text_model}:generateContent?key={self.gemini_api_key}"
-            payload = {"contents": [{"parts": [{"text": prompt}]}]}
-            response = requests.post(url, json=payload, timeout=30)
-            text = response.json()['candidates'][0]['content']['parts'][0]['text']
-            import re
-            match = re.search(r'\{.*\}', text, re.DOTALL)
-            if match:
-                res = json.loads(match.group(0))
-                return res.get('is_spam', False)
-            return False
-        except Exception:
-            return False
-
     def process_comments(self):
         """Main process to reply comments"""
         print("=" * 60)
@@ -544,13 +534,9 @@ COMMENT: "{comment_text}"
                     )
                     
                     try:
-                        # Bouncer: filter lokal dulu (gratis), baru Gemini.
-                        from core.comment_filter import is_promotional_spam
-                        print(f"   🛡️ Checking for spam...")
-                        is_spam = is_promotional_spam(comment_text) or self.check_spam(comment_text)
-                        if is_spam:
-                            self._handle_spam(comment_id, post_id, user_name, comment_text, user_id, access_token)
-                            continue
+                        # Spam dinilai di dalam generate_reply: filter lokal lebih
+                        # dulu (gratis), lalu model pada panggilan yang sama dengan
+                        # balasannya. Keduanya menghasilkan None.
                         
                         # Fetch ML Insights for this page
                         ml_insights = self.get_latest_insights(page_id)
@@ -568,7 +554,7 @@ COMMENT: "{comment_text}"
                             image_b64=image_b64
                         )
                         if not reply_text:
-                            # generate_reply menolak membalas (mis. spam promosi).
+                            # generate_reply menilai komentar ini spam.
                             # Jangan lepas kuncinya — kalau dilepas, komentar yang
                             # sama diproses ulang dan memanggil Gemini tiap siklus.
                             self._handle_spam(comment_id, post_id, user_name, comment_text, user_id, access_token)

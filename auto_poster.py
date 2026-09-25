@@ -892,20 +892,15 @@ Return JSON only:
         if status == 'success' and fb_post_id:
             self._send_promo_comment(fanspage, fb_post_id, content)
 
-    def _compose_promo(self, caption):
-        """Satu kalimat pembuka komentar promo yang menyambung ke topik postingan."""
-        from core.promo_comment import promo_prompt
-        client = genai.Client(api_key=self.gemini_api_key)
-        response = client.models.generate_content(model=self.text_model,
-                                                  contents=promo_prompt(caption))
-        return getattr(response, 'text', '')
-
     def _send_promo_comment(self, fanspage, fb_post_id, caption=''):
         """Komentar promo pertama; kegagalannya tidak boleh menggagalkan posting."""
         from core.promo_comment import send_promo_comment
         try:
+            # Kalimat pembuka bergilir dari FALLBACK_SENTENCES, tanpa Gemini:
+            # penjualan hanya sampingan, jadi satu panggilan model per posting
+            # untuk kalimat promo tidak sepadan.
             comment_id, error = send_promo_comment(fb_post_id, fanspage['access_token'],
-                                                   self._compose_promo, caption)
+                                                   None, caption)
             if comment_id:
                 print(f"   💬 Komentar promo terkirim")
             else:
@@ -1093,8 +1088,14 @@ Return JSON only:
                 # Generate content with offset topic (different for each fanspage)
                 # Bikin caption & prompt pake GoldGen AI (sekarang sudah terisolasi per-page)
                 resumed = self._resume_pending_review(fanspage)
+                reused = None if resumed else self._resume_approved_caption(fanspage)
                 if resumed:
                     content, topic, image_path = resumed
+                elif reused:
+                    # Hanya gambarnya yang gagal; caption yang sudah lolos
+                    # pemeriksaan tidak dibuat ulang (hemat 2-6 panggilan Gemini).
+                    content, topic = reused
+                    print("   ♻️  Memakai caption yang sudah lolos dari percobaan sebelumnya; hanya gambar yang dibuat ulang")
                 else:
                     content, topic = self.generate_content(page_id=fanspage['page_id'], allow_experiment=True)
                 topic['approved_caption'] = content
@@ -1440,6 +1441,49 @@ Return JSON only:
             topic['image_score'], _ = self._review_image(image_path, topic, page['name'])
         save_review(page['page_id'], image_path, caption, topic)
         require_publishable(topic)
+
+    # Batas pemakaian ulang caption yang gambarnya terus gagal: topik yang sulit
+    # digambar tidak boleh menahan page selamanya.
+    CAPTION_REUSE_HOURS = 3
+    CAPTION_REUSE_MAX_FAILURES = 3
+
+    def _resume_approved_caption(self, page):
+        """Caption + topik yang sudah lolos, dari posting yang gagal HANYA karena gambar.
+
+        Dulu setiap percobaan ulang slot membuat caption dari nol (2-6 panggilan
+        teks) walau caption sebelumnya sudah disetujui editor.
+        """
+        from core.generation_reliability import load_review
+        from core.content_quality import ContentQualityError, IMAGE_MIN_SCORE, valid_score
+        conn = get_db_connection()
+        try:
+            rows = conn.execute('''SELECT content, image_path FROM posts
+                WHERE page_id=? AND status='failed' AND content IS NOT NULL AND content != ''
+                  AND image_path IS NOT NULL AND image_path != ''
+                  AND julianday(timestamp) >= julianday('now', ?)
+                ORDER BY id DESC LIMIT 3''', (str(page['page_id']), f'-{self.CAPTION_REUSE_HOURS} hours')).fetchall()
+            for row in rows:
+                published = conn.execute("SELECT 1 FROM posts WHERE page_id=? AND content=? AND status='success' LIMIT 1",
+                                         (str(page['page_id']), row['content'])).fetchone()
+                failures = conn.execute("SELECT COUNT(*) FROM posts WHERE page_id=? AND content=? AND status='failed'",
+                                        (str(page['page_id']), row['content'])).fetchone()[0]
+                if published or failures >= self.CAPTION_REUSE_MAX_FAILURES:
+                    continue
+                try:
+                    topic = load_review(page['page_id'], row['image_path'], row['content'])
+                except (ContentQualityError, OSError):
+                    continue
+                score = valid_score(topic.get('image_score'))
+                image_failed = topic.get('image_fallback') or (score is not None and score < IMAGE_MIN_SCORE)
+                if topic.get('caption_approved') is not True or not image_failed:
+                    continue
+                for key in ('image_fallback', 'visual_plan', '_image_learning', 'visual_feedback'):
+                    topic.pop(key, None)
+                topic['image_score'] = None
+                return row['content'], topic
+        finally:
+            conn.close()
+        return None
 
     def _resume_pending_review(self, page):
         """Reuse an unreviewed image from a failed generation within six hours."""
