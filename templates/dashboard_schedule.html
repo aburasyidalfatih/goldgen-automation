@@ -253,6 +253,22 @@
                     <input type="text" id="editFpName" required class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded focus:border-yellow-500 focus:outline-none">
                 </div>
                 <div>
+                    <label class="block text-sm font-semibold mb-2">Page ID</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="editFpPageIdDisplay" readonly class="flex-1 min-w-0 px-3 py-2 bg-gray-900 border border-gray-700 rounded text-gray-300 font-mono text-sm focus:outline-none">
+                        <button type="button" onclick="copyField('editFpPageIdDisplay', this)" class="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm font-semibold transition-colors">Copy</button>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold mb-2">Current Access Token</label>
+                    <div class="flex gap-2">
+                        <input type="password" id="editFpCurrentToken" readonly placeholder="No token saved" class="flex-1 min-w-0 px-3 py-2 bg-gray-900 border border-gray-700 rounded text-gray-300 font-mono text-sm focus:outline-none">
+                        <button type="button" id="editFpTokenToggle" onclick="toggleCurrentToken()" class="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm font-semibold transition-colors">Show</button>
+                        <button type="button" onclick="copyCurrentToken(this)" class="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm font-semibold transition-colors">Copy</button>
+                    </div>
+                    <p id="editFpTokenInfo" class="text-xs text-gray-400 mt-1"></p>
+                </div>
+                <div>
                     <label class="block text-sm font-semibold mb-2">Access Token (leave empty to keep current)</label>
                     <textarea id="editFpToken" rows="3" placeholder="Leave empty to keep current token" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded focus:border-yellow-500 focus:outline-none"></textarea>
                 </div>
@@ -815,6 +831,81 @@
         function closeEditFanspageModal() {
             document.getElementById('editFanspageModal').classList.add('hidden');
             document.getElementById('editFanspageForm').reset();
+            resetCurrentToken();
+        }
+
+        // Token lengkap hanya diambil saat diminta (Show/Copy), dan dibuang saat modal ditutup
+        let currentTokenValue = null;
+
+        function resetCurrentToken() {
+            currentTokenValue = null;
+            const input = document.getElementById('editFpCurrentToken');
+            input.type = 'password';
+            input.value = '';
+            document.getElementById('editFpTokenToggle').textContent = 'Show';
+        }
+
+        async function fetchCurrentToken() {
+            if (currentTokenValue !== null) return currentTokenValue;
+            const pageId = document.getElementById('editFpPageId').value;
+            const res = await fetch(`/api/fanspages/${encodeURIComponent(pageId)}/token`, {cache: 'no-store'});
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Failed to load token');
+            currentTokenValue = data.access_token || '';
+            return currentTokenValue;
+        }
+
+        async function toggleCurrentToken() {
+            const input = document.getElementById('editFpCurrentToken');
+            const toggle = document.getElementById('editFpTokenToggle');
+            if (input.type === 'text') {
+                input.type = 'password';
+                input.value = currentTokenValue ? '••••••••••••••••' : '';
+                toggle.textContent = 'Show';
+                return;
+            }
+            try {
+                const token = await fetchCurrentToken();
+                input.type = 'text';
+                input.value = token;
+                toggle.textContent = 'Hide';
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
+        }
+
+        async function copyCurrentToken(btn) {
+            try {
+                const token = await fetchCurrentToken();
+                if (!token) {
+                    alert('No token saved for this fanspage');
+                    return;
+                }
+                await copyText(token, btn);
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
+        }
+
+        function copyField(inputId, btn) {
+            copyText(document.getElementById(inputId).value, btn);
+        }
+
+        async function copyText(text, btn) {
+            try {
+                await navigator.clipboard.writeText(text);
+            } catch (err) {
+                // Fallback untuk koneksi non-HTTPS di mana Clipboard API tidak tersedia
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                ta.remove();
+            }
+            const original = btn.textContent;
+            btn.textContent = 'Copied!';
+            setTimeout(() => { btn.textContent = original; }, 1500);
         }
 
         // Edit fanspage
@@ -830,6 +921,15 @@
             document.getElementById('editFpName').value = fanspage.name;
             document.getElementById('editFpSchedule').value = (fanspage.schedule_hours || []).join(',');
             document.getElementById('editFpToken').value = ''; // Don't show token
+
+            // Page ID + token saat ini (token lengkap baru diambil saat klik Show/Copy)
+            document.getElementById('editFpPageIdDisplay').value = fanspage.page_id;
+            resetCurrentToken();
+            document.getElementById('editFpCurrentToken').value = fanspage.has_token ? '••••••••••••••••' : '';
+            const createdDate = fanspage.token_created_date ? new Date(fanspage.token_created_date) : null;
+            document.getElementById('editFpTokenInfo').textContent = !fanspage.has_token
+                ? 'No token saved for this fanspage.'
+                : (createdDate && !isNaN(createdDate) ? `Token saved on ${createdDate.toLocaleString()}` : '');
             
             // Populate Multi-Platform fields
             document.getElementById('editFpIgEnabled').checked = fanspage.instagram_config?.enabled || false;

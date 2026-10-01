@@ -747,6 +747,34 @@ def update_fanspage(page_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@bp.route('/api/fanspages/<page_id>/token', methods=['GET'])
+@require_pin
+def get_fanspage_token(page_id):
+    """Kembalikan access token lengkap satu fanspage, hanya saat diminta.
+
+    Sengaja dipisah dari /api/config (yang dipanggil berkala dan tanpa data
+    sensitif) supaya token hanya keluar ketika pemilik menekan "Tampilkan".
+    """
+    try:
+        config = {'fanspages': []}
+        if CONFIG_PATH.exists():
+            with open(CONFIG_PATH, 'r') as f:
+                config = json.load(f)
+
+        page = next((p for p in config.get('fanspages', []) if p.get('page_id') == page_id), None)
+        if not page:
+            return jsonify({'error': 'Fanspage not found'}), 404
+
+        response = jsonify({
+            'page_id': page['page_id'],
+            'access_token': page.get('access_token', ''),
+            'token_created_date': page.get('token_created_date'),
+        })
+        response.headers['Cache-Control'] = 'no-store'
+        return response
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @bp.route('/api/fanspages/<page_id>', methods=['DELETE'])
 @require_pin
 def delete_fanspage(page_id):
